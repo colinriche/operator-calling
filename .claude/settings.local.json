@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx create-next-app@latest:*)",
+      "Bash(cp -r /c/Users/cjric/projects/operator-app/. /c/Users/cjric/projects/operator-calling/)",
+      "Bash(rm -rf /c/Users/cjric/projects/operator-app)",
+      "Bash(cp /c/Users/cjric/projects/operator-app/package.json /c/Users/cjric/projects/operator-calling/)",
+      "Bash(cp /c/Users/cjric/projects/operator-app/tsconfig.json /c/Users/cjric/projects/operator-calling/)",
+      "Bash(cp /c/Users/cjric/projects/operator-app/next.config.ts /c/Users/cjric/projects/operator-calling/)",
+      "Bash(cp /c/Users/cjric/projects/operator-app/next-env.d.ts /c/Users/cjric/projects/operator-calling/)",
+      "Bash(cp /c/Users/cjric/projects/operator-app/eslint.config.mjs /c/Users/cjric/projects/operator-calling/)",
+      "Bash(node -e \"const p=require\\('./package-lock.json'\\); p.name='operator-calling'; p.packages[''].name='operator-calling'; require\\('fs'\\).writeFileSync\\('./package-lock.json', JSON.stringify\\(p, null, 2\\)\\)\")",
+      "Bash(npx shadcn@latest:*)"
+    ]
+  }
+}
