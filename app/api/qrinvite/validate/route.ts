@@ -59,10 +59,37 @@ export async function GET(req: NextRequest): Promise<NextResponse<ValidateRespon
       return NextResponse.json({ valid: false, reason: "used" });
     }
 
+    // Resolve display name — prefer the field on the token doc, fall back to
+    // the user's profile in Firestore, then a safe default.
+    let targetDisplayName: string = data.targetDisplayName ?? "";
+    if (!targetDisplayName && data.targetUserId) {
+      try {
+        const profileSnap = await db.collection("profiles").doc(data.targetUserId).get();
+        if (profileSnap.exists) {
+          targetDisplayName =
+            profileSnap.data()?.displayName ??
+            profileSnap.data()?.name ??
+            "";
+        }
+        if (!targetDisplayName) {
+          const userSnap = await db.collection("users").doc(data.targetUserId).get();
+          if (userSnap.exists) {
+            targetDisplayName =
+              userSnap.data()?.displayName ??
+              userSnap.data()?.name ??
+              "";
+          }
+        }
+      } catch {
+        // Non-fatal — default below handles it
+      }
+    }
+    if (!targetDisplayName) targetDisplayName = "Someone";
+
     const tokenData: QRToken = {
       token,
       targetUserId: data.targetUserId,
-      targetDisplayName: data.targetDisplayName ?? "Someone",
+      targetDisplayName,
       type: data.type ?? "personal",
       groupId: data.groupId,
       groupName: data.groupName,
