@@ -21,7 +21,8 @@ export default async function QRInvitePage({ searchParams }: PageProps) {
   const rawType = params.type?.trim();
 
   // Basic guard: missing or obviously malformed token → redirect home
-  if (!token || token.length < 8 || token.length > 256) {
+  // Upper bound is generous to accommodate JWTs (typically 200–500 chars)
+  if (!token || token.length < 8 || token.length > 2048) {
     redirect("/");
   }
 
