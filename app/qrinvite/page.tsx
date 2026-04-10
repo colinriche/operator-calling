@@ -1,7 +1,6 @@
 export const dynamic = "force-dynamic";
 
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
 import { QRInviteFlow } from "@/components/qrinvite/QRInviteFlow";
 import type { InviteType } from "@/lib/qrinvite";
 
@@ -20,14 +19,17 @@ export default async function QRInvitePage({ searchParams }: PageProps) {
   const token = params.token?.trim();
   const rawType = params.type?.trim();
 
-  // Basic guard: missing or obviously malformed token → redirect home
-  // Upper bound is generous to accommodate JWTs (typically 200–500 chars)
-  if (!token || token.length < 8 || token.length > 2048) {
-    redirect("/");
-  }
-
   const type: InviteType =
     rawType === "group" || rawType === "personal" ? rawType : "personal";
+
+  // Pass invalid state directly to the flow — never silently redirect.
+  // The user scanned a QR code and deserves to know what went wrong.
+  if (!token || token.length < 8) {
+    return <QRInviteFlow token="" type={type} invalidReason="missing" />;
+  }
+  if (token.length > 2048) {
+    return <QRInviteFlow token="" type={type} invalidReason="malformed" />;
+  }
 
   return <QRInviteFlow token={token} type={type} />;
 }

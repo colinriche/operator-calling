@@ -350,10 +350,17 @@ function ErrorScreen({ message }: { message?: string }) {
 interface QRInviteFlowProps {
   token: string;
   type: InviteType;
+  invalidReason?: "missing" | "malformed";
 }
 
-export function QRInviteFlow({ token, type }: QRInviteFlowProps) {
-  const [state, setState] = useState<QRInviteState>({ status: "validating" });
+export function QRInviteFlow({ token, type, invalidReason }: QRInviteFlowProps) {
+  const [state, setState] = useState<QRInviteState>(
+    invalidReason === "missing"
+      ? { status: "error", message: "This invite link is incomplete. Make sure you scanned the full QR code." }
+      : invalidReason === "malformed"
+      ? { status: "error", message: "This invite link doesn't look right. Ask for a new QR code." }
+      : { status: "validating" }
+  );
   const ran = useRef(false);
   const mounted = useRef(true);
 
@@ -364,6 +371,7 @@ export function QRInviteFlow({ token, type }: QRInviteFlowProps) {
 
   useEffect(() => {
     if (ran.current) return;
+    if (invalidReason) return; // already initialised to error state — skip async flow
     ran.current = true;
 
     const platform = detectPlatform();
@@ -463,7 +471,7 @@ export function QRInviteFlow({ token, type }: QRInviteFlowProps) {
         setState({ status: "error" });
       }
     });
-  }, [token, type]);
+  }, [token, type, invalidReason]);
 
   const handlePendingSaved = (platform: Platform) => {
     toast.success("Invite saved — it'll be waiting when you sign up.");
