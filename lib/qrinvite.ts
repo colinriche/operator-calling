@@ -20,6 +20,8 @@ export type QRInviteState =
   | { status: "validating" }
   | { status: "invalid" }
   | { status: "expired" }
+  | { status: "used" }
+  | { status: "network_error" }
   | { status: "trusted"; tokenData: QRToken }
   | { status: "completing" }
   | { status: "success"; targetName: string; type: InviteType }
@@ -96,7 +98,7 @@ export const STORE_URLS = {
 
 export interface ValidateResponse {
   valid: boolean;
-  reason?: "expired" | "invalid" | "used";
+  reason?: "expired" | "invalid" | "used" | "network_error";
   tokenData?: QRToken;
 }
 
@@ -112,12 +114,16 @@ export interface PendingResponse {
 }
 
 export async function validateToken(token: string): Promise<ValidateResponse> {
-  const res = await fetch(`/api/qrinvite/validate?token=${encodeURIComponent(token)}`, {
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
-  });
-  if (!res.ok) return { valid: false, reason: "invalid" };
-  return res.json() as Promise<ValidateResponse>;
+  try {
+    const res = await fetch(`/api/qrinvite/validate?token=${encodeURIComponent(token)}`, {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+    });
+    if (!res.ok) return { valid: false, reason: "invalid" };
+    return res.json() as Promise<ValidateResponse>;
+  } catch {
+    return { valid: false, reason: "network_error" };
+  }
 }
 
 export async function completeInvite(
