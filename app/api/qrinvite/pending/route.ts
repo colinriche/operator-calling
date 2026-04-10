@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { initializeApp, getApps, cert } from "firebase-admin/app";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import type { PendingResponse, Platform } from "@/lib/qrinvite";
+import { resolveTokenDocId } from "@/lib/qrinvite-server";
 
 function getAdminDb() {
   if (!getApps().length) {
@@ -38,8 +39,9 @@ export async function POST(req: NextRequest): Promise<NextResponse<PendingRespon
   try {
     const db = getAdminDb();
 
-    // Verify the QR token exists and is still active before creating a pending record
-    const tokenSnap = await db.collection("qr_tokens").doc(token).get();
+    // JWT tokens store the Firestore doc key in the tokenId payload field
+    const docId = resolveTokenDocId(token);
+    const tokenSnap = await db.collection("qr_tokens").doc(docId).get();
     if (!tokenSnap.exists) {
       return NextResponse.json({ success: false }, { status: 404 });
     }
@@ -58,6 +60,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<PendingRespon
     const pendingRef = db.collection("pending_connections").doc();
     await pendingRef.set({
       token,
+      tokenDocId: docId,
       targetUserId: tokenData.targetUserId,
       type: tokenData.type ?? "personal",
       groupId: tokenData.groupId ?? null,

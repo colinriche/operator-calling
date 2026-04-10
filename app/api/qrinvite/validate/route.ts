@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { initializeApp, getApps, cert } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import type { ValidateResponse, QRToken } from "@/lib/qrinvite";
+import { resolveTokenDocId, getJwtExpiry } from "@/lib/qrinvite-server";
 
 // ─── Firebase Admin init (lazy, singleton) ───────────────────────────────────
 
@@ -23,13 +24,22 @@ function getAdminDb() {
 export async function GET(req: NextRequest): Promise<NextResponse<ValidateResponse>> {
   const token = req.nextUrl.searchParams.get("token");
 
-  if (!token || token.length < 8 || token.length > 256) {
+  if (!token || token.length < 8 || token.length > 2048) {
     return NextResponse.json({ valid: false, reason: "invalid" }, { status: 400 });
   }
 
+  // Quick expiry check from JWT claims before hitting Firestore
+  const jwtExp = getJwtExpiry(token);
+  if (jwtExp !== null && jwtExp < Date.now()) {
+    return NextResponse.json({ valid: false, reason: "expired" });
+  }
+
+  // JWT tokens store the Firestore doc key in the tokenId payload field
+  const docId = resolveTokenDocId(token);
+
   try {
     const db = getAdminDb();
-    const snap = await db.collection("qr_tokens").doc(token).get();
+    const snap = await db.collection("qr_tokens").doc(docId).get();
 
     if (!snap.exists) {
       return NextResponse.json({ valid: false, reason: "invalid" });
@@ -37,7 +47,7 @@ export async function GET(req: NextRequest): Promise<NextResponse<ValidateRespon
 
     const data = snap.data()!;
 
-    // Check expiry
+    // Check expiry (Firestore timestamp is authoritative)
     const expiresAt: Date =
       data.expiresAt?.toDate?.() ?? new Date(data.expiresAt);
     if (expiresAt < new Date()) {

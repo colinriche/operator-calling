@@ -3,6 +3,7 @@ import { initializeApp, getApps, cert } from "firebase-admin/app";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
 import type { CompleteResponse } from "@/lib/qrinvite";
+import { resolveTokenDocId } from "@/lib/qrinvite-server";
 
 function getAdminServices() {
   if (!getApps().length) {
@@ -51,8 +52,9 @@ export async function POST(req: NextRequest): Promise<NextResponse<CompleteRespo
       return NextResponse.json({ success: false, error: "Identity mismatch" }, { status: 403 });
     }
 
-    // Read and validate the QR token
-    const tokenRef = db.collection("qr_tokens").doc(token);
+    // JWT tokens store the Firestore doc key in the tokenId payload field
+    const docId = resolveTokenDocId(token);
+    const tokenRef = db.collection("qr_tokens").doc(docId);
     const tokenSnap = await tokenRef.get();
 
     if (!tokenSnap.exists) {
