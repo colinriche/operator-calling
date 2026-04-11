@@ -37,8 +37,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           ))}
         </nav>
 
-        <div className="p-4 border-t border-border">
-          <Link href="/dashboard" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+        <div className="p-4 border-t border-border space-y-2">
+          <Link href="/admin-login" className="text-xs text-muted-foreground hover:text-foreground transition-colors block">
+            Admin login
+          </Link>
+          <Link href="/dashboard" className="text-xs text-muted-foreground hover:text-foreground transition-colors block">
             ← Back to dashboard
           </Link>
         </div>
