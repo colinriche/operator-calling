@@ -1,6 +1,6 @@
 // ─── Role System ─────────────────────────────────────────────────────────────
 
-export type UserRole = "user" | "admin" | "group_admin" | "super_admin";
+export type UserRole = "user" | "admin";
 
 // ─── User & Profile ───────────────────────────────────────────────────────────
 
