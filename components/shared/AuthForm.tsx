@@ -203,6 +203,13 @@ export function AuthForm({ mode }: AuthFormProps) {
           <>Already have an account?{" "}<Link href="/login" className="text-primary hover:underline font-medium">Sign in</Link></>
         )}
       </p>
+      {mode === "login" && (
+        <p className="text-center mt-3">
+          <Link href="/admin-login" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+            Admin access
+          </Link>
+        </p>
+      )}
     </div>
   );
 }
