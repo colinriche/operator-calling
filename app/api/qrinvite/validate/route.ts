@@ -8,7 +8,6 @@ import { resolveTokenDocId, getJwtExpiry } from "@/lib/qrinvite-server";
 
 function getAdminDb() {
   if (!getApps().length) {
-    console.log("[qrinvite/validate] init — projectId:", process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID, "clientEmail:", process.env.FIREBASE_CLIENT_EMAIL, "privateKey set:", !!process.env.FIREBASE_PRIVATE_KEY);
     initializeApp({
       credential: cert({
         projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
