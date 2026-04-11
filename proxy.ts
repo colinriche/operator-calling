@@ -8,7 +8,7 @@ export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const sessionCookie = request.cookies.get("__session")?.value;
 
-  const isProtected = protectedPrefixes.some((p) => pathname.startsWith(p));
+  const isProtected = protectedPrefixes.some((p) => pathname === p || pathname.startsWith(p + "/"));
   const isAuthPage = authPages.some((p) => pathname.startsWith(p));
 
   if (isProtected && !sessionCookie) {
