@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
     const userDoc = snap.docs[0];
     const data = userDoc.data();
 
-    if (data.role !== "group_admin" && data.role !== "super_admin") {
+    if (data.role !== "admin") {
       return NextResponse.json({ error: "No admin account found for that username" }, { status: 403 });
     }
 
