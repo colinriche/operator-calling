@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
 
     // Try username → name → email in order
     console.log(`[admin/token] project=${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID} searching for "${username}"`);
-    const col = db.collection("users");
+    const col = db.collection("user");
     let snap = await col.where("username", "==", username).limit(1).get();
     console.log(`[admin/token] by username: ${snap.size}`);
     if (snap.empty) snap = await col.where("name", "==", username).limit(1).get();

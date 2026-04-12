@@ -64,7 +64,7 @@ export async function GET(req: NextRequest): Promise<NextResponse<ValidateRespon
     let targetDisplayName: string = data.targetDisplayName ?? "";
     if (!targetDisplayName && data.targetUserId) {
       try {
-        const profileSnap = await db.collection("profiles").doc(data.targetUserId).get();
+        const profileSnap = await db.collection("user").doc(data.targetUserId).get();
         if (profileSnap.exists) {
           targetDisplayName =
             profileSnap.data()?.displayName ??
@@ -72,7 +72,7 @@ export async function GET(req: NextRequest): Promise<NextResponse<ValidateRespon
             "";
         }
         if (!targetDisplayName) {
-          const userSnap = await db.collection("users").doc(data.targetUserId).get();
+          const userSnap = await db.collection("user").doc(data.targetUserId).get();
           if (userSnap.exists) {
             targetDisplayName =
               userSnap.data()?.displayName ??
