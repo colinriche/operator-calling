@@ -35,7 +35,7 @@ export function Navbar() {
           {!loading && user && (
             <div className="hidden sm:flex flex-col leading-tight border-l border-border pl-2.5 ml-0.5">
               <span className="text-xs font-semibold text-foreground">
-                {profile?.name ?? profile?.displayName ?? user.displayName ?? user.email}
+                {profile?.displayName ?? user.displayName ?? user.email}
               </span>
               <span className="text-[10px] text-muted-foreground capitalize">
                 {profile?.role ?? "user"}
