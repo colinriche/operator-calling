@@ -41,38 +41,49 @@ export function AuthForm({ mode }: AuthFormProps) {
         document.cookie = `__session=${idToken}; path=/; SameSite=Lax; max-age=3600`;
       } else {
         const cred = await createUserWithEmailAndPassword(auth, email, password);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const profile: Record<string, any> = {
-          uid: cred.user.uid,
-          email,
-          displayName: name,
-          role: "user",
-          createdAt: new Date(),
-          updatedAt: serverTimestamp(),
-          callPreferences: {
-            availableHours: { start: "09:00", end: "22:00" },
-            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-            allowUnknownCalls: false,
-          },
-          privacy: {
-            showOnlineStatus: true,
-            allowGroupDiscovery: true,
-            blockedUsers: [],
-          },
-          interests: [],
-          completeness: 20,
-          notifications: {
-            email: true,
-            push: true,
-            upcomingCallReminder: true,
-          },
-        };
-        await setDoc(doc(db, "users", cred.user.uid), profile);
+        const idToken = await getIdToken(cred.user);
+        document.cookie = `__session=${idToken}; path=/; SameSite=Lax; max-age=3600`;
+        // Profile write is non-fatal — user is already authenticated if this fails
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const profile: Record<string, any> = {
+            uid: cred.user.uid,
+            email,
+            displayName: name,
+            name,
+            role: "user",
+            createdAt: new Date(),
+            updatedAt: serverTimestamp(),
+            callPreferences: {
+              availableHours: { start: "09:00", end: "22:00" },
+              timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+              allowUnknownCalls: false,
+            },
+            privacy: {
+              showOnlineStatus: true,
+              allowGroupDiscovery: true,
+              blockedUsers: [],
+            },
+            interests: [],
+            completeness: 20,
+            notifications: {
+              email: true,
+              push: true,
+              upcomingCallReminder: true,
+            },
+          };
+          await setDoc(doc(db, "user", cred.user.uid), profile);
+        } catch (profileErr) {
+          console.warn("Profile write failed (non-fatal):", profileErr);
+        }
       }
       router.push("/dashboard");
     } catch (err: unknown) {
+      console.error("Auth error:", err);
       const msg = err instanceof Error ? err.message : "Something went wrong";
-      setError(msg.replace("Firebase: ", "").replace(/\(auth\/.*?\)/, "").trim());
+      // Strip Firebase boilerplate but keep the human-readable part
+      const clean = msg.replace(/^Firebase:\s*/i, "").replace(/\s*\(auth\/[^)]+\)\.?$/, "").trim();
+      setError(clean || "Sign up failed — please try again.");
     } finally {
       setLoading(false);
     }
@@ -86,24 +97,29 @@ export function AuthForm({ mode }: AuthFormProps) {
       const cred = await signInWithPopup(auth, provider);
       const idToken = await getIdToken(cred.user);
       document.cookie = `__session=${idToken}; path=/; SameSite=Lax; max-age=3600`;
-      // Create profile if new user
-      const userRef = doc(db, "users", cred.user.uid);
-      await setDoc(
-        userRef,
-        {
-          uid: cred.user.uid,
-          email: cred.user.email,
-          displayName: cred.user.displayName,
-          photoURL: cred.user.photoURL,
-          role: "user",
-          updatedAt: serverTimestamp(),
-        },
-        { merge: true }
-      );
+      try {
+        await setDoc(
+          doc(db, "user", cred.user.uid),
+          {
+            uid: cred.user.uid,
+            email: cred.user.email,
+            displayName: cred.user.displayName,
+            name: cred.user.displayName,
+            photoURL: cred.user.photoURL,
+            role: "user",
+            updatedAt: serverTimestamp(),
+          },
+          { merge: true }
+        );
+      } catch (profileErr) {
+        console.warn("Google profile write failed (non-fatal):", profileErr);
+      }
       router.push("/dashboard");
     } catch (err: unknown) {
+      console.error("Google auth error:", err);
       const msg = err instanceof Error ? err.message : "Google sign-in failed";
-      setError(msg.replace("Firebase: ", "").replace(/\(auth\/.*?\)/, "").trim());
+      const clean = msg.replace(/^Firebase:\s*/i, "").replace(/\s*\(auth\/[^)]+\)\.?$/, "").trim();
+      setError(clean || "Google sign-in failed — please try again.");
     } finally {
       setLoading(false);
     }
