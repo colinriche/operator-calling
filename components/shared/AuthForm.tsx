@@ -8,6 +8,7 @@ import {
   createUserWithEmailAndPassword,
   GoogleAuthProvider,
   signInWithPopup,
+  getIdToken,
 } from "firebase/auth";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
@@ -35,7 +36,9 @@ export function AuthForm({ mode }: AuthFormProps) {
 
     try {
       if (mode === "login") {
-        await signInWithEmailAndPassword(auth, email, password);
+        const cred = await signInWithEmailAndPassword(auth, email, password);
+        const idToken = await getIdToken(cred.user);
+        document.cookie = `__session=${idToken}; path=/; SameSite=Lax; max-age=3600`;
       } else {
         const cred = await createUserWithEmailAndPassword(auth, email, password);
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -81,6 +84,8 @@ export function AuthForm({ mode }: AuthFormProps) {
     try {
       const provider = new GoogleAuthProvider();
       const cred = await signInWithPopup(auth, provider);
+      const idToken = await getIdToken(cred.user);
+      document.cookie = `__session=${idToken}; path=/; SameSite=Lax; max-age=3600`;
       // Create profile if new user
       const userRef = doc(db, "users", cred.user.uid);
       await setDoc(

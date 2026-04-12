@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { signInWithCustomToken } from "firebase/auth";
+import { signInWithCustomToken, getIdToken } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,7 +34,9 @@ export function AdminLoginForm() {
         return;
       }
 
-      await signInWithCustomToken(auth, data.token);
+      const cred = await signInWithCustomToken(auth, data.token);
+      const idToken = await getIdToken(cred.user);
+      document.cookie = `__session=${idToken}; path=/; SameSite=Lax; max-age=3600`;
       router.push("/admin");
     } catch {
       setError("Something went wrong — please try again.");
