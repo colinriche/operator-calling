@@ -24,13 +24,25 @@ export function Navbar() {
   return (
     <header className="sticky top-0 z-50 glass border-b border-border/50">
       <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-        {/* Logo */}
-        <Link href="/" className="flex items-center gap-2 font-heading font-bold text-xl text-foreground">
-          <span className="w-8 h-8 rounded-full gradient-gold flex items-center justify-center">
-            <Phone className="w-4 h-4 text-primary-foreground" />
-          </span>
-          The Operator
-        </Link>
+        {/* Logo + user info */}
+        <div className="flex items-center gap-2.5">
+          <Link href="/" className="flex items-center gap-2 font-heading font-bold text-xl text-foreground shrink-0">
+            <span className="w-8 h-8 rounded-full gradient-gold flex items-center justify-center">
+              <Phone className="w-4 h-4 text-primary-foreground" />
+            </span>
+            The Operator
+          </Link>
+          {!loading && user && (
+            <div className="hidden sm:flex flex-col leading-tight border-l border-border pl-2.5 ml-0.5">
+              <span className="text-xs font-semibold text-foreground">
+                {profile?.name ?? profile?.displayName ?? user.displayName ?? user.email}
+              </span>
+              <span className="text-[10px] text-muted-foreground capitalize">
+                {profile?.role ?? "user"}
+              </span>
+            </div>
+          )}
+        </div>
 
         {/* Desktop links */}
         <ul className="hidden md:flex items-center gap-6">

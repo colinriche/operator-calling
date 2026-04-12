@@ -22,7 +22,7 @@ export function useAuth(): AuthState {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        const snap = await getDoc(doc(db, "users", user.uid));
+        const snap = await getDoc(doc(db, "user", user.uid));
         const profile = snap.exists() ? (snap.data() as UserProfile) : null;
         setState({ user, profile, loading: false });
       } else {
