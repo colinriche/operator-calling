@@ -52,9 +52,21 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </div>
       </aside>
 
-      <main className="flex-1 p-6 lg:p-8 overflow-auto">
-        {children}
-      </main>
+      <div className="flex-1 flex flex-col">
+        {/* Mobile top bar */}
+        <div className="md:hidden flex items-center justify-between px-4 py-3 border-b border-border bg-card">
+          <Link href="/" className="flex items-center gap-2 font-heading font-bold text-sm text-foreground">
+            <span className="w-6 h-6 rounded-full gradient-gold flex items-center justify-center">
+              <Phone className="w-3 h-3 text-primary-foreground" />
+            </span>
+            Admin
+          </Link>
+          <ThemeToggle />
+        </div>
+        <main className="flex-1 p-4 md:p-6 lg:p-8 overflow-auto">
+          {children}
+        </main>
+      </div>
     </div>
   );
 }
