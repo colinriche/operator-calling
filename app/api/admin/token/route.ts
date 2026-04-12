@@ -41,22 +41,11 @@ export async function POST(req: NextRequest) {
   try {
     const { db, adminAuth } = getAdminServices();
 
-    // Look up by displayName first, fall back to email prefix match
-    const byName = await db
-      .collection("users")
-      .where("displayName", "==", username)
-      .limit(1)
-      .get();
-
-    const byEmail = byName.empty
-      ? await db
-          .collection("users")
-          .where("email", "==", username)
-          .limit(1)
-          .get()
-      : null;
-
-    const snap = byName.empty ? byEmail : byName;
+    // Try username → name → email in order
+    const col = db.collection("users");
+    let snap = await col.where("username", "==", username).limit(1).get();
+    if (snap.empty) snap = await col.where("name", "==", username).limit(1).get();
+    if (snap.empty) snap = await col.where("email", "==", username).limit(1).get();
 
     if (!snap || snap.empty) {
       // Deliberately vague — don't reveal whether user exists
