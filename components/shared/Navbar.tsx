@@ -19,7 +19,7 @@ const navLinks = [
 
 export function Navbar() {
   const [open, setOpen] = useState(false);
-  const { user, loading } = useAuth();
+  const { user, profile, loading } = useAuth();
 
   return (
     <header className="sticky top-0 z-50 glass border-b border-border/50">
