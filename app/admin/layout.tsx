@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Phone, LayoutDashboard, Users, Calendar, Settings, Shield, BarChart3 } from "lucide-react";
+import { ThemeToggle } from "@/components/shared/ThemeToggle";
 
 const adminNav = [
   { href: "/admin", icon: LayoutDashboard, label: "Overview" },
@@ -38,6 +39,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </nav>
 
         <div className="p-4 border-t border-border space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-muted-foreground">Theme</span>
+            <ThemeToggle />
+          </div>
           <Link href="/admin-login" className="text-xs text-muted-foreground hover:text-foreground transition-colors block">
             Admin login
           </Link>

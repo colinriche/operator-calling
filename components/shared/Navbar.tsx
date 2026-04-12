@@ -7,6 +7,7 @@ import { Menu, X, Phone } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
+import { ThemeToggle } from "@/components/shared/ThemeToggle";
 
 const navLinks = [
   { href: "/how-it-works", label: "How it works" },
@@ -47,6 +48,7 @@ export function Navbar() {
 
         {/* Desktop CTA */}
         <div className="hidden md:flex items-center gap-3">
+          <ThemeToggle />
           {!loading && (
             <>
               {user ? (
@@ -68,6 +70,8 @@ export function Navbar() {
         </div>
 
         {/* Mobile toggle */}
+        <div className="md:hidden flex items-center gap-1">
+          <ThemeToggle />
         <button
           className="md:hidden p-2 rounded-lg hover:bg-muted transition-colors"
           onClick={() => setOpen((v) => !v)}
@@ -75,6 +79,7 @@ export function Navbar() {
         >
           {open ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
         </button>
+        </div>
       </nav>
 
       {/* Mobile menu */}
