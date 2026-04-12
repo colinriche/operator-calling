@@ -29,7 +29,7 @@ const stats = [
   { icon: CheckCircle2, label: "Connection rate", value: "84%" },
 ];
 
-export function GroupAdminDashboard() {
+export function GroupAdminDashboard({ defaultTab = "members" }: { defaultTab?: string }) {
   const [inviteEmail, setInviteEmail] = useState("");
   const [allowWeekends, setAllowWeekends] = useState(true);
   const [callWindowStart, setCallWindowStart] = useState("07:00");
@@ -63,7 +63,7 @@ export function GroupAdminDashboard() {
         ))}
       </div>
 
-      <Tabs defaultValue="members">
+      <Tabs defaultValue={defaultTab}>
         <TabsList className="grid grid-cols-4 w-full mb-6">
           <TabsTrigger value="members" className="gap-1.5 text-xs"><Users className="w-3.5 h-3.5" />Members</TabsTrigger>
           <TabsTrigger value="schedule" className="gap-1.5 text-xs"><Calendar className="w-3.5 h-3.5" />Schedule</TabsTrigger>
