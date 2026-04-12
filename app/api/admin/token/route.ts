@@ -44,8 +44,11 @@ export async function POST(req: NextRequest) {
     // Try username → name → email in order
     const col = db.collection("users");
     let snap = await col.where("username", "==", username).limit(1).get();
+    console.log(`[admin/token] username query: ${snap.size} results (project: ${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID})`);
     if (snap.empty) snap = await col.where("name", "==", username).limit(1).get();
+    console.log(`[admin/token] name query: ${snap.size} results`);
     if (snap.empty) snap = await col.where("email", "==", username).limit(1).get();
+    console.log(`[admin/token] email query: ${snap.size} results`);
 
     if (!snap || snap.empty) {
       // Deliberately vague — don't reveal whether user exists
