@@ -1,13 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   GoogleAuthProvider,
-  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   getIdToken,
 } from "firebase/auth";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
@@ -15,25 +16,111 @@ import { auth, db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import type { UserProfile } from "@/types";
 
 interface AuthFormProps {
   mode: "login" | "signup";
+}
+
+function firebaseErrorMessage(err: unknown): string {
+  const code = (err as { code?: string }).code ?? "";
+  const raw = err instanceof Error ? err.message : "";
+
+  const known: Record<string, string> = {
+    "auth/email-already-in-use": "That email is already registered — try signing in instead.",
+    "auth/invalid-email": "That doesn't look like a valid email address.",
+    "auth/weak-password": "Password is too weak — try something longer.",
+    "auth/wrong-password": "Incorrect password.",
+    "auth/invalid-credential": "Incorrect email or password.",
+    "auth/user-not-found": "No account found with that email.",
+    "auth/too-many-requests": "Too many attempts — wait a moment before trying again.",
+    "auth/popup-closed-by-user": "Sign-in was cancelled.",
+    "auth/cancelled-popup-request": "Sign-in was cancelled.",
+    "auth/unauthorized-domain":
+      "This domain isn't authorised for sign-in. Add it to Firebase Console → Authentication → Authorized domains.",
+    "auth/network-request-failed": "Network error — check your connection and try again.",
+    "auth/operation-not-allowed": "This sign-in method isn't enabled. Contact support.",
+    "auth/user-disabled": "This account has been disabled.",
+    "permission-denied": "Firestore permission denied — security rules are blocking the request.",
+  };
+
+  if (code && known[code]) return `${known[code]} [${code}]`;
+
+  // Strip Firebase boilerplate, keep the human-readable part
+  const clean = raw.replace(/^Firebase:\s*/i, "").replace(/\s*\(auth\/[^)]+\)\.?$/, "").trim();
+  if (clean && clean !== "Error") return code ? `${clean} [${code}]` : clean;
+
+  return code ? `Something went wrong. [${code}]` : "Something went wrong — please try again.";
+}
+
+async function writeGoogleProfile(uid: string, displayName: string | null, email: string | null, photoURL: string | null) {
+  try {
+    await setDoc(
+      doc(db, "user", uid),
+      {
+        uid,
+        email,
+        displayName,
+        name: displayName,
+        photoURL,
+        role: "user",
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true }
+    );
+  } catch (err) {
+    console.warn("Google profile write failed (non-fatal):", err);
+  }
 }
 
 export function AuthForm({ mode }: AuthFormProps) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [checkingRedirect, setCheckingRedirect] = useState(true);
+
+  // Handle the return trip from signInWithRedirect
+  useEffect(() => {
+    getRedirectResult(auth)
+      .then(async (result) => {
+        if (!result) return; // Normal page load, no redirect pending
+        setLoading(true);
+        try {
+          const idToken = await getIdToken(result.user);
+          document.cookie = `__session=${idToken}; path=/; SameSite=Lax; max-age=3600`;
+          await writeGoogleProfile(
+            result.user.uid,
+            result.user.displayName,
+            result.user.email,
+            result.user.photoURL
+          );
+          router.push("/dashboard");
+        } catch (err) {
+          console.error("Post-redirect error:", err, "| code:", (err as { code?: string }).code);
+          setError(firebaseErrorMessage(err));
+          setLoading(false);
+        }
+      })
+      .catch((err) => {
+        console.error("getRedirectResult error:", err, "| code:", (err as { code?: string }).code);
+        setError(firebaseErrorMessage(err));
+      })
+      .finally(() => setCheckingRedirect(false));
+  }, [router]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
-    setLoading(true);
 
+    if (mode === "signup" && password !== confirmPassword) {
+      setError("Passwords don't match.");
+      return;
+    }
+
+    setLoading(true);
     try {
       if (mode === "login") {
         const cred = await signInWithEmailAndPassword(auth, email, password);
@@ -43,10 +130,9 @@ export function AuthForm({ mode }: AuthFormProps) {
         const cred = await createUserWithEmailAndPassword(auth, email, password);
         const idToken = await getIdToken(cred.user);
         document.cookie = `__session=${idToken}; path=/; SameSite=Lax; max-age=3600`;
-        // Profile write is non-fatal — user is already authenticated if this fails
+        // Non-fatal — user is already authenticated if this fails
         try {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const profile: Record<string, any> = {
+          await setDoc(doc(db, "user", cred.user.uid), {
             uid: cred.user.uid,
             email,
             displayName: name,
@@ -71,19 +157,15 @@ export function AuthForm({ mode }: AuthFormProps) {
               push: true,
               upcomingCallReminder: true,
             },
-          };
-          await setDoc(doc(db, "user", cred.user.uid), profile);
+          });
         } catch (profileErr) {
-          console.warn("Profile write failed (non-fatal):", profileErr);
+          console.warn("Profile write failed (non-fatal):", profileErr, "| code:", (profileErr as { code?: string }).code);
         }
       }
       router.push("/dashboard");
     } catch (err: unknown) {
-      console.error("Auth error:", err);
-      const msg = err instanceof Error ? err.message : "Something went wrong";
-      // Strip Firebase boilerplate but keep the human-readable part
-      const clean = msg.replace(/^Firebase:\s*/i, "").replace(/\s*\(auth\/[^)]+\)\.?$/, "").trim();
-      setError(clean || "Sign up failed — please try again.");
+      console.error("Auth error:", err, "| code:", (err as { code?: string }).code);
+      setError(firebaseErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -94,36 +176,16 @@ export function AuthForm({ mode }: AuthFormProps) {
     setLoading(true);
     try {
       const provider = new GoogleAuthProvider();
-      const cred = await signInWithPopup(auth, provider);
-      const idToken = await getIdToken(cred.user);
-      document.cookie = `__session=${idToken}; path=/; SameSite=Lax; max-age=3600`;
-      try {
-        await setDoc(
-          doc(db, "user", cred.user.uid),
-          {
-            uid: cred.user.uid,
-            email: cred.user.email,
-            displayName: cred.user.displayName,
-            name: cred.user.displayName,
-            photoURL: cred.user.photoURL,
-            role: "user",
-            updatedAt: serverTimestamp(),
-          },
-          { merge: true }
-        );
-      } catch (profileErr) {
-        console.warn("Google profile write failed (non-fatal):", profileErr);
-      }
-      router.push("/dashboard");
+      await signInWithRedirect(auth, provider);
+      // Browser navigates away — nothing below this runs
     } catch (err: unknown) {
-      console.error("Google auth error:", err);
-      const msg = err instanceof Error ? err.message : "Google sign-in failed";
-      const clean = msg.replace(/^Firebase:\s*/i, "").replace(/\s*\(auth\/[^)]+\)\.?$/, "").trim();
-      setError(clean || "Google sign-in failed — please try again.");
-    } finally {
+      console.error("Google redirect error:", err, "| code:", (err as { code?: string }).code);
+      setError(firebaseErrorMessage(err));
       setLoading(false);
     }
   }
+
+  const busy = loading || checkingRedirect;
 
   return (
     <div className="bg-card rounded-2xl p-8 border border-border/60 shadow-xl shadow-foreground/5">
@@ -142,7 +204,7 @@ export function AuthForm({ mode }: AuthFormProps) {
         variant="outline"
         className="w-full mb-4 font-medium"
         onClick={handleGoogle}
-        disabled={loading}
+        disabled={busy}
       >
         <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24">
           <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -150,7 +212,7 @@ export function AuthForm({ mode }: AuthFormProps) {
           <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
           <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
         </svg>
-        Continue with Google
+        {checkingRedirect ? "Checking..." : "Continue with Google"}
       </Button>
 
       <div className="flex items-center gap-3 mb-4">
@@ -204,16 +266,35 @@ export function AuthForm({ mode }: AuthFormProps) {
           />
         </div>
 
+        {mode === "signup" && (
+          <div>
+            <Label htmlFor="confirmPassword" className="text-sm font-medium mb-1.5 block">
+              Confirm password
+            </Label>
+            <Input
+              id="confirmPassword"
+              type="password"
+              placeholder="••••••••"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              required
+              minLength={8}
+            />
+          </div>
+        )}
+
         {error && (
-          <p className="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-lg">{error}</p>
+          <p className="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-lg break-words">
+            {error}
+          </p>
         )}
 
         <Button
           type="submit"
           className="w-full gradient-gold border-0 text-primary-foreground font-semibold"
-          disabled={loading}
+          disabled={busy}
         >
-          {loading ? "Loading..." : mode === "login" ? "Sign in" : "Create account"}
+          {busy ? "Loading..." : mode === "login" ? "Sign in" : "Create account"}
         </Button>
       </form>
 
