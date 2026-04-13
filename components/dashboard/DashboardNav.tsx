@@ -32,7 +32,7 @@ export function DashboardNav() {
   return (
     <aside className="hidden md:flex flex-col w-60 shrink-0 border-r border-border bg-card min-h-screen sticky top-0 h-screen">
       <div className="p-5 border-b border-border">
-        <Link href="/" className="flex items-center gap-2 font-heading font-bold text-base text-foreground">
+        <Link href="/dashboard" className="flex items-center gap-2 font-heading font-bold text-base text-foreground">
           <span className="w-7 h-7 rounded-full gradient-gold flex items-center justify-center">
             <Phone className="w-3.5 h-3.5 text-primary-foreground" />
           </span>
