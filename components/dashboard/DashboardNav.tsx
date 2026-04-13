@@ -7,6 +7,7 @@ import { auth } from "@/lib/firebase";
 import { Phone, LayoutDashboard, User, Users, Bell, Settings, LogOut, Calendar, PhoneCall } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/hooks/useAuth";
 
 const navItems = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Overview" },
@@ -21,6 +22,7 @@ const navItems = [
 export function DashboardNav() {
   const pathname = usePathname();
   const router = useRouter();
+  const { user, profile, loading } = useAuth();
 
   async function handleSignOut() {
     await signOut(auth);
@@ -36,6 +38,16 @@ export function DashboardNav() {
           </span>
           The Operator
         </Link>
+        {!loading && user && (
+          <div className="mt-3 pt-3 border-t border-border/60">
+            <p className="text-sm font-semibold text-foreground truncate">
+              {profile?.displayName ?? user.displayName ?? user.email}
+            </p>
+            <p className="text-xs text-muted-foreground capitalize mt-0.5">
+              {profile?.role ?? "user"}
+            </p>
+          </div>
+        )}
       </div>
 
       <nav className="flex-1 p-4 space-y-0.5">
