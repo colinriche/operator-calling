@@ -11,7 +11,7 @@ import {
   getRedirectResult,
   getIdToken,
 } from "firebase/auth";
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -82,6 +82,50 @@ export function AuthForm({ mode }: AuthFormProps) {
   const [loading, setLoading] = useState(false);
   const [checkingRedirect, setCheckingRedirect] = useState(true);
 
+  // Phone prompt step
+  const [step, setStep] = useState<"auth" | "phone_prompt">("auth");
+  const [signedInUid, setSignedInUid] = useState<string | null>(null);
+  const [phoneInput, setPhoneInput] = useState("");
+  const [phoneError, setPhoneError] = useState("");
+  const [phoneSaving, setPhoneSaving] = useState(false);
+
+  // After any successful sign-in: check if phone is set; if not, prompt for it.
+  async function handlePostSignIn(uid: string) {
+    const snap = await getDoc(doc(db, "user", uid));
+    const phone = snap.exists() ? (snap.data().phoneNumber as string | undefined) : undefined;
+    if (!phone) {
+      setSignedInUid(uid);
+      setStep("phone_prompt");
+      setLoading(false);
+    } else {
+      router.push("/dashboard");
+    }
+  }
+
+  async function handleSavePhone(e: React.FormEvent) {
+    e.preventDefault();
+    setPhoneError("");
+    const cleaned = phoneInput.trim();
+    if (!cleaned.startsWith("+") || cleaned.length < 10) {
+      setPhoneError("Enter a valid phone number with country code, e.g. +447911123456");
+      return;
+    }
+    if (!signedInUid) return;
+    setPhoneSaving(true);
+    try {
+      await updateDoc(doc(db, "user", signedInUid), {
+        phoneNumber: cleaned,
+        updatedAt: serverTimestamp(),
+      });
+      router.push("/dashboard");
+    } catch (err) {
+      setPhoneError("Failed to save phone number — please try again.");
+      console.error(err);
+    } finally {
+      setPhoneSaving(false);
+    }
+  }
+
   // Handle the return trip from signInWithRedirect
   useEffect(() => {
     getRedirectResult(auth)
@@ -97,7 +141,7 @@ export function AuthForm({ mode }: AuthFormProps) {
             result.user.email,
             result.user.photoURL
           );
-          router.push("/dashboard");
+          await handlePostSignIn(result.user.uid);
         } catch (err) {
           console.error("Post-redirect error:", err, "| code:", (err as { code?: string }).code);
           setError(firebaseErrorMessage(err));
@@ -109,6 +153,7 @@ export function AuthForm({ mode }: AuthFormProps) {
         setError(firebaseErrorMessage(err));
       })
       .finally(() => setCheckingRedirect(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router]);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -122,14 +167,17 @@ export function AuthForm({ mode }: AuthFormProps) {
 
     setLoading(true);
     try {
+      let uid: string;
       if (mode === "login") {
         const cred = await signInWithEmailAndPassword(auth, email, password);
         const idToken = await getIdToken(cred.user);
         document.cookie = `__session=${idToken}; path=/; SameSite=Lax; max-age=3600`;
+        uid = cred.user.uid;
       } else {
         const cred = await createUserWithEmailAndPassword(auth, email, password);
         const idToken = await getIdToken(cred.user);
         document.cookie = `__session=${idToken}; path=/; SameSite=Lax; max-age=3600`;
+        uid = cred.user.uid;
         // Non-fatal — user is already authenticated if this fails
         try {
           await setDoc(doc(db, "user", cred.user.uid), {
@@ -162,7 +210,7 @@ export function AuthForm({ mode }: AuthFormProps) {
           console.warn("Profile write failed (non-fatal):", profileErr, "| code:", (profileErr as { code?: string }).code);
         }
       }
-      router.push("/dashboard");
+      await handlePostSignIn(uid);
     } catch (err: unknown) {
       console.error("Auth error:", err, "| code:", (err as { code?: string }).code);
       setError(firebaseErrorMessage(err));
@@ -186,6 +234,57 @@ export function AuthForm({ mode }: AuthFormProps) {
   }
 
   const busy = loading || checkingRedirect;
+
+  // ── Phone prompt step ──────────────────────────────────────────────────────
+  if (step === "phone_prompt") {
+    return (
+      <div className="bg-card rounded-2xl p-8 border border-border/60 shadow-xl shadow-foreground/5">
+        <h1 className="font-heading font-bold text-2xl text-foreground mb-1">
+          Add your phone number
+        </h1>
+        <p className="text-sm text-muted-foreground mb-6">
+          Your phone number links your web account to the Operator mobile app.
+          You can skip this and add it later in your profile.
+        </p>
+        <form onSubmit={handleSavePhone} className="space-y-4">
+          <div>
+            <Label htmlFor="phone" className="text-sm font-medium mb-1.5 block">
+              Phone number
+            </Label>
+            <Input
+              id="phone"
+              type="tel"
+              placeholder="+447911123456"
+              value={phoneInput}
+              onChange={(e) => setPhoneInput(e.target.value)}
+              autoFocus
+            />
+          </div>
+          {phoneError && (
+            <p className="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-lg">
+              {phoneError}
+            </p>
+          )}
+          <Button
+            type="submit"
+            className="w-full gradient-gold border-0 text-primary-foreground font-semibold"
+            disabled={phoneSaving}
+          >
+            {phoneSaving ? "Saving..." : "Save and continue"}
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            className="w-full"
+            disabled={phoneSaving}
+            onClick={() => router.push("/dashboard")}
+          >
+            Skip for now
+          </Button>
+        </form>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-card rounded-2xl p-8 border border-border/60 shadow-xl shadow-foreground/5">

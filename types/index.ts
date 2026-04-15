@@ -9,7 +9,12 @@ export interface UserProfile {
   email: string;
   displayName: string;
   photoURL?: string;
+  phoneNumber?: string;
   role: UserRole;
+  /** Set by the mobile app at registration — presence means account is linked */
+  systemName?: string;
+  /** Populated when a web-first user links by entering their system name */
+  linkedSystemName?: string;
   createdAt: Date;
   updatedAt: Date;
 

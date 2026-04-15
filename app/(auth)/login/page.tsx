@@ -1,10 +1,10 @@
 export const dynamic = "force-dynamic";
 
 import type { Metadata } from "next";
-import { AuthForm } from "@/components/shared/AuthForm";
+import { LoginTabs } from "@/components/auth/LoginTabs";
 
 export const metadata: Metadata = { title: "Sign in" };
 
 export default function LoginPage() {
-  return <AuthForm mode="login" />;
+  return <LoginTabs />;
 }

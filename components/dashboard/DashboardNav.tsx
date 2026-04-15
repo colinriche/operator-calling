@@ -4,25 +4,25 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase";
-import { Phone, LayoutDashboard, User, Users, Bell, Settings, LogOut, Calendar, PhoneCall } from "lucide-react";
+import { Phone, LayoutDashboard, User, Users, Bell, Settings, LogOut, Calendar, PhoneCall, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 
 const navItems = [
-  { href: "/dashboard", icon: LayoutDashboard, label: "Overview" },
-  { href: "/dashboard/calls", icon: PhoneCall, label: "Calls" },
-  { href: "/dashboard/schedule", icon: Calendar, label: "Schedule" },
-  { href: "/dashboard/groups", icon: Users, label: "Groups" },
-  { href: "/dashboard/notifications", icon: Bell, label: "Notifications" },
-  { href: "/dashboard/profile", icon: User, label: "Profile" },
-  { href: "/dashboard/settings", icon: Settings, label: "Settings" },
+  { href: "/dashboard", icon: LayoutDashboard, label: "Overview", gated: false },
+  { href: "/dashboard/calls", icon: PhoneCall, label: "Calls", gated: true },
+  { href: "/dashboard/schedule", icon: Calendar, label: "Schedule", gated: true },
+  { href: "/dashboard/groups", icon: Users, label: "Groups", gated: true },
+  { href: "/dashboard/notifications", icon: Bell, label: "Notifications", gated: false },
+  { href: "/dashboard/profile", icon: User, label: "Profile", gated: false },
+  { href: "/dashboard/settings", icon: Settings, label: "Settings", gated: false },
 ];
 
 export function DashboardNav() {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, profile, loading } = useAuth();
+  const { user, profile, loading, isLinked } = useAuth();
 
   async function handleSignOut() {
     await signOut(auth);
@@ -51,21 +51,37 @@ export function DashboardNav() {
       </div>
 
       <nav className="flex-1 p-4 space-y-0.5">
-        {navItems.map(({ href, icon: Icon, label }) => (
-          <Link
-            key={href}
-            href={href}
-            className={cn(
-              "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors",
-              pathname === href
-                ? "bg-primary/10 text-primary"
-                : "text-muted-foreground hover:text-foreground hover:bg-muted"
-            )}
-          >
-            <Icon className="w-4 h-4 shrink-0" />
-            {label}
-          </Link>
-        ))}
+        {navItems.map(({ href, icon: Icon, label, gated }) => {
+          const locked = gated && !isLinked;
+          if (locked) {
+            return (
+              <div
+                key={href}
+                title="Link your app account to access this"
+                className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-muted-foreground/40 cursor-not-allowed select-none"
+              >
+                <Icon className="w-4 h-4 shrink-0" />
+                {label}
+                <Lock className="w-3 h-3 ml-auto shrink-0" />
+              </div>
+            );
+          }
+          return (
+            <Link
+              key={href}
+              href={href}
+              className={cn(
+                "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors",
+                pathname === href
+                  ? "bg-primary/10 text-primary"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
+              )}
+            >
+              <Icon className="w-4 h-4 shrink-0" />
+              {label}
+            </Link>
+          );
+        })}
       </nav>
 
       <div className="p-4 border-t border-border">
