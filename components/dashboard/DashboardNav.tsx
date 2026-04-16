@@ -26,6 +26,7 @@ export function DashboardNav() {
 
   async function handleSignOut() {
     await signOut(auth);
+    document.cookie = "__session=; path=/; SameSite=Lax; max-age=0";
     router.push("/");
   }
 
