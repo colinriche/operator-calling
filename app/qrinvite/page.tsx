@@ -19,8 +19,11 @@ export default async function QRInvitePage({ searchParams }: PageProps) {
   const token = params.token?.trim();
   const rawType = params.type?.trim();
 
+  const VALID_TYPES: InviteType[] = [
+    "personal", "family", "work", "sport", "social", "event", "group", "other",
+  ];
   const type: InviteType =
-    rawType === "group" || rawType === "personal" ? rawType : "personal";
+    VALID_TYPES.includes(rawType as InviteType) ? (rawType as InviteType) : "personal";
 
   // Pass invalid state directly to the flow — never silently redirect.
   // The user scanned a QR code and deserves to know what went wrong.

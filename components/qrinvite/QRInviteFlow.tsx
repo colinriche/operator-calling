@@ -15,6 +15,7 @@ import {
   STORE_URLS,
 } from "@/lib/qrinvite";
 import type { QRInviteState, Platform, InviteType } from "@/lib/qrinvite";
+import { inviteTypeLabel, isGroupType } from "@/lib/qrinvite";
 import {
   Phone,
   CheckCircle2,
@@ -154,18 +155,19 @@ function CompletingScreen({ name }: { name: string }) {
 }
 
 function SuccessScreen({ targetName, type }: { targetName: string; type: InviteType }) {
+  const isGroup = isGroupType(type);
   return (
     <motion.div key="success" {...fadeUp} className="text-center">
       <IconBadge variant="gold">
         <CheckCircle2 className="w-8 h-8" />
       </IconBadge>
       <h1 className="font-heading font-bold text-2xl text-foreground mb-2">
-        {type === "group" ? "You're in!" : "Connected!"}
+        {isGroup ? "You're in!" : "Connected!"}
       </h1>
       <p className="text-muted-foreground text-sm max-w-xs mx-auto mb-6">
-        {type === "group"
+        {isGroup
           ? "You've joined the group. Open The Operator app to start calling."
-          : `${targetName} has been added as a contact. Open the app to call them.`}
+          : `${targetName} has been added as a ${inviteTypeLabel(type)}. Open the app to call them.`}
       </p>
       <OpenAppButton />
     </motion.div>
@@ -426,9 +428,9 @@ export function QRInviteFlow({ token, type, invalidReason }: QRInviteFlowProps) 
 
             if (result.success) {
               toast.success(
-                tokenData.type === "group"
+                isGroupType(tokenData.type)
                   ? `You've joined the group!`
-                  : `${tokenData.targetDisplayName} added as a contact.`
+                  : `${tokenData.targetDisplayName} added as a ${inviteTypeLabel(tokenData.type)}.`
               );
               setState({
                 status: "success",

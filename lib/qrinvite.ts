@@ -1,17 +1,42 @@
 // ─── Token types ─────────────────────────────────────────────────────────────
 
-export type InviteType = "personal" | "group";
+export type InviteType =
+  | "personal"
+  | "family"
+  | "work"
+  | "sport"
+  | "social"
+  | "event"
+  | "group"
+  | "other";
 
 export interface QRToken {
   token: string;
   targetUserId: string;
   targetDisplayName: string;
   type: InviteType;
+  ctx?: string; // e.g. company name for "work", sport name for "sport"
   groupId?: string;
   groupName?: string;
   createdAt: string; // ISO
   expiresAt: string; // ISO
   status: "active" | "used" | "expired";
+}
+
+export function isGroupType(type: InviteType): boolean {
+  return type === "group";
+}
+
+export function inviteTypeLabel(type: InviteType): string {
+  switch (type) {
+    case "family":  return "family contact";
+    case "work":    return "work contact";
+    case "sport":   return "sport contact";
+    case "social":  return "social contact";
+    case "event":   return "contact";
+    case "group":   return "group";
+    default:        return "contact";
+  }
 }
 
 // ─── UI state machine ─────────────────────────────────────────────────────────

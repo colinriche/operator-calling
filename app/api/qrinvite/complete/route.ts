@@ -76,8 +76,17 @@ export async function POST(req: NextRequest): Promise<NextResponse<CompleteRespo
 
     const batch = db.batch();
 
-    if (tokenData.type === "personal") {
-      // Add mutual contact relationship
+    if (tokenData.type !== "group") {
+      // All contact types (personal, family, work, sport, social, event, other)
+      // create a mutual contact relationship. ctx (e.g. company/sport name) is
+      // preserved on the record for work and sport types.
+      const contactBase: Record<string, unknown> = {
+        addedAt: FieldValue.serverTimestamp(),
+        via: "qr",
+        type: tokenData.type,
+      };
+      if (tokenData.ctx) contactBase.ctx = tokenData.ctx;
+
       const contactA = db
         .collection("users")
         .doc(currentUserId)
@@ -89,8 +98,8 @@ export async function POST(req: NextRequest): Promise<NextResponse<CompleteRespo
         .collection("contacts")
         .doc(currentUserId);
 
-      batch.set(contactA, { addedAt: FieldValue.serverTimestamp(), via: "qr" }, { merge: true });
-      batch.set(contactB, { addedAt: FieldValue.serverTimestamp(), via: "qr" }, { merge: true });
+      batch.set(contactA, contactBase, { merge: true });
+      batch.set(contactB, contactBase, { merge: true });
     } else if (tokenData.type === "group" && tokenData.groupId) {
       // Add user to group membership
       const memberRef = db
