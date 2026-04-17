@@ -57,14 +57,22 @@ function firebaseErrorMessage(err: unknown): string {
     "auth/invalid-credential": "Incorrect email or password.",
     "auth/user-not-found": "No account found with that email.",
     "auth/wrong-password": "Incorrect password.",
+    "auth/email-already-in-use": "That email is already registered — try signing in instead.",
     "auth/too-many-requests": "Too many attempts — wait a moment before trying again.",
     "auth/user-disabled": "This account has been disabled.",
     "auth/network-request-failed": "Network error — check your connection and try again.",
+    "auth/unauthorized-domain":
+      "This domain isn't authorised for sign-in. Add operatorcalling.com to Firebase Console → Authentication → Authorized domains.",
+    "auth/captcha-check-failed":
+      "reCAPTCHA check failed — the domain may not be authorised. Add operatorcalling.com to Firebase Console → Authentication → Authorized domains.",
+    "auth/popup-closed-by-user": "Sign-in was cancelled.",
+    "auth/operation-not-allowed": "This sign-in method isn't enabled. Contact support.",
   };
-  if (code && known[code]) return known[code];
+  if (code && known[code]) return `${known[code]} [${code}]`;
   const raw = err instanceof Error ? err.message : "";
   const clean = raw.replace(/^Firebase:\s*/i, "").replace(/\s*\(auth\/[^)]+\)\.?$/, "").trim();
-  return clean || "Something went wrong — please try again.";
+  const meaningful = clean && clean.toLowerCase() !== "error" ? clean : "Something went wrong — please try again.";
+  return code ? `${meaningful} [${code}]` : meaningful;
 }
 
 function AuthFormInline({ mode }: { mode: "login" | "signup" }) {
