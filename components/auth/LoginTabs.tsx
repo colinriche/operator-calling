@@ -44,7 +44,7 @@ import {
   signInWithPopup,
   getIdToken,
 } from "firebase/auth";
-import { doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -110,17 +110,18 @@ function AuthFormInline({ mode }: { mode: "login" | "signup" }) {
     if (!signedInUid) return;
     setPhoneSaving(true);
     try {
-      await updateDoc(doc(db, "user", signedInUid), {
+      await setDoc(doc(db, "user", signedInUid), {
         phoneNumber: cleaned,
         updatedAt: serverTimestamp(),
-      });
-      router.push("/dashboard");
+      }, { merge: true });
     } catch (err) {
-      setPhoneError("Failed to save phone number — please try again.");
-      console.error(err);
+      const code = (err as { code?: string }).code ?? "unknown";
+      console.warn("Phone save failed (non-fatal):", err, "| code:", code);
+      // Non-blocking — proceed to dashboard even if save fails
     } finally {
       setPhoneSaving(false);
     }
+    router.push("/dashboard");
   }
 
   async function handleSubmit(e: React.FormEvent) {
