@@ -81,10 +81,9 @@ export function LinkAccountBanner() {
             This account is not linked to a mobile account
           </p>
           <p className="text-sm text-amber-700 dark:text-amber-400 mt-0.5">
-            To link your account, go to the{" "}
-            <span className="font-semibold">Support</span> section in the
-            Operator app, find your{" "}
-            <span className="font-semibold">System Name</span>, and enter it
+            To link your account, go to settings in{" "}
+            <span className="font-semibold">The Operator</span> app, find your{" "}
+            <span className="font-semibold">Support Code</span>, and enter it
             below. Some features will not be available until your account is
             linked.
           </p>
