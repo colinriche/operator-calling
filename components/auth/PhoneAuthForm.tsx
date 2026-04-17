@@ -25,12 +25,16 @@ function firebaseErrorMessage(err: unknown): string {
     "auth/invalid-verification-code": "Incorrect code — please check and try again.",
     "auth/missing-phone-number": "Please enter your phone number.",
     "auth/network-request-failed": "Network error — check your connection and try again.",
-    "auth/captcha-check-failed": "reCAPTCHA check failed — please refresh and try again.",
+    "auth/captcha-check-failed":
+      "reCAPTCHA check failed — domain may not be authorised. Add operatorcalling.com to Firebase Console → Authentication → Authorized domains.",
+    "auth/unauthorized-domain":
+      "This domain isn't authorised. Add operatorcalling.com to Firebase Console → Authentication → Authorized domains.",
   };
-  if (code && known[code]) return known[code];
+  if (code && known[code]) return `${known[code]} [${code}]`;
   const raw = err instanceof Error ? err.message : "";
   const clean = raw.replace(/^Firebase:\s*/i, "").replace(/\s*\(auth\/[^)]+\)\.?$/, "").trim();
-  return clean || "Something went wrong — please try again.";
+  const meaningful = clean && clean.toLowerCase() !== "error" ? clean : "Something went wrong — please try again.";
+  return code ? `${meaningful} [${code}]` : meaningful;
 }
 
 export function PhoneAuthForm() {
