@@ -35,14 +35,13 @@ export function LoginTabs() {
 // Inline version of the email/password form fields extracted from AuthForm
 // so they sit inside the shared card rather than rendering their own card.
 // This avoids nested card-in-card and keeps the tab switching clean.
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   signInWithEmailAndPassword,
   GoogleAuthProvider,
-  signInWithRedirect,
-  getRedirectResult,
+  signInWithPopup,
   getIdToken,
 } from "firebase/auth";
 import { doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
@@ -81,7 +80,6 @@ function AuthFormInline({ mode }: { mode: "login" | "signup" }) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [checkingRedirect, setCheckingRedirect] = useState(true);
 
   const [step, setStep] = useState<"auth" | "phone_prompt">("auth");
   const [signedInUid, setSignedInUid] = useState<string | null>(null);
@@ -125,25 +123,6 @@ function AuthFormInline({ mode }: { mode: "login" | "signup" }) {
     }
   }
 
-  useEffect(() => {
-    getRedirectResult(auth)
-      .then(async (result) => {
-        if (!result) return;
-        setLoading(true);
-        try {
-          const idToken = await getIdToken(result.user);
-          document.cookie = `__session=${idToken}; path=/; SameSite=Lax; max-age=3600`;
-          await handlePostSignIn(result.user.uid);
-        } catch (err) {
-          setError(firebaseErrorMessage(err));
-          setLoading(false);
-        }
-      })
-      .catch((err) => setError(firebaseErrorMessage(err)))
-      .finally(() => setCheckingRedirect(false));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
@@ -164,14 +143,17 @@ function AuthFormInline({ mode }: { mode: "login" | "signup" }) {
     setError("");
     setLoading(true);
     try {
-      await signInWithRedirect(auth, new GoogleAuthProvider());
+      const cred = await signInWithPopup(auth, new GoogleAuthProvider());
+      const idToken = await getIdToken(cred.user);
+      document.cookie = `__session=${idToken}; path=/; SameSite=Lax; max-age=3600`;
+      await handlePostSignIn(cred.user.uid);
     } catch (err) {
       setError(firebaseErrorMessage(err));
       setLoading(false);
     }
   }
 
-  const busy = loading || checkingRedirect;
+  const busy = loading;
 
   if (step === "phone_prompt") {
     return (
@@ -243,7 +225,7 @@ function AuthFormInline({ mode }: { mode: "login" | "signup" }) {
           <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
           <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
         </svg>
-        {checkingRedirect ? "Checking..." : "Continue with Google"}
+        Continue with Google
       </Button>
 
       <div className="flex items-center gap-3 mb-4">
