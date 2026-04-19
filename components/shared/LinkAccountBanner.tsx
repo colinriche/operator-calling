@@ -83,9 +83,8 @@ export function LinkAccountBanner() {
           <p className="text-sm text-amber-700 dark:text-amber-400 mt-0.5">
             To link your account, go to settings in{" "}
             <span className="font-semibold">The Operator</span> app, find your{" "}
-            <span className="font-semibold">Support Code</span>, and enter it
-            below. Some features will not be available until your account is
-            linked.
+            <span className="font-semibold">Support Code</span>, click &lsquo;Link now&rsquo; and enter it.
+            Some features will not be available until your account is linked.
           </p>
         </div>
         <div className="flex items-center gap-1 shrink-0">
