@@ -18,6 +18,8 @@ import { Label } from "@/components/ui/label";
 
 interface AuthFormProps {
   mode: "login" | "signup";
+  inviteRef?: string;
+  inviteGid?: string;
 }
 
 function firebaseErrorMessage(err: unknown): string {
@@ -71,7 +73,7 @@ async function writeGoogleProfile(uid: string, displayName: string | null, email
   }
 }
 
-export function AuthForm({ mode }: AuthFormProps) {
+export function AuthForm({ mode, inviteRef = "", inviteGid = "" }: AuthFormProps) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -115,6 +117,32 @@ export function AuthForm({ mode }: AuthFormProps) {
         phoneNumber: cleaned,
         updatedAt: serverTimestamp(),
       }, { merge: true });
+
+      // Process any pending invite from the SMS link
+      if (inviteRef) {
+        try {
+          const { getAuth } = await import("firebase/auth");
+          const currentUser = getAuth().currentUser;
+          if (currentUser) {
+            const idToken = await currentUser.getIdToken();
+            await fetch("/api/invite/process", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${idToken}`,
+              },
+              body: JSON.stringify({
+                inviterUsername: inviteRef,
+                groupId: inviteGid || undefined,
+                inviteeUid: signedInUid,
+                inviteePhone: cleaned,
+              }),
+            });
+          }
+        } catch (inviteErr) {
+          console.warn("Invite processing failed (non-fatal):", inviteErr);
+        }
+      }
     } catch (err) {
       const code = (err as { code?: string }).code ?? "unknown";
       console.warn("Phone save failed (non-fatal):", err, "| code:", code);

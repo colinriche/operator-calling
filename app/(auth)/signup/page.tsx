@@ -5,6 +5,17 @@ import { AuthForm } from "@/components/shared/AuthForm";
 
 export const metadata: Metadata = { title: "Create account" };
 
-export default function SignupPage() {
-  return <AuthForm mode="signup" />;
+interface Props {
+  searchParams: Promise<{ ref?: string; gid?: string }>;
+}
+
+export default async function SignupPage({ searchParams }: Props) {
+  const params = await searchParams;
+  return (
+    <AuthForm
+      mode="signup"
+      inviteRef={params.ref ?? ""}
+      inviteGid={params.gid ?? ""}
+    />
+  );
 }
