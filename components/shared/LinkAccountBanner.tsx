@@ -24,7 +24,7 @@ export function LinkAccountBanner() {
     setError("");
     const trimmed = systemName.trim().toLowerCase();
     if (!trimmed) {
-      setError("Please enter your system name.");
+      setError("Please enter your Support Code.");
       return;
     }
     if (!user?.email) {
@@ -39,7 +39,7 @@ export function LinkAccountBanner() {
         query(collection(db, "user"), where("systemName", "==", trimmed))
       );
       if (snap.empty) {
-        setError("System name not found. Check the Support section in the Operator app and try again.");
+        setError("Support Code not found. Check settings in The Operator app and try again.");
         setLoading(false);
         return;
       }
@@ -115,7 +115,7 @@ export function LinkAccountBanner() {
           className="px-5 pb-4 border-t border-amber-200 dark:border-amber-800 pt-4 flex flex-col gap-3"
         >
           <p className="text-xs text-amber-700 dark:text-amber-400">
-            Open the Operator app → Settings → Support → copy your System Name
+            Open The Operator app → Settings → copy your Support Code
           </p>
           <div className="flex gap-2">
             <Input
