@@ -8,6 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
+import { useAuth } from "@/hooks/useAuth";
+import { seedDashboardStarterData } from "@/lib/dashboardSeed";
 
 const platformStats = [
   { icon: Users, label: "Total users", value: "12,847" },
@@ -36,10 +38,14 @@ const systemHealth = [
 ];
 
 export function SuperAdminDashboard() {
+  const { user, profile } = useAuth();
   const [userSearch, setUserSearch] = useState("");
   const [maintenanceMode, setMaintenanceMode] = useState(false);
   const [newUserSignups, setNewUserSignups] = useState(true);
   const [strangercalls, setStrangerCalls] = useState(true);
+  const [isSeedingDashboardData, setIsSeedingDashboardData] = useState(false);
+
+  const canSeedDashboardData = profile?.role === "admin";
 
   const filteredUsers = recentUsers.filter(
     (u) =>
@@ -47,6 +53,35 @@ export function SuperAdminDashboard() {
       u.name.toLowerCase().includes(userSearch.toLowerCase()) ||
       u.email.toLowerCase().includes(userSearch.toLowerCase())
   );
+
+  async function handleSeedDashboardData() {
+    if (!user) {
+      toast.error("Please sign in first.");
+      return;
+    }
+
+    if (!canSeedDashboardData) {
+      toast.error("Admin role required for this action.");
+      return;
+    }
+
+    try {
+      setIsSeedingDashboardData(true);
+      const result = await seedDashboardStarterData({
+        uid: user.uid,
+        email: user.email,
+        displayName: profile?.displayName ?? user.displayName,
+      });
+
+      toast.success(
+        `Seed complete: ${result.schedules} schedules, ${result.callbacks} callbacks, ${result.notifications} notifications.`
+      );
+    } catch {
+      toast.error("Failed to seed dashboard data.");
+    } finally {
+      setIsSeedingDashboardData(false);
+    }
+  }
 
   return (
     <div className="max-w-5xl mx-auto">
@@ -243,6 +278,25 @@ export function SuperAdminDashboard() {
                 />
               </div>
             ))}
+          </div>
+
+          <div className="bg-card rounded-2xl p-6 border border-border/60 space-y-4">
+            <h2 className="font-semibold text-foreground">Dashboard setup</h2>
+            <p className="text-sm text-muted-foreground">
+              Seed starter Firestore records for dashboard calls, notifications, and groups in this environment.
+            </p>
+            <Button
+              onClick={handleSeedDashboardData}
+              disabled={isSeedingDashboardData || !canSeedDashboardData}
+              className="gradient-gold border-0 text-primary-foreground"
+            >
+              {isSeedingDashboardData ? "Seeding..." : "Seed dashboard starter data"}
+            </Button>
+            {!canSeedDashboardData && (
+              <p className="text-xs text-muted-foreground">
+                You must have an admin role in Firestore (`user/&lt;uid&gt;` with `role: "admin"`).
+              </p>
+            )}
           </div>
         </TabsContent>
       </Tabs>

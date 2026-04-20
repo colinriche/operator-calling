@@ -67,3 +67,26 @@ The dashboard now reads live data from Firestore instead of local sample arrays.
 ## Recommended Indexes
 
 Current dashboard queries only use single-field equality constraints, so they should work without custom composite indexes. Add composite indexes only if you later combine additional filters/order clauses.
+
+## One-click Seeding (Super Admin UI)
+
+The app now includes a setup action to create starter records in Firestore:
+
+1. Sign in with a user that has `role: "admin"` in `user/<uid>`.
+2. Open `/admin/super`.
+3. Go to the **System** tab.
+4. In **Dashboard setup**, click **Seed dashboard starter data**.
+
+What gets created/updated for your current uid:
+
+- `user` (current user + seeded contacts)
+- `groups`
+- `memberships`
+- `schedules`
+- `callbacks`
+- `notifications`
+
+Notes:
+
+- This action is idempotent for the same user because it uses deterministic document IDs.
+- You can run it again safely to restore missing starter records.
