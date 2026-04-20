@@ -73,11 +73,35 @@ export function SuperAdminDashboard() {
         displayName: profile?.displayName ?? user.displayName,
       });
 
-      toast.success(
-        `Seed complete: ${result.schedules} schedules, ${result.callbacks} callbacks, ${result.notifications} notifications.`
-      );
-    } catch {
-      toast.error("Failed to seed dashboard data.");
+      const seededCount =
+        result.users +
+        result.groups +
+        result.memberships +
+        result.schedules +
+        result.callbacks +
+        result.notifications;
+
+      if (result.failures.length === 0) {
+        toast.success(
+          `Seed complete: ${result.schedules} schedules, ${result.callbacks} callbacks, ${result.notifications} notifications.`
+        );
+        return;
+      }
+
+      if (seededCount > 0) {
+        toast.warning(
+          `Seeded ${seededCount} records, but some writes failed (${result.failures.map((f) => f.collection).join(", ")}).`
+        );
+      } else {
+        const firstFailure = result.failures[0];
+        toast.error(
+          `Failed to seed: ${firstFailure.collection}${firstFailure.code ? ` (${firstFailure.code})` : ""}.`
+        );
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unknown error while seeding dashboard data.";
+      toast.error(`Failed to seed dashboard data: ${message}`);
     } finally {
       setIsSeedingDashboardData(false);
     }

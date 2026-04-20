@@ -90,3 +90,57 @@ Notes:
 
 - This action is idempotent for the same user because it uses deterministic document IDs.
 - You can run it again safely to restore missing starter records.
+- If your Firestore rules block some collections, the seeder now performs best-effort writes and reports which collections failed.
+
+### Required Firestore Rules
+
+Your current rules must include matches for the dashboard collections below, otherwise seeding and dashboard reads will fail with `permission-denied`.
+
+Add these blocks inside `service cloud.firestore { match /databases/{database}/documents { ... } }`:
+
+```text
+match /schedules/{docId} {
+  allow read: if isSignedIn() && (
+    resource.data.initiatorId == request.auth.uid ||
+    resource.data.recipientId == request.auth.uid
+  );
+  allow create: if isSignedIn() &&
+    (request.resource.data.initiatorId == request.auth.uid ||
+     request.resource.data.recipientId == request.auth.uid);
+  allow update, delete: if isSignedIn() && (
+    resource.data.initiatorId == request.auth.uid ||
+    resource.data.recipientId == request.auth.uid
+  );
+}
+
+match /callbacks/{docId} {
+  allow read: if isSignedIn() && (
+    resource.data.requesterId == request.auth.uid ||
+    resource.data.targetId == request.auth.uid
+  );
+  allow create: if isSignedIn() &&
+    (request.resource.data.requesterId == request.auth.uid ||
+     request.resource.data.targetId == request.auth.uid);
+  allow update, delete: if isSignedIn() && (
+    resource.data.requesterId == request.auth.uid ||
+    resource.data.targetId == request.auth.uid
+  );
+}
+
+match /notifications/{docId} {
+  allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+  allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+  allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+}
+
+match /memberships/{docId} {
+  allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+  allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+  allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+}
+```
+
+Then publish the rules:
+
+- Firebase Console -> Firestore Database -> Rules -> Publish
+- or via CLI: `firebase deploy --only firestore:rules`

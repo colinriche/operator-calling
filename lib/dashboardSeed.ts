@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  type FirestoreError,
   Timestamp,
   doc,
   serverTimestamp,
@@ -21,13 +22,13 @@ interface SeedDashboardResult {
   schedules: number;
   callbacks: number;
   notifications: number;
+  failures: Array<{ collection: string; code?: string; message: string }>;
 }
 
 export async function seedDashboardStarterData(
   input: SeedDashboardInput
 ): Promise<SeedDashboardResult> {
   const { uid, email, displayName } = input;
-  const batch = writeBatch(db);
   const now = new Date();
   const plusHours = (hours: number) => Timestamp.fromDate(new Date(now.getTime() + hours * 60 * 60 * 1000));
   const minusHours = (hours: number) => Timestamp.fromDate(new Date(now.getTime() - hours * 60 * 60 * 1000));
@@ -47,39 +48,6 @@ export async function seedDashboardStarterData(
         updatedAt: serverTimestamp(),
       },
     },
-    {
-      id: `seed-sarah-${uid}`,
-      data: {
-        uid: `seed-sarah-${uid}`,
-        email: "sarah@example.com",
-        displayName: "Sarah K.",
-        role: "user",
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      },
-    },
-    {
-      id: `seed-marcus-${uid}`,
-      data: {
-        uid: `seed-marcus-${uid}`,
-        email: "marcus@example.com",
-        displayName: "Marcus T.",
-        role: "user",
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      },
-    },
-    {
-      id: `seed-priya-${uid}`,
-      data: {
-        uid: `seed-priya-${uid}`,
-        email: "priya@example.com",
-        displayName: "Priya N.",
-        role: "user",
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      },
-    },
   ];
 
   const groups = [
@@ -89,8 +57,13 @@ export async function seedDashboardStarterData(
         name: "Morning Runners",
         description: "Weekly accountability and check-in calls.",
         adminId: uid,
+        createdBy: uid,
         memberCount: 3,
         isPrivate: false,
+        memberIds: [uid],
+        members: {
+          [uid]: true,
+        },
         createdAt: serverTimestamp(),
       },
     },
@@ -100,8 +73,13 @@ export async function seedDashboardStarterData(
         name: "Remote Product Team",
         description: "Async-first product team sync calls.",
         adminId: uid,
+        createdBy: uid,
         memberCount: 2,
         isPrivate: true,
+        memberIds: [uid],
+        members: {
+          [uid]: true,
+        },
         createdAt: serverTimestamp(),
       },
     },
@@ -135,7 +113,7 @@ export async function seedDashboardStarterData(
       id: `seed-schedule-upcoming-${uid}`,
       data: {
         initiatorId: uid,
-        recipientId: `seed-sarah-${uid}`,
+        recipientId: uid,
         scheduledAt: plusHours(2),
         status: "confirmed",
       },
@@ -144,7 +122,7 @@ export async function seedDashboardStarterData(
       id: `seed-schedule-group-${uid}`,
       data: {
         initiatorId: uid,
-        recipientId: `seed-marcus-${uid}`,
+        recipientId: uid,
         groupId: `seed-group-runners-${uid}`,
         scheduledAt: plusHours(22),
         status: "confirmed",
@@ -153,7 +131,7 @@ export async function seedDashboardStarterData(
     {
       id: `seed-schedule-completed-${uid}`,
       data: {
-        initiatorId: `seed-priya-${uid}`,
+        initiatorId: uid,
         recipientId: uid,
         scheduledAt: minusHours(28),
         status: "completed",
@@ -166,7 +144,7 @@ export async function seedDashboardStarterData(
     {
       id: `seed-callback-pending-${uid}`,
       data: {
-        requesterId: `seed-marcus-${uid}`,
+        requesterId: uid,
         targetId: uid,
         requestedAt: minusHours(3),
         expiresAt: plusHours(9),
@@ -176,7 +154,7 @@ export async function seedDashboardStarterData(
     {
       id: `seed-callback-answered-${uid}`,
       data: {
-        requesterId: `seed-sarah-${uid}`,
+        requesterId: uid,
         targetId: uid,
         requestedAt: minusDays(2),
         expiresAt: minusDays(1),
@@ -191,8 +169,8 @@ export async function seedDashboardStarterData(
       data: {
         userId: uid,
         type: "callback_request",
-        title: "Callback accepted",
-        message: "Priya N. accepted your callback request.",
+        title: "Callback update",
+        message: "You have an active callback request.",
         read: false,
         createdAt: minusHours(2),
       },
@@ -203,7 +181,7 @@ export async function seedDashboardStarterData(
         userId: uid,
         type: "call_scheduled",
         title: "Call reminder",
-        message: "Your call with Sarah K. starts in about 2 hours.",
+        message: "One of your seeded calls starts in about 2 hours.",
         read: false,
         createdAt: minusHours(1),
       },
@@ -214,40 +192,55 @@ export async function seedDashboardStarterData(
         userId: uid,
         type: "system",
         title: "Group activity",
-        message: "New member joined Morning Runners.",
+        message: "Morning Runners has new activity.",
         read: true,
         createdAt: minusDays(1),
       },
     },
   ];
 
-  for (const user of users) {
-    batch.set(doc(db, "user", user.id), user.data, { merge: true });
-  }
-  for (const group of groups) {
-    batch.set(doc(db, "groups", group.id), group.data, { merge: true });
-  }
-  for (const membership of memberships) {
-    batch.set(doc(db, "memberships", membership.id), membership.data, { merge: true });
-  }
-  for (const schedule of schedules) {
-    batch.set(doc(db, "schedules", schedule.id), schedule.data, { merge: true });
-  }
-  for (const callback of callbacks) {
-    batch.set(doc(db, "callbacks", callback.id), callback.data, { merge: true });
-  }
-  for (const notification of notifications) {
-    batch.set(doc(db, "notifications", notification.id), notification.data, { merge: true });
-  }
+  const failures: Array<{ collection: string; code?: string; message: string }> = [];
 
-  await batch.commit();
+  const usersCount = await writeCollectionBatch("user", users, failures);
+  const groupsCount = await writeCollectionBatch("groups", groups, failures);
+  const membershipsCount = await writeCollectionBatch("memberships", memberships, failures);
+  const schedulesCount = await writeCollectionBatch("schedules", schedules, failures);
+  const callbacksCount = await writeCollectionBatch("callbacks", callbacks, failures);
+  const notificationsCount = await writeCollectionBatch("notifications", notifications, failures);
 
   return {
-    users: users.length,
-    groups: groups.length,
-    memberships: memberships.length,
-    schedules: schedules.length,
-    callbacks: callbacks.length,
-    notifications: notifications.length,
+    users: usersCount,
+    groups: groupsCount,
+    memberships: membershipsCount,
+    schedules: schedulesCount,
+    callbacks: callbacksCount,
+    notifications: notificationsCount,
+    failures,
   };
+}
+
+async function writeCollectionBatch<T extends { id: string; data: object }>(
+  collectionName: string,
+  records: T[],
+  failures: Array<{ collection: string; code?: string; message: string }>
+): Promise<number> {
+  if (records.length === 0) return 0;
+
+  const batch = writeBatch(db);
+  for (const record of records) {
+    batch.set(doc(db, collectionName, record.id), record.data, { merge: true });
+  }
+
+  try {
+    await batch.commit();
+    return records.length;
+  } catch (error) {
+    const firestoreError = error as FirestoreError;
+    failures.push({
+      collection: collectionName,
+      code: firestoreError.code,
+      message: firestoreError.message || "Unknown Firestore error",
+    });
+    return 0;
+  }
 }
