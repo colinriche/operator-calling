@@ -79,12 +79,15 @@ The app now includes a setup action to create starter records in Firestore:
 
 What gets created/updated for your current uid:
 
-- `user` (current user + seeded contacts)
+- `user` (current user profile fields used by dashboards)
 - `groups`
 - `memberships`
 - `schedules`
 - `callbacks`
 - `notifications`
+- `invites`
+- `reports`
+- `admin_controls/platform`
 
 Notes:
 

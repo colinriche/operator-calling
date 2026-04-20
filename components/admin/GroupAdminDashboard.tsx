@@ -31,6 +31,7 @@ interface MemberRow {
   role: string;
   status: string;
   joinedAt: Date | null;
+  canManage: boolean;
 }
 
 interface PendingInviteRow {
@@ -102,27 +103,51 @@ export function GroupAdminDashboard({ defaultTab = "members" }: { defaultTab?: s
           return;
         }
 
-        const selectedGroupId = (adminMembership.data() as Record<string, unknown>).groupId as string;
-        const [groupSnap, groupMembersSnap, invitesSnap, schedulesSnap, reportsSnap] = await Promise.all([
-          getDoc(doc(db, "groups", selectedGroupId)),
-          getDocs(query(collection(db, "memberships"), where("groupId", "==", selectedGroupId))),
-          getDocs(
-            query(
-              collection(db, "invites"),
-              where("groupId", "==", selectedGroupId),
-              where("status", "==", "pending")
-            )
-          ),
-          getDocs(query(collection(db, "schedules"), where("groupId", "==", selectedGroupId))),
-          getDocs(query(collection(db, "reports"), where("groupId", "==", selectedGroupId))),
-        ]);
+        const adminMembershipData = adminMembership.data() as Record<string, unknown>;
+        const selectedGroupId = adminMembershipData.groupId as string;
+        const adminRole = toStringOrFallback(adminMembershipData.role, "admin");
 
-        const memberIds = groupMembersSnap.docs.map((docSnap) => {
-          const data = docSnap.data() as Record<string, unknown>;
-          return typeof data.userId === "string" ? data.userId : null;
-        }).filter((id): id is string => Boolean(id));
+        const groupSnap = await getDoc(doc(db, "groups", selectedGroupId));
+        const groupData = groupSnap.exists() ? (groupSnap.data() as Record<string, unknown>) : {};
 
-        const userDocs = await Promise.all(memberIds.map((id) => getDoc(doc(db, "user", id))));
+        const blockedCollections: string[] = [];
+
+        let groupMembersDocs: Array<{
+          id: string;
+          data: Record<string, unknown>;
+        }> = [];
+        try {
+          const groupMembersSnap = await getDocs(
+            query(collection(db, "memberships"), where("groupId", "==", selectedGroupId))
+          );
+          groupMembersDocs = groupMembersSnap.docs.map((docSnap) => ({
+            id: docSnap.id,
+            data: docSnap.data() as Record<string, unknown>,
+          }));
+        } catch {
+          blockedCollections.push("memberships");
+          const memberIdsFallback = asStringArray(groupData.memberIds);
+          groupMembersDocs = memberIdsFallback.map((memberId) => ({
+            id: `readonly-${memberId}`,
+            data: {
+              userId: memberId,
+              role: memberId === user.uid ? adminRole : "member",
+              status: "active",
+              joinedAt: null,
+              _readonly: true,
+            },
+          }));
+        }
+
+        const memberIds = groupMembersDocs
+          .map((member) => {
+            const id = member.data.userId;
+            return typeof id === "string" ? id : null;
+          })
+          .filter((id): id is string => Boolean(id));
+
+        const uniqueMemberIds = [...new Set(memberIds)];
+        const userDocs = await Promise.all(uniqueMemberIds.map((id) => getDoc(doc(db, "user", id))));
         const userMap = new Map<string, { name: string; email: string }>();
         for (const profileSnap of userDocs) {
           if (!profileSnap.exists()) continue;
@@ -133,28 +158,41 @@ export function GroupAdminDashboard({ defaultTab = "members" }: { defaultTab?: s
           });
         }
 
-        const rows: MemberRow[] = groupMembersSnap.docs.map((docSnap) => {
-          const data = docSnap.data() as Record<string, unknown>;
-          const memberId = toStringOrFallback(data.userId, docSnap.id);
+        const rows: MemberRow[] = groupMembersDocs.map((memberDoc) => {
+          const data = memberDoc.data;
+          const memberId = toStringOrFallback(data.userId, memberDoc.id);
           const profile = userMap.get(memberId);
           return {
-            membershipId: docSnap.id,
+            membershipId: memberDoc.id,
             name: profile?.name ?? "Unknown user",
             email: profile?.email ?? `${memberId}@unknown`,
             role: toStringOrFallback(data.role, "member"),
             status: toStringOrFallback(data.status, "active"),
             joinedAt: toDate(data.joinedAt),
+            canManage: data._readonly === true ? memberId === user.uid : true,
           };
         });
 
-        const inviteRows: PendingInviteRow[] = invitesSnap.docs.map((docSnap) => {
-          const data = docSnap.data() as Record<string, unknown>;
-          return {
-            id: docSnap.id,
-            email: toStringOrFallback(data.invitedEmail, "Unknown email"),
-            sentAt: toDate(data.createdAt),
-          };
-        });
+        let inviteRows: PendingInviteRow[] = [];
+        try {
+          const invitesSnap = await getDocs(
+            query(
+              collection(db, "invites"),
+              where("groupId", "==", selectedGroupId),
+              where("status", "==", "pending")
+            )
+          );
+          inviteRows = invitesSnap.docs.map((docSnap) => {
+            const data = docSnap.data() as Record<string, unknown>;
+            return {
+              id: docSnap.id,
+              email: toStringOrFallback(data.invitedEmail, "Unknown email"),
+              sentAt: toDate(data.createdAt),
+            };
+          });
+        } catch {
+          blockedCollections.push("invites");
+        }
 
         const thisMonthStart = new Date();
         thisMonthStart.setDate(1);
@@ -164,20 +202,25 @@ export function GroupAdminDashboard({ defaultTab = "members" }: { defaultTab?: s
         let durationCount = 0;
         let completed = 0;
         let failed = 0;
-        for (const scheduleDoc of schedulesSnap.docs) {
-          const data = scheduleDoc.data() as Record<string, unknown>;
-          const scheduledAt = toDate(data.scheduledAt);
-          const status = toStringOrFallback(data.status, "pending");
-          if (scheduledAt && scheduledAt >= thisMonthStart) monthCalls += 1;
-          if (typeof data.durationMinutes === "number") {
-            durationTotal += data.durationMinutes;
-            durationCount += 1;
+        try {
+          const schedulesSnap = await getDocs(
+            query(collection(db, "schedules"), where("groupId", "==", selectedGroupId))
+          );
+          for (const scheduleDoc of schedulesSnap.docs) {
+            const data = scheduleDoc.data() as Record<string, unknown>;
+            const scheduledAt = toDate(data.scheduledAt);
+            const status = toStringOrFallback(data.status, "pending");
+            if (scheduledAt && scheduledAt >= thisMonthStart) monthCalls += 1;
+            if (typeof data.durationMinutes === "number") {
+              durationTotal += data.durationMinutes;
+              durationCount += 1;
+            }
+            if (status === "completed" || status === "confirmed") completed += 1;
+            if (status === "missed" || status === "cancelled") failed += 1;
           }
-          if (status === "completed" || status === "confirmed") completed += 1;
-          if (status === "missed" || status === "cancelled") failed += 1;
+        } catch {
+          blockedCollections.push("schedules");
         }
-
-        const groupData = groupSnap.exists() ? (groupSnap.data() as Record<string, unknown>) : {};
 
         if (cancelled) return;
 
@@ -206,13 +249,26 @@ export function GroupAdminDashboard({ defaultTab = "members" }: { defaultTab?: s
         setCallsThisMonth(monthCalls);
         setAvgCallLength(durationCount > 0 ? durationTotal / durationCount : 0);
         setConnectionRate(percent(completed, completed + failed));
-        setOpenReports(
-          reportsSnap.docs.filter((docSnap) => {
-            const status = toStringOrFallback((docSnap.data() as Record<string, unknown>).status, "open");
-            return status !== "resolved" && status !== "dismissed";
-          }).length
-        );
+        try {
+          const reportsSnap = await getDocs(
+            query(collection(db, "reports"), where("groupId", "==", selectedGroupId))
+          );
+          setOpenReports(
+            reportsSnap.docs.filter((docSnap) => {
+              const status = toStringOrFallback((docSnap.data() as Record<string, unknown>).status, "open");
+              return status !== "resolved" && status !== "dismissed";
+            }).length
+          );
+        } catch {
+          blockedCollections.push("reports");
+          setOpenReports(0);
+        }
         setBannedMembers(rows.filter((member) => member.status === "banned").length);
+        if (blockedCollections.length > 0) {
+          toast.warning(
+            `Some admin sections are limited by Firestore rules: ${blockedCollections.join(", ")}`
+          );
+        }
       } catch (error) {
         toast.error(
           `Failed loading group admin data: ${
@@ -418,6 +474,7 @@ export function GroupAdminDashboard({ defaultTab = "members" }: { defaultTab?: s
                     <select
                       value={m.role}
                       className="text-xs border border-border rounded-lg px-2 py-1 bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                      disabled={!m.canManage}
                       onChange={(event) => {
                         void updateMemberRole(m.membershipId, event.target.value, m.name);
                       }}
@@ -427,7 +484,8 @@ export function GroupAdminDashboard({ defaultTab = "members" }: { defaultTab?: s
                       <option value="admin">Admin</option>
                     </select>
                     <button
-                      className="text-xs text-destructive hover:underline"
+                      className="text-xs text-destructive hover:underline disabled:opacity-40 disabled:cursor-not-allowed"
+                      disabled={!m.canManage}
                       onClick={() => {
                         void banMember(m.membershipId, m.name);
                       }}
@@ -574,6 +632,11 @@ function toStringOrFallback(value: unknown, fallback: string): string {
 function percent(numerator: number, denominator: number): string {
   if (denominator <= 0) return "0%";
   return `${Math.round((numerator / denominator) * 100)}%`;
+}
+
+function asStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is string => typeof item === "string" && item.length > 0);
 }
 
 function formatDate(date: Date | null): string {

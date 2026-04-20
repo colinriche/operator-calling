@@ -22,6 +22,9 @@ interface SeedDashboardResult {
   schedules: number;
   callbacks: number;
   notifications: number;
+  invites: number;
+  reports: number;
+  adminControls: number;
   failures: Array<{ collection: string; code?: string; message: string }>;
 }
 
@@ -45,6 +48,8 @@ export async function seedDashboardStarterData(
         email: currentUserEmail,
         displayName: currentUserName,
         role: "admin",
+        banned: false,
+        createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       },
     },
@@ -64,6 +69,12 @@ export async function seedDashboardStarterData(
         members: {
           [uid]: true,
         },
+        allowMemberCalls: true,
+        scheduleSettings: {
+          allowWeekends: true,
+          maxCallsPerDay: 4,
+          allowedHours: { start: "07:00", end: "21:00" },
+        },
         createdAt: serverTimestamp(),
       },
     },
@@ -79,6 +90,12 @@ export async function seedDashboardStarterData(
         memberIds: [uid],
         members: {
           [uid]: true,
+        },
+        allowMemberCalls: false,
+        scheduleSettings: {
+          allowWeekends: false,
+          maxCallsPerDay: 2,
+          allowedHours: { start: "09:00", end: "18:00" },
         },
         createdAt: serverTimestamp(),
       },
@@ -199,6 +216,73 @@ export async function seedDashboardStarterData(
     },
   ];
 
+  const invites = [
+    {
+      id: `seed-invite-runners-${uid}`,
+      data: {
+        groupId: `seed-group-runners-${uid}`,
+        invitedEmail: "friend@example.com",
+        invitedBy: uid,
+        status: "pending",
+        createdAt: minusHours(6),
+        expiresAt: plusHours(24 * 6),
+      },
+    },
+    {
+      id: `seed-invite-product-${uid}`,
+      data: {
+        groupId: `seed-group-product-${uid}`,
+        invitedEmail: "teammate@example.com",
+        invitedBy: uid,
+        status: "pending",
+        createdAt: minusHours(12),
+        expiresAt: plusHours(24 * 5),
+      },
+    },
+  ];
+
+  const reports = [
+    {
+      id: `seed-report-open-${uid}`,
+      data: {
+        groupId: `seed-group-runners-${uid}`,
+        reporterId: uid,
+        reporterName: currentUserName,
+        reportedId: uid,
+        reportedName: currentUserName,
+        reason: "Test moderation report for seeded environment",
+        status: "open",
+        createdAt: minusHours(5),
+      },
+    },
+    {
+      id: `seed-report-open-2-${uid}`,
+      data: {
+        groupId: `seed-group-product-${uid}`,
+        reporterId: uid,
+        reporterName: currentUserName,
+        reportedId: uid,
+        reportedName: currentUserName,
+        reason: "Another seeded report to populate super admin moderation",
+        status: "open",
+        createdAt: minusHours(10),
+      },
+    },
+  ];
+
+  const adminControls = [
+    {
+      id: "platform",
+      data: {
+        allowNewUserSignups: true,
+        enableStrangerCalls: true,
+        maintenanceMode: false,
+        updatedBy: uid,
+        updatedAt: serverTimestamp(),
+      },
+    },
+  ];
+
   const failures: Array<{ collection: string; code?: string; message: string }> = [];
 
   const usersCount = await writeCollectionBatch("user", users, failures);
@@ -207,6 +291,9 @@ export async function seedDashboardStarterData(
   const schedulesCount = await writeCollectionBatch("schedules", schedules, failures);
   const callbacksCount = await writeCollectionBatch("callbacks", callbacks, failures);
   const notificationsCount = await writeCollectionBatch("notifications", notifications, failures);
+  const invitesCount = await writeCollectionBatch("invites", invites, failures);
+  const reportsCount = await writeCollectionBatch("reports", reports, failures);
+  const adminControlsCount = await writeCollectionBatch("admin_controls", adminControls, failures);
 
   return {
     users: usersCount,
@@ -215,6 +302,9 @@ export async function seedDashboardStarterData(
     schedules: schedulesCount,
     callbacks: callbacksCount,
     notifications: notificationsCount,
+    invites: invitesCount,
+    reports: reportsCount,
+    adminControls: adminControlsCount,
     failures,
   };
 }

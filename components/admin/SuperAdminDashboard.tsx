@@ -214,11 +214,14 @@ export function SuperAdminDashboard() {
         result.memberships +
         result.schedules +
         result.callbacks +
-        result.notifications;
+        result.notifications +
+        result.invites +
+        result.reports +
+        result.adminControls;
 
       if (result.failures.length === 0) {
         toast.success(
-          `Seed complete: ${result.schedules} schedules, ${result.callbacks} callbacks, ${result.notifications} notifications.`
+          `Seed complete: ${result.schedules} schedules, ${result.reports} reports, ${result.invites} invites, ${result.notifications} notifications.`
         );
         return;
       }
