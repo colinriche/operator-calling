@@ -20,24 +20,41 @@ const INTEREST_SUGGESTIONS = [
 ];
 
 export function ProfileEditor() {
-  const { user, profile } = useAuth();
+  const { user, profile, loading } = useAuth();
   const [saving, setSaving] = useState(false);
+  const [seeded, setSeeded] = useState(false);
 
-  const [displayName, setDisplayName] = useState(profile?.displayName ?? "");
-  const [bio, setBio] = useState(profile?.bio ?? "");
-  const [interests, setInterests] = useState<string[]>(profile?.interests ?? []);
+  const [displayName, setDisplayName] = useState("");
+  const [bio, setBio] = useState("");
+  const [interests, setInterests] = useState<string[]>([]);
   const [newInterest, setNewInterest] = useState("");
 
-  const [availStart, setAvailStart] = useState(profile?.callPreferences.availableHours.start ?? "09:00");
-  const [availEnd, setAvailEnd] = useState(profile?.callPreferences.availableHours.end ?? "22:00");
-  const [allowUnknown, setAllowUnknown] = useState(profile?.callPreferences.allowUnknownCalls ?? false);
+  const [availStart, setAvailStart] = useState("09:00");
+  const [availEnd, setAvailEnd] = useState("22:00");
+  const [allowUnknown, setAllowUnknown] = useState(false);
 
-  const [showOnline, setShowOnline] = useState(profile?.privacy.showOnlineStatus ?? true);
-  const [allowDiscovery, setAllowDiscovery] = useState(profile?.privacy.allowGroupDiscovery ?? true);
+  const [showOnline, setShowOnline] = useState(true);
+  const [allowDiscovery, setAllowDiscovery] = useState(true);
 
-  const [emailNotifs, setEmailNotifs] = useState(profile?.notifications.email ?? true);
-  const [pushNotifs, setPushNotifs] = useState(profile?.notifications.push ?? true);
-  const [reminderNotifs, setReminderNotifs] = useState(profile?.notifications.upcomingCallReminder ?? true);
+  const [emailNotifs, setEmailNotifs] = useState(true);
+  const [pushNotifs, setPushNotifs] = useState(true);
+  const [reminderNotifs, setReminderNotifs] = useState(true);
+
+  // Seed form once when profile first arrives
+  if (!seeded && profile) {
+    setSeeded(true);
+    setDisplayName(profile.displayName ?? "");
+    setBio(profile.bio ?? "");
+    setInterests(profile.interests ?? []);
+    setAvailStart(profile.callPreferences?.availableHours?.start ?? "09:00");
+    setAvailEnd(profile.callPreferences?.availableHours?.end ?? "22:00");
+    setAllowUnknown(profile.callPreferences?.allowUnknownCalls ?? false);
+    setShowOnline(profile.privacy?.showOnlineStatus ?? true);
+    setAllowDiscovery(profile.privacy?.allowGroupDiscovery ?? true);
+    setEmailNotifs(profile.notifications?.email ?? true);
+    setPushNotifs(profile.notifications?.push ?? true);
+    setReminderNotifs(profile.notifications?.upcomingCallReminder ?? true);
+  }
 
   const completeness = Math.min(
     100,
@@ -60,7 +77,7 @@ export function ProfileEditor() {
     if (!user) return;
     setSaving(true);
     try {
-      await updateDoc(doc(db, "users", user.uid), {
+      await updateDoc(doc(db, "user", user.uid), {
         displayName,
         bio,
         interests,
@@ -81,6 +98,10 @@ export function ProfileEditor() {
     } finally {
       setSaving(false);
     }
+  }
+
+  if (loading) {
+    return <div className="max-w-2xl mx-auto py-10 text-sm text-muted-foreground">Loading profile…</div>;
   }
 
   return (
