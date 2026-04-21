@@ -101,22 +101,28 @@ export async function POST(req: NextRequest): Promise<NextResponse<CompleteRespo
       batch.set(contactA, contactBase, { merge: true });
       batch.set(contactB, contactBase, { merge: true });
     } else if (tokenData.type === "group" && tokenData.groupId) {
-      // Add user to group membership
-      const memberRef = db
-        .collection("memberships")
-        .doc(`${tokenData.groupId}_${currentUserId}`);
-      batch.set(
-        memberRef,
-        {
-          userId: currentUserId,
-          groupId: tokenData.groupId,
-          role: "member",
+      // Add user to the group using the mobile-app schema:
+      // groups/{groupId}.memberIds (array) + groups/{groupId}.members.{uid} (map)
+      let displayName = "Unknown";
+      let username = "";
+      try {
+        const profileSnap = await db.collection("user").doc(currentUserId).get();
+        if (profileSnap.exists) {
+          displayName = profileSnap.data()?.displayName ?? profileSnap.data()?.name ?? "Unknown";
+          username = profileSnap.data()?.username ?? "";
+        }
+      } catch {}
+
+      const groupRef = db.collection("groups").doc(tokenData.groupId);
+      batch.update(groupRef, {
+        memberIds: FieldValue.arrayUnion(currentUserId),
+        [`members.${currentUserId}`]: {
+          name: displayName,
+          username,
           joinedAt: FieldValue.serverTimestamp(),
-          status: "active",
           via: "qr",
         },
-        { merge: true }
-      );
+      });
     }
 
     // Mark token as used

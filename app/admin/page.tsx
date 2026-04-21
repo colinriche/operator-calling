@@ -1,8 +1,5 @@
-import type { Metadata } from "next";
-import { GroupAdminDashboard } from "@/components/admin/GroupAdminDashboard";
-
-export const metadata: Metadata = { title: "Group admin" };
+import { redirect } from "next/navigation";
 
 export default function AdminPage() {
-  return <GroupAdminDashboard />;
+  redirect("/dashboard/groups");
 }
