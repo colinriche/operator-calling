@@ -18,6 +18,7 @@ export interface QRToken {
   ctx?: string; // e.g. company name for "work", sport name for "sport"
   groupId?: string;
   groupName?: string;
+  isPrivate?: boolean; // for group type: whether approval is required
   createdAt: string; // ISO
   expiresAt: string; // ISO
   status: "active" | "used" | "expired";
@@ -50,6 +51,7 @@ export type QRInviteState =
   | { status: "trusted"; tokenData: QRToken }
   | { status: "completing" }
   | { status: "success"; targetName: string; type: InviteType }
+  | { status: "join_requested"; groupName?: string }
   | { status: "app_opening"; deepLink: string }
   | { status: "install_app"; platform: Platform; token: string; type: InviteType }
   | { status: "pending_saved"; platform: Platform }
@@ -129,6 +131,7 @@ export interface ValidateResponse {
 
 export interface CompleteResponse {
   success: boolean;
+  pending?: boolean; // true when a join request was submitted (private group)
   error?: string;
 }
 

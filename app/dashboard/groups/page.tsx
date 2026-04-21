@@ -30,6 +30,7 @@ export default function GroupsPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState("");
   const [newDesc, setNewDesc] = useState("");
+  const [newIsPrivate, setNewIsPrivate] = useState(true);
   const [creating, setCreating] = useState(false);
 
   const fetchGroups = useCallback(async (currentUser: { uid: string; getIdToken: () => Promise<string> }) => {
@@ -68,7 +69,11 @@ export default function GroupsPage() {
       const res = await fetch("/api/groups", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ name: newName.trim(), description: newDesc.trim() }),
+        body: JSON.stringify({
+          name: newName.trim(),
+          description: newDesc.trim(),
+          isPrivate: newIsPrivate,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
@@ -76,6 +81,7 @@ export default function GroupsPage() {
       setShowCreate(false);
       setNewName("");
       setNewDesc("");
+      setNewIsPrivate(true);
       router.push(`/dashboard/groups/${data.groupId}`);
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to create group.");
@@ -116,7 +122,13 @@ export default function GroupsPage() {
             >
               <div className="flex items-center justify-between mb-5">
                 <h2 className="font-heading font-bold text-lg text-foreground">Create a group</h2>
-                <button onClick={() => setShowCreate(false)} className="text-muted-foreground hover:text-foreground">
+                <button
+                  onClick={() => {
+                    setShowCreate(false);
+                    setNewIsPrivate(true);
+                  }}
+                  className="text-muted-foreground hover:text-foreground"
+                >
                   <X className="w-5 h-5" />
                 </button>
               </div>
@@ -138,8 +150,35 @@ export default function GroupsPage() {
                     onChange={(e) => setNewDesc(e.target.value)}
                   />
                 </div>
+                <div className="flex items-start justify-between gap-4 rounded-xl border border-border/70 p-3">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Private group</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      New members must be approved by the owner.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setNewIsPrivate((prev) => !prev)}
+                    className={`text-xs px-2.5 py-1 rounded-full font-medium ${
+                      newIsPrivate
+                        ? "bg-amber-100 text-amber-700"
+                        : "bg-emerald-100 text-emerald-700"
+                    }`}
+                  >
+                    {newIsPrivate ? "Private" : "Public"}
+                  </button>
+                </div>
                 <div className="flex gap-2 pt-1">
-                  <Button type="button" variant="outline" className="flex-1" onClick={() => setShowCreate(false)}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => {
+                      setShowCreate(false);
+                      setNewIsPrivate(true);
+                    }}
+                  >
                     Cancel
                   </Button>
                   <Button
@@ -192,6 +231,15 @@ export default function GroupsPage() {
                   </p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
+                  <span
+                    className={`text-xs px-2.5 py-1 rounded-full font-medium ${
+                      g.isPrivate
+                        ? "bg-amber-100 text-amber-700"
+                        : "bg-emerald-100 text-emerald-700"
+                    }`}
+                  >
+                    {g.isPrivate ? "Private" : "Public"}
+                  </span>
                   <span
                     className={`text-xs px-2.5 py-1 rounded-full font-medium ${
                       isAdmin

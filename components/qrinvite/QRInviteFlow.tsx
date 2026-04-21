@@ -327,6 +327,26 @@ function PendingSavedScreen({ platform }: { platform: Platform }) {
   );
 }
 
+function JoinRequestedScreen({ groupName }: { groupName?: string }) {
+  return (
+    <motion.div key="join_requested" {...fadeUp} className="text-center">
+      <IconBadge variant="muted">
+        <Clock className="w-8 h-8" />
+      </IconBadge>
+      <h1 className="font-heading font-bold text-2xl text-foreground mb-2">Request sent</h1>
+      <p className="text-muted-foreground text-sm max-w-xs mx-auto mb-2">
+        {groupName
+          ? `Your request to join "${groupName}" has been sent.`
+          : "Your join request has been sent."}
+      </p>
+      <p className="text-muted-foreground text-sm max-w-xs mx-auto mb-6">
+        The group owner will review it. You'll be notified in The Operator app once approved.
+      </p>
+      <OpenAppButton />
+    </motion.div>
+  );
+}
+
 function ErrorScreen({ message }: { message?: string }) {
   return (
     <motion.div key="error" {...fadeUp} className="text-center">
@@ -427,16 +447,21 @@ export function QRInviteFlow({ token, type, invalidReason }: QRInviteFlowProps) 
             if (!mounted.current) return;
 
             if (result.success) {
-              toast.success(
-                isGroupType(tokenData.type)
-                  ? `You've joined the group!`
-                  : `${tokenData.targetDisplayName} added as a ${inviteTypeLabel(tokenData.type)}.`
-              );
-              setState({
-                status: "success",
-                targetName: tokenData.targetDisplayName,
-                type: tokenData.type,
-              });
+              if (result.pending) {
+                toast.success("Join request sent — waiting for approval.");
+                setState({ status: "join_requested", groupName: tokenData.groupName });
+              } else {
+                toast.success(
+                  isGroupType(tokenData.type)
+                    ? `You've joined the group!`
+                    : `${tokenData.targetDisplayName} added as a ${inviteTypeLabel(tokenData.type)}.`
+                );
+                setState({
+                  status: "success",
+                  targetName: tokenData.targetDisplayName,
+                  type: tokenData.type,
+                });
+              }
             } else {
               const msg =
                 result.error === "Token expired or used"
@@ -510,6 +535,9 @@ export function QRInviteFlow({ token, type, invalidReason }: QRInviteFlowProps) 
       )}
       {state.status === "pending_saved" && (
         <PendingSavedScreen platform={state.platform} />
+      )}
+      {state.status === "join_requested" && (
+        <JoinRequestedScreen groupName={"groupName" in state ? state.groupName : undefined} />
       )}
       {state.status === "resumed" && <ResumedScreen />}
       {state.status === "error" && (

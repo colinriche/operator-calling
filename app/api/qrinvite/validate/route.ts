@@ -86,13 +86,28 @@ export async function GET(req: NextRequest): Promise<NextResponse<ValidateRespon
     }
     if (!targetDisplayName) targetDisplayName = "Someone";
 
+    // For group type, look up the group to get its privacy setting
+    let isPrivate = true;
+    let groupName: string | undefined = data.groupName;
+    if (data.type === "group" && data.groupId) {
+      try {
+        const groupSnap = await db.collection("groups").doc(data.groupId).get();
+        if (groupSnap.exists) {
+          isPrivate = groupSnap.data()?.isPrivate ?? true;
+          groupName = groupSnap.data()?.name ?? groupName;
+        }
+      } catch {}
+    }
+
     const tokenData: QRToken = {
       token,
       targetUserId: data.targetUserId,
       targetDisplayName,
       type: data.type ?? "personal",
-      groupId: data.groupId,
-      groupName: data.groupName,
+      ctx: data.ctx ?? undefined,
+      groupId: data.groupId ?? undefined,
+      groupName,
+      isPrivate,
       createdAt:
         data.createdAt?.toDate?.().toISOString() ?? new Date().toISOString(),
       expiresAt: expiresAt.toISOString(),

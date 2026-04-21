@@ -589,7 +589,7 @@ export function GroupAdminDashboard({ defaultTab = "members" }: { defaultTab?: s
             <div className="flex items-start justify-between gap-4 pt-2 border-t border-border">
               <div>
                 <p className="text-sm font-medium text-foreground">Private group</p>
-                <p className="text-xs text-muted-foreground mt-0.5">Only invited members can join.</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Members need owner approval before joining.</p>
               </div>
               <Switch checked={groupPrivate} onCheckedChange={setGroupPrivate} />
             </div>

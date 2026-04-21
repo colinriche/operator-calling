@@ -56,6 +56,15 @@ interface PendingInvite {
   createdAt: string | null;
 }
 
+interface JoinRequest {
+  id: string;
+  requesterId: string;
+  requesterName: string;
+  requesterUsername: string;
+  via: string;
+  createdAt: string | null;
+}
+
 interface Schedule {
   id: string;
   creatorId: string;
@@ -114,19 +123,23 @@ export default function GroupDetailPage({ params }: { params: Promise<{ id: stri
   const [group, setGroup] = useState<GroupDetail | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
   const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([]);
+  const [joinRequests, setJoinRequests] = useState<JoinRequest[]>([]);
+  const [resolvingRequestId, setResolvingRequestId] = useState<string | null>(null);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
 
-  const loadGroup = useCallback(async () => {
+  const loadGroup = useCallback(async (): Promise<GroupDetail | null> => {
     try {
       const data = await apiFetch(`/api/groups/${id}`);
       setGroup(data.group);
       setMembers(data.members ?? []);
       setPendingInvites(data.pendingInvites ?? []);
+      return data.group ?? null;
     } catch {
       toast.error("Could not load group.");
       router.push("/dashboard/groups");
+      return null;
     }
   }, [id, router]);
 
@@ -137,15 +150,62 @@ export default function GroupDetailPage({ params }: { params: Promise<{ id: stri
     } catch {}
   }, [id]);
 
+  const loadJoinRequests = useCallback(async (groupData: GroupDetail, currentUid: string) => {
+    if (!groupData.isPrivate || groupData.createdBy !== currentUid) return;
+    try {
+      const data = await apiFetch(`/api/groups/${id}/join-requests`);
+      setJoinRequests(data.requests ?? []);
+    } catch {}
+  }, [id]);
+
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
       if (!user) { router.push("/login"); return; }
       setUid(user.uid);
-      await Promise.all([loadGroup(), loadSchedules()]);
+      const [groupData] = await Promise.all([loadGroup(), loadSchedules()]);
+      if (groupData) {
+        await loadJoinRequests(groupData, user.uid);
+      }
       setLoading(false);
     });
     return unsub;
-  }, [loadGroup, loadSchedules, router]);
+  }, [loadGroup, loadJoinRequests, loadSchedules, router]);
+
+  async function handleResolveJoinRequest(requestId: string, action: "approve" | "deny") {
+    setResolvingRequestId(requestId);
+    try {
+      await apiFetch(`/api/groups/${id}/join-requests/${requestId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ action }),
+      });
+
+      const resolvedRequest = joinRequests.find((req) => req.id === requestId);
+      setJoinRequests((prev) => prev.filter((req) => req.id !== requestId));
+
+      if (action === "approve" && resolvedRequest) {
+        const member: Member = {
+          uid: resolvedRequest.requesterId,
+          name: resolvedRequest.requesterName,
+          username: resolvedRequest.requesterUsername,
+          email: "",
+          joinedAt: new Date().toISOString(),
+          isCreator: false,
+          role: "member",
+        };
+        setMembers((prev) =>
+          prev.some((m) => m.uid === member.uid) ? prev : [...prev, member]
+        );
+        setGroup((prev) => prev ? { ...prev, memberCount: prev.memberCount + 1 } : prev);
+        toast.success(`${resolvedRequest.requesterName} approved.`);
+      } else {
+        toast.success("Join request denied.");
+      }
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to resolve join request.");
+    } finally {
+      setResolvingRequestId(null);
+    }
+  }
 
   const isCreator = uid === group?.createdBy;
 
@@ -217,6 +277,50 @@ export default function GroupDetailPage({ params }: { params: Promise<{ id: stri
               groupId={id}
               onInvited={(invite) => setPendingInvites((prev) => [invite, ...prev])}
             />
+          )}
+
+          {isCreator && group.isPrivate && joinRequests.length > 0 && (
+            <div className="bg-card rounded-2xl border border-border/60 overflow-hidden">
+              <div className="p-4 border-b border-border/60">
+                <p className="font-semibold text-sm text-foreground">
+                  Join requests ({joinRequests.length})
+                </p>
+              </div>
+              <div className="divide-y divide-border/60">
+                {joinRequests.map((req) => (
+                  <div key={req.id} className="px-4 py-3 flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs shrink-0">
+                      {req.requesterName[0]?.toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-foreground">{req.requesterName}</p>
+                      <p className="text-xs text-muted-foreground">@{req.requesterUsername}</p>
+                    </div>
+                    <span className="text-xs text-muted-foreground shrink-0">
+                      {fmtDate(req.createdAt)}
+                    </span>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Button
+                        size="sm"
+                        className="gradient-gold border-0 text-primary-foreground font-semibold"
+                        disabled={resolvingRequestId === req.id}
+                        onClick={() => handleResolveJoinRequest(req.id, "approve")}
+                      >
+                        {resolvingRequestId === req.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Approve"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={resolvingRequestId === req.id}
+                        onClick={() => handleResolveJoinRequest(req.id, "deny")}
+                      >
+                        Deny
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
 
           {pendingInvites.length > 0 && (
@@ -308,7 +412,12 @@ export default function GroupDetailPage({ params }: { params: Promise<{ id: stri
           <SettingsCard
             group={group}
             isCreator={isCreator}
-            onSaved={(updated) => setGroup((prev) => prev ? { ...prev, ...updated } : prev)}
+            onSaved={(updated) => {
+              setGroup((prev) => prev ? { ...prev, ...updated } : prev);
+              if (updated.isPrivate === false) {
+                setJoinRequests([]);
+              }
+            }}
             onDeleted={() => router.push("/dashboard/groups")}
           />
         </TabsContent>
@@ -835,7 +944,7 @@ function SettingsCard({
           {
             key: "isPrivate",
             label: "Private group",
-            desc: "Only invited members can join.",
+            desc: "Members need owner approval before joining.",
             value: isPrivate,
             set: setIsPrivate,
           },

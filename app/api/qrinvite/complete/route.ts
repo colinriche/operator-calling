@@ -101,8 +101,15 @@ export async function POST(req: NextRequest): Promise<NextResponse<CompleteRespo
       batch.set(contactA, contactBase, { merge: true });
       batch.set(contactB, contactBase, { merge: true });
     } else if (tokenData.type === "group" && tokenData.groupId) {
-      // Add user to the group using the mobile-app schema:
-      // groups/{groupId}.memberIds (array) + groups/{groupId}.members.{uid} (map)
+      const groupSnap = await db.collection("groups").doc(tokenData.groupId).get();
+      if (!groupSnap.exists) {
+        return NextResponse.json({ success: false, error: "Group not found" }, { status: 404 });
+      }
+      const groupData = groupSnap.data()!;
+      const isPrivate: boolean = groupData.isPrivate ?? true;
+      const memberIds: string[] = groupData.memberIds ?? [];
+
+      // Resolve requester's display name and username once
       let displayName = "Unknown";
       let username = "";
       try {
@@ -113,16 +120,57 @@ export async function POST(req: NextRequest): Promise<NextResponse<CompleteRespo
         }
       } catch {}
 
-      const groupRef = db.collection("groups").doc(tokenData.groupId);
-      batch.update(groupRef, {
-        memberIds: FieldValue.arrayUnion(currentUserId),
-        [`members.${currentUserId}`]: {
-          name: displayName,
-          username,
-          joinedAt: FieldValue.serverTimestamp(),
+      if (!isPrivate) {
+        // Public group — add directly (already a member check)
+        if (memberIds.includes(currentUserId)) {
+          return NextResponse.json({ success: false, error: "Already a member" }, { status: 409 });
+        }
+        batch.update(db.collection("groups").doc(tokenData.groupId), {
+          memberIds: FieldValue.arrayUnion(currentUserId),
+          [`members.${currentUserId}`]: {
+            name: displayName,
+            username,
+            joinedAt: FieldValue.serverTimestamp(),
+            via: "qr",
+          },
+        });
+      } else {
+        // Private group — create a join request instead of adding directly
+        if (memberIds.includes(currentUserId)) {
+          return NextResponse.json({ success: false, error: "Already a member" }, { status: 409 });
+        }
+
+        // Idempotent: return pending if request already exists
+        const existing = await db
+          .collection("group_join_requests")
+          .where("groupId", "==", tokenData.groupId)
+          .where("requesterId", "==", currentUserId)
+          .where("status", "==", "pending")
+          .limit(1)
+          .get();
+        if (!existing.empty) {
+          // Mark token used and return pending — no need to create another request
+          batch.update(tokenRef, { status: "used", usedAt: FieldValue.serverTimestamp(), usedBy: currentUserId });
+          await batch.commit();
+          return NextResponse.json({ success: true, pending: true });
+        }
+
+        batch.set(db.collection("group_join_requests").doc(), {
+          groupId: tokenData.groupId,
+          groupName: groupData.name ?? "",
+          requesterId: currentUserId,
+          requesterName: displayName,
+          requesterUsername: username,
+          status: "pending",
+          createdAt: FieldValue.serverTimestamp(),
           via: "qr",
-        },
-      });
+        });
+
+        // Mark token as used and return pending immediately — skip the usual used-mark below
+        batch.update(tokenRef, { status: "used", usedAt: FieldValue.serverTimestamp(), usedBy: currentUserId });
+        await batch.commit();
+        return NextResponse.json({ success: true, pending: true });
+      }
     }
 
     // Mark token as used
