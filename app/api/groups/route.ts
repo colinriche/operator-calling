@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
+import type { QueryDocumentSnapshot } from "firebase-admin/firestore";
 import { getAdminServices, verifyAuth } from "@/lib/firebase-admin";
 
 // GET /api/groups — list groups the caller belongs to
@@ -8,13 +9,36 @@ export async function GET(req: NextRequest) {
   if (!uid) return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
 
   const { db } = getAdminServices();
-  const snap = await db
-    .collection("groups")
-    .where("memberIds", "array-contains", uid)
-    .orderBy("createdAt", "desc")
-    .get();
+  let docs: QueryDocumentSnapshot[] = [];
+  try {
+    const snap = await db
+      .collection("groups")
+      .where("memberIds", "array-contains", uid)
+      .orderBy("createdAt", "desc")
+      .get();
+    docs = snap.docs;
+  } catch (err: unknown) {
+    // Fallback for environments where the array-contains + orderBy index
+    // has not been created yet. This keeps groups loading instead of 500.
+    const message = err instanceof Error ? err.message : "";
+    if (!message.includes("FAILED_PRECONDITION")) {
+      console.error("[groups GET] primary query failed:", err);
+      return NextResponse.json({ error: "Server error" }, { status: 500 });
+    }
 
-  const groups = snap.docs.map((d) => {
+    const unsortedSnap = await db
+      .collection("groups")
+      .where("memberIds", "array-contains", uid)
+      .get();
+
+    docs = [...unsortedSnap.docs].sort((a, b) => {
+      const aTs = a.data().createdAt?.toDate?.()?.getTime?.() ?? 0;
+      const bTs = b.data().createdAt?.toDate?.()?.getTime?.() ?? 0;
+      return bTs - aTs;
+    });
+  }
+
+  const groups = docs.map((d) => {
     const data = d.data();
     return {
       id: d.id,
