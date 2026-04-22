@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
+import { getIdToken } from "firebase/auth";
 import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
@@ -12,7 +13,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { User, Phone, Shield, Bell, Users, X } from "lucide-react";
+import { User, Phone, Shield, Bell, Users, X, QrCode, Copy, Share2, RefreshCcw, Download } from "lucide-react";
+import { toDataURL } from "qrcode";
 
 const INTEREST_SUGGESTIONS = [
   "Running", "Remote work", "Music", "Language learning", "Startups",
@@ -39,6 +41,10 @@ export function ProfileEditor() {
   const [emailNotifs, setEmailNotifs] = useState(true);
   const [pushNotifs, setPushNotifs] = useState(true);
   const [reminderNotifs, setReminderNotifs] = useState(true);
+  const [qrInviteUrl, setQrInviteUrl] = useState("");
+  const [qrDataUrl, setQrDataUrl] = useState("");
+  const [qrExpiresAt, setQrExpiresAt] = useState<string | null>(null);
+  const [loadingQr, setLoadingQr] = useState(false);
 
   // Seed form once when profile first arrives
   if (!seeded && profile) {
@@ -100,6 +106,71 @@ export function ProfileEditor() {
     }
   }
 
+  async function generateProfileQr(forceNew = false) {
+    if (!user) return;
+    setLoadingQr(true);
+    try {
+      const token = await getIdToken(user);
+      const res = await fetch("/api/qrinvite/token", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ type: "personal", forceNew }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.publicUrl) {
+        throw new Error(data.error ?? "Failed to generate QR");
+      }
+
+      const url = data.publicUrl as string;
+      const dataUrl = await toDataURL(url, { width: 700, margin: 1 });
+      setQrInviteUrl(url);
+      setQrDataUrl(dataUrl);
+      setQrExpiresAt(data.expiresAt ?? null);
+      toast.success(forceNew ? "Fresh profile QR created." : "Profile QR ready.");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to generate QR.");
+    } finally {
+      setLoadingQr(false);
+    }
+  }
+
+  async function copyQrLink() {
+    if (!qrInviteUrl) return;
+    try {
+      await navigator.clipboard.writeText(qrInviteUrl);
+      toast.success("Invite link copied.");
+    } catch {
+      toast.error("Could not copy link.");
+    }
+  }
+
+  async function shareQrLink() {
+    if (!qrInviteUrl) return;
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: "Connect with me on The Operator",
+          text: "Scan this QR or open this invite link.",
+          url: qrInviteUrl,
+        });
+      } else {
+        await copyQrLink();
+      }
+    } catch {
+      // User cancelled share; no toast needed.
+    }
+  }
+
+  useEffect(() => {
+    if (!user || qrInviteUrl) return;
+    void generateProfileQr(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
   if (loading) {
     return <div className="max-w-2xl mx-auto py-10 text-sm text-muted-foreground">Loading profile…</div>;
   }
@@ -122,6 +193,63 @@ export function ProfileEditor() {
           <p className="text-xs text-muted-foreground mt-2">
             {completeness < 40 ? "Add a bio and interests to get better matched calls." : "Almost there — a few more details improve your call quality."}
           </p>
+        )}
+      </div>
+
+      <div className="bg-card rounded-2xl p-5 border border-border/60 mb-6">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <QrCode className="w-4 h-4 text-primary" />
+            <h2 className="text-sm font-semibold text-foreground">Your share QR</h2>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => generateProfileQr(true)}
+            disabled={loadingQr}
+            className="gap-1.5"
+          >
+            {loadingQr ? <RefreshCcw className="w-3.5 h-3.5 animate-spin" /> : <RefreshCcw className="w-3.5 h-3.5" />}
+            Regenerate
+          </Button>
+        </div>
+
+        {loadingQr && !qrDataUrl ? (
+          <div className="text-xs text-muted-foreground">Generating QR…</div>
+        ) : qrDataUrl ? (
+          <div className="flex flex-col sm:flex-row gap-4 items-start">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={qrDataUrl}
+              alt="Your profile invite QR"
+              className="w-40 h-40 rounded-xl border border-border bg-white p-2"
+            />
+            <div className="flex-1 space-y-2 text-xs text-muted-foreground">
+              <p>Share this QR publicly so people can add you on The Operator.</p>
+              {qrExpiresAt && (
+                <p>Expires: {new Date(qrExpiresAt).toLocaleString("en-GB")}</p>
+              )}
+              <div className="flex flex-wrap gap-2 pt-1">
+                <Button size="sm" variant="outline" className="gap-1.5" onClick={copyQrLink}>
+                  <Copy className="w-3.5 h-3.5" /> Copy link
+                </Button>
+                <Button size="sm" variant="outline" className="gap-1.5" onClick={shareQrLink}>
+                  <Share2 className="w-3.5 h-3.5" /> Share
+                </Button>
+                <a
+                  href={qrDataUrl}
+                  download="operator-profile-qr.png"
+                  className="inline-flex items-center gap-1.5 rounded-md border border-input bg-background px-3 py-1.5 text-xs font-medium text-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+                >
+                  <Download className="w-3.5 h-3.5" /> Download PNG
+                </a>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <Button size="sm" variant="outline" onClick={() => generateProfileQr(false)}>
+            Generate QR
+          </Button>
         )}
       </div>
 

@@ -11,7 +11,7 @@ import {
   Users, Calendar, Settings, Shield, ArrowLeft,
   UserPlus, Loader2, Crown, Trash2, MoreHorizontal,
   Clock, Video, Mic, X, ChevronRight, Lock, Unlock,
-  Phone,
+  Phone, QrCode, Copy, Share2, RefreshCcw, Download,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +19,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { toDataURL } from "qrcode";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -409,6 +410,9 @@ export default function GroupDetailPage({ params }: { params: Promise<{ id: stri
 
         {/* ── Settings tab ─────────────────────────────────────────────────────── */}
         <TabsContent value="settings">
+          {isCreator && (
+            <GroupQrShareCard groupId={id} groupName={group.name} />
+          )}
           <SettingsCard
             group={group}
             isCreator={isCreator}
@@ -427,6 +431,130 @@ export default function GroupDetailPage({ params }: { params: Promise<{ id: stri
           <ModerationCard members={members} groupId={id} isCreator={isCreator} />
         </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+function GroupQrShareCard({ groupId, groupName }: { groupId: string; groupName: string }) {
+  const [qrInviteUrl, setQrInviteUrl] = useState("");
+  const [qrDataUrl, setQrDataUrl] = useState("");
+  const [qrExpiresAt, setQrExpiresAt] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  async function generateGroupQr(forceNew = false) {
+    setLoading(true);
+    try {
+      const data = await apiFetch("/api/qrinvite/token", {
+        method: "POST",
+        body: JSON.stringify({
+          type: "group",
+          groupId,
+          ctx: groupName,
+          forceNew,
+        }),
+      });
+
+      if (!data.publicUrl) throw new Error("Could not generate group QR");
+      const url = data.publicUrl as string;
+      const qr = await toDataURL(url, { width: 700, margin: 1 });
+      setQrInviteUrl(url);
+      setQrDataUrl(qr);
+      setQrExpiresAt(data.expiresAt ?? null);
+      toast.success(forceNew ? "Fresh group QR created." : "Group QR ready.");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to generate group QR.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function copyLink() {
+    if (!qrInviteUrl) return;
+    try {
+      await navigator.clipboard.writeText(qrInviteUrl);
+      toast.success("Group invite link copied.");
+    } catch {
+      toast.error("Could not copy invite link.");
+    }
+  }
+
+  async function shareLink() {
+    if (!qrInviteUrl) return;
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: `Join ${groupName} on The Operator`,
+          text: "Scan this QR or open this link to join the group.",
+          url: qrInviteUrl,
+        });
+      } else {
+        await copyLink();
+      }
+    } catch {
+      // ignore user cancelled share
+    }
+  }
+
+  useEffect(() => {
+    if (qrInviteUrl) return;
+    void generateGroupQr(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groupId]);
+
+  return (
+    <div className="bg-card rounded-2xl p-6 border border-border/60 space-y-4 mb-5">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <QrCode className="w-4 h-4 text-primary" />
+          <h2 className="font-semibold text-foreground">Group share QR</h2>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-1.5"
+          disabled={loading}
+          onClick={() => generateGroupQr(true)}
+        >
+          {loading ? <RefreshCcw className="w-3.5 h-3.5 animate-spin" /> : <RefreshCcw className="w-3.5 h-3.5" />}
+          Regenerate
+        </Button>
+      </div>
+
+      {loading && !qrDataUrl ? (
+        <p className="text-xs text-muted-foreground">Generating QR…</p>
+      ) : qrDataUrl ? (
+        <div className="flex flex-col sm:flex-row gap-4 items-start">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={qrDataUrl}
+            alt={`${groupName} group invite QR`}
+            className="w-40 h-40 rounded-xl border border-border bg-white p-2"
+          />
+          <div className="space-y-2 text-xs text-muted-foreground">
+            <p>Share this with people who should join this group.</p>
+            {qrExpiresAt && <p>Expires: {new Date(qrExpiresAt).toLocaleString("en-GB")}</p>}
+            <div className="flex flex-wrap gap-2 pt-1">
+              <Button size="sm" variant="outline" className="gap-1.5" onClick={copyLink}>
+                <Copy className="w-3.5 h-3.5" /> Copy link
+              </Button>
+              <Button size="sm" variant="outline" className="gap-1.5" onClick={shareLink}>
+                <Share2 className="w-3.5 h-3.5" /> Share
+              </Button>
+              <a
+                href={qrDataUrl}
+                download={`${groupName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-qr.png`}
+                className="inline-flex items-center gap-1.5 rounded-md border border-input bg-background px-3 py-1.5 text-xs font-medium text-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+              >
+                <Download className="w-3.5 h-3.5" /> Download PNG
+              </a>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <Button size="sm" variant="outline" onClick={() => generateGroupQr(false)}>
+          Generate QR
+        </Button>
+      )}
     </div>
   );
 }
