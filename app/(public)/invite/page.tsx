@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Phone } from "lucide-react";
+import { sanitizeGroupId, sanitizeInviteRef } from "@/lib/deep-link-params";
 
 export const metadata: Metadata = { title: "You've been invited — The Operator" };
 
@@ -10,8 +11,8 @@ interface Props {
 
 export default async function InvitePage({ searchParams }: Props) {
   const params = await searchParams;
-  const ref = params.ref ?? "";
-  const gid = params.gid ?? "";
+  const ref = sanitizeInviteRef(params.ref);
+  const gid = sanitizeGroupId(params.gid);
 
   const signupHref =
     ref || gid

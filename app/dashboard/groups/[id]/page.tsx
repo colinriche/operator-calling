@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, use } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { onAuthStateChanged, getIdToken } from "firebase/auth";
@@ -78,6 +78,13 @@ interface Schedule {
   status: string;
 }
 
+const GROUP_TABS = ["overview", "schedule", "settings", "moderation"] as const;
+type GroupTab = (typeof GROUP_TABS)[number];
+
+function normalizeGroupTab(value: string | null): GroupTab {
+  return GROUP_TABS.includes(value as GroupTab) ? (value as GroupTab) : "overview";
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 async function authToken(): Promise<string> {
@@ -119,6 +126,8 @@ function fmtDateTime(iso: string | null) {
 export default function GroupDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   const [uid, setUid] = useState<string | null>(null);
   const [group, setGroup] = useState<GroupDetail | null>(null);
@@ -128,7 +137,32 @@ export default function GroupDetailPage({ params }: { params: Promise<{ id: stri
   const [resolvingRequestId, setResolvingRequestId] = useState<string | null>(null);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("overview");
+  const [activeTab, setActiveTab] = useState<GroupTab>(() =>
+    normalizeGroupTab(searchParams.get("tab"))
+  );
+
+  useEffect(() => {
+    const nextTab = normalizeGroupTab(searchParams.get("tab"));
+    setActiveTab((prev) => (prev === nextTab ? prev : nextTab));
+  }, [searchParams]);
+
+  const handleTabChange = useCallback(
+    (tab: string) => {
+      const normalized = normalizeGroupTab(tab);
+      setActiveTab(normalized);
+
+      const params = new URLSearchParams(searchParams.toString());
+      if (normalized === "overview") {
+        params.delete("tab");
+      } else {
+        params.set("tab", normalized);
+      }
+
+      const query = params.toString();
+      router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    },
+    [pathname, router, searchParams]
+  );
 
   const loadGroup = useCallback(async (): Promise<GroupDetail | null> => {
     try {
@@ -263,7 +297,7 @@ export default function GroupDetailPage({ params }: { params: Promise<{ id: stri
         ))}
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList className="grid grid-cols-4 w-full mb-6">
           <TabsTrigger value="overview" className="text-xs gap-1.5"><Users className="w-3.5 h-3.5" />Members</TabsTrigger>
           <TabsTrigger value="schedule" className="text-xs gap-1.5"><Calendar className="w-3.5 h-3.5" />Schedule</TabsTrigger>

@@ -20,6 +20,7 @@ interface AuthFormProps {
   mode: "login" | "signup";
   inviteRef?: string;
   inviteGid?: string;
+  nextPath?: string;
 }
 
 function firebaseErrorMessage(err: unknown): string {
@@ -73,7 +74,7 @@ async function writeGoogleProfile(uid: string, displayName: string | null, email
   }
 }
 
-export function AuthForm({ mode, inviteRef = "", inviteGid = "" }: AuthFormProps) {
+export function AuthForm({ mode, inviteRef = "", inviteGid = "", nextPath = "/dashboard" }: AuthFormProps) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -98,7 +99,7 @@ export function AuthForm({ mode, inviteRef = "", inviteGid = "" }: AuthFormProps
       setStep("phone_prompt");
       setLoading(false);
     } else {
-      router.push("/dashboard");
+      router.push(nextPath);
     }
   }
 
@@ -150,7 +151,7 @@ export function AuthForm({ mode, inviteRef = "", inviteGid = "" }: AuthFormProps
     } finally {
       setPhoneSaving(false);
     }
-    router.push("/dashboard");
+    router.push(nextPath);
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -276,7 +277,7 @@ export function AuthForm({ mode, inviteRef = "", inviteGid = "" }: AuthFormProps
             variant="ghost"
             className="w-full"
             disabled={phoneSaving}
-            onClick={() => router.push("/dashboard")}
+            onClick={() => router.push(nextPath)}
           >
             Skip for now
           </Button>
@@ -398,9 +399,9 @@ export function AuthForm({ mode, inviteRef = "", inviteGid = "" }: AuthFormProps
 
       <p className="text-center text-sm text-muted-foreground mt-6">
         {mode === "login" ? (
-          <>Don&apos;t have an account?{" "}<Link href="/signup" className="text-primary hover:underline font-medium">Sign up</Link></>
+          <>Don&apos;t have an account?{" "}<Link href={`/signup?next=${encodeURIComponent(nextPath)}`} className="text-primary hover:underline font-medium">Sign up</Link></>
         ) : (
-          <>Already have an account?{" "}<Link href="/login" className="text-primary hover:underline font-medium">Sign in</Link></>
+          <>Already have an account?{" "}<Link href={`/login?next=${encodeURIComponent(nextPath)}`} className="text-primary hover:underline font-medium">Sign in</Link></>
         )}
       </p>
       {mode === "login" && (

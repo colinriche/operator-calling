@@ -110,6 +110,30 @@ export interface Notification {
   data?: Record<string, string>;
 }
 
+// ─── Mobile Destination Payloads ──────────────────────────────────────────────
+
+export type MobileDestinationType =
+  | "invite"
+  | "operator_call"
+  | "auto_call_invite"
+  | "auto_call_paired"
+  | "observer_call"
+  | "group_call_invite"
+  | "group_call_scheduled"
+  | "contact_joined"
+  | "friend_request_accepted"
+  | "group_request_accepted";
+
+export interface MobileDeepLinkPayload {
+  destination: MobileDestinationType;
+  token?: string; // invite bearer token
+  type?: string; // invite type enum value
+  callId?: string;
+  sessionId?: string;
+  webrtcRoomId?: string;
+  groupId?: string;
+}
+
 // ─── Invites ──────────────────────────────────────────────────────────────────
 
 export interface Invite {

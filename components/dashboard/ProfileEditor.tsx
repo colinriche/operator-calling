@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { getIdToken } from "firebase/auth";
 import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
@@ -21,7 +22,17 @@ const INTEREST_SUGGESTIONS = [
   "Philosophy", "Tech", "Fitness", "Books", "Travel", "Photography", "Gaming",
 ];
 
+const PROFILE_TABS = ["basics", "calls", "privacy", "notifs"] as const;
+type ProfileTab = (typeof PROFILE_TABS)[number];
+
+function normalizeProfileTab(value: string | null): ProfileTab {
+  return PROFILE_TABS.includes(value as ProfileTab) ? (value as ProfileTab) : "basics";
+}
+
 export function ProfileEditor() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { user, profile, loading } = useAuth();
   const [saving, setSaving] = useState(false);
   const [seeded, setSeeded] = useState(false);
@@ -45,6 +56,29 @@ export function ProfileEditor() {
   const [qrDataUrl, setQrDataUrl] = useState("");
   const [qrExpiresAt, setQrExpiresAt] = useState<string | null>(null);
   const [loadingQr, setLoadingQr] = useState(false);
+  const [activeTab, setActiveTab] = useState<ProfileTab>(() =>
+    normalizeProfileTab(searchParams.get("tab"))
+  );
+
+  useEffect(() => {
+    const nextTab = normalizeProfileTab(searchParams.get("tab"));
+    setActiveTab((prev) => (prev === nextTab ? prev : nextTab));
+  }, [searchParams]);
+
+  function handleTabChange(nextTab: string) {
+    const normalized = normalizeProfileTab(nextTab);
+    setActiveTab(normalized);
+
+    const params = new URLSearchParams(searchParams.toString());
+    if (normalized === "basics") {
+      params.delete("tab");
+    } else {
+      params.set("tab", normalized);
+    }
+
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  }
 
   // Seed form once when profile first arrives
   if (!seeded && profile) {
@@ -253,7 +287,7 @@ export function ProfileEditor() {
         )}
       </div>
 
-      <Tabs defaultValue="basics">
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList className="grid grid-cols-4 w-full mb-6">
           <TabsTrigger value="basics" className="gap-1.5 text-xs"><User className="w-3.5 h-3.5" />Basics</TabsTrigger>
           <TabsTrigger value="calls" className="gap-1.5 text-xs"><Phone className="w-3.5 h-3.5" />Calls</TabsTrigger>

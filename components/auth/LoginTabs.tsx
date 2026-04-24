@@ -1,13 +1,17 @@
 "use client";
 
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { AuthForm } from "@/components/shared/AuthForm";
 import { PhoneAuthForm } from "@/components/auth/PhoneAuthForm";
 
-export function LoginTabs() {
+interface LoginTabsProps {
+  initialMethod: "email" | "phone";
+  nextPath: string;
+}
+
+export function LoginTabs({ initialMethod, nextPath }: LoginTabsProps) {
   return (
     <div className="bg-card rounded-2xl p-8 border border-border/60 shadow-xl shadow-foreground/5">
-      <Tabs defaultValue="email">
+      <Tabs defaultValue={initialMethod}>
         <TabsList className="w-full mb-6">
           <TabsTrigger value="email" className="flex-1">
             Email
@@ -21,7 +25,7 @@ export function LoginTabs() {
           {/* AuthForm handles its own card wrapper — we strip it here by
               rendering it without the outer card. AuthForm is self-contained
               so we render it directly and let it use the parent card. */}
-          <AuthFormInline mode="login" />
+          <AuthFormInline mode="login" nextPath={nextPath} />
         </TabsContent>
 
         <TabsContent value="phone">
@@ -74,7 +78,7 @@ function firebaseErrorMessage(err: unknown): string {
   return code ? `${meaningful} [${code}]` : meaningful;
 }
 
-function AuthFormInline({ mode }: { mode: "login" | "signup" }) {
+function AuthFormInline({ mode, nextPath }: { mode: "login" | "signup"; nextPath: string }) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -95,7 +99,7 @@ function AuthFormInline({ mode }: { mode: "login" | "signup" }) {
       setStep("phone_prompt");
       setLoading(false);
     } else {
-      router.push("/dashboard");
+      router.push(nextPath);
     }
   }
 
@@ -121,7 +125,7 @@ function AuthFormInline({ mode }: { mode: "login" | "signup" }) {
     } finally {
       setPhoneSaving(false);
     }
-    router.push("/dashboard");
+    router.push(nextPath);
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -278,7 +282,7 @@ function AuthFormInline({ mode }: { mode: "login" | "signup" }) {
 
       <p className="text-center text-sm text-muted-foreground mt-6">
         Don&apos;t have an account?{" "}
-        <Link href="/signup" className="text-primary hover:underline font-medium">Sign up</Link>
+        <Link href={`/signup?next=${encodeURIComponent(nextPath)}`} className="text-primary hover:underline font-medium">Sign up</Link>
       </p>
       <p className="text-center mt-3">
         <Link href="/admin-login" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
