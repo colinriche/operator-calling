@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { onAuthStateChanged, User } from "firebase/auth";
+import { onAuthStateChanged, signOut, User } from "firebase/auth";
 import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import type { UserProfile } from "@/types";
@@ -12,6 +12,8 @@ interface AuthState {
   loading: boolean;
   /** True when the web account is linked to a mobile app account (has a systemName) */
   isLinked: boolean;
+  /** Firestore `user` document backing this session; can differ from Firebase Auth uid for linked accounts. */
+  profileDocId: string | null;
   /** Call after linking to refresh profile state */
   refreshProfile: () => Promise<void>;
 }
@@ -19,6 +21,7 @@ interface AuthState {
 export function useAuth(): AuthState {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [profileDocId, setProfileDocId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [isLinked, setIsLinked] = useState(false);
 
@@ -28,7 +31,12 @@ export function useAuth(): AuthState {
       const snap = await getDoc(doc(db, "user", u.uid));
       if (snap.exists()) {
         const p = snap.data() as UserProfile;
+        if (p.archived === true) {
+          await signOut(auth);
+          return;
+        }
         setProfile(p);
+        setProfileDocId(snap.id);
         setIsLinked(!!(p.systemName || p.linkedSystemName));
         return;
       }
@@ -40,7 +48,12 @@ export function useAuth(): AuthState {
         );
         if (!emailQ.empty) {
           const p = emailQ.docs[0].data() as UserProfile;
+          if (p.archived === true) {
+            await signOut(auth);
+            return;
+          }
           setProfile(p);
+          setProfileDocId(emailQ.docs[0].id);
           setIsLinked(!!(p.systemName || p.linkedSystemName));
           return;
         }
@@ -48,9 +61,11 @@ export function useAuth(): AuthState {
 
       // 3. Brand new web-only account — no Firestore doc yet
       setProfile(null);
+      setProfileDocId(null);
       setIsLinked(false);
     } catch {
       setProfile(null);
+      setProfileDocId(null);
       setIsLinked(false);
     }
   }, []);
@@ -62,6 +77,7 @@ export function useAuth(): AuthState {
         await loadProfile(u);
       } else {
         setProfile(null);
+        setProfileDocId(null);
         setIsLinked(false);
       }
       setLoading(false);
@@ -73,5 +89,5 @@ export function useAuth(): AuthState {
     if (user) await loadProfile(user);
   }, [user, loadProfile]);
 
-  return { user, profile, loading, isLinked, refreshProfile };
+  return { user, profile, loading, isLinked, profileDocId, refreshProfile };
 }

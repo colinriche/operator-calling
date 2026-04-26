@@ -3,9 +3,9 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
-import { getIdToken } from "firebase/auth";
+import { getIdToken, signOut } from "firebase/auth";
 import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -33,8 +33,9 @@ export function ProfileEditor() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const { user, profile, loading } = useAuth();
+  const { user, profile, profileDocId, loading } = useAuth();
   const [saving, setSaving] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
   const [seeded, setSeeded] = useState(false);
 
   const [displayName, setDisplayName] = useState("");
@@ -140,6 +141,48 @@ export function ProfileEditor() {
     }
   }
 
+  async function handleDeleteAccount() {
+    if (!user) return;
+
+    const reason = window.prompt(
+      "Please tell us why you are deleting your account. This reason is stored in the archive record.",
+      "User requested account deletion"
+    );
+    if (reason === null) return;
+
+    const confirmed = window.confirm(
+      "Delete your account? Your account data will be archived first to protect other users' records. If this website account is linked to your app account, the linked app account will be deleted too."
+    );
+    if (!confirmed) return;
+
+    try {
+      setDeletingAccount(true);
+      const token = await getIdToken(user);
+      const res = await fetch("/api/account/delete", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          profileDocId,
+          reason: reason.trim() || "User requested account deletion",
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to delete account");
+      await signOut(auth);
+      toast.success("Your account has been archived and deleted.");
+      router.replace("/");
+    } catch (error) {
+      toast.error(
+        `Failed to delete account: ${error instanceof Error ? error.message : "Unknown error"}`
+      );
+    } finally {
+      setDeletingAccount(false);
+    }
+  }
+
   async function generateProfileQr(forceNew = false) {
     if (!user) return;
     setLoadingQr(true);
@@ -212,9 +255,25 @@ export function ProfileEditor() {
   return (
     <div className="max-w-2xl mx-auto">
       <div className="mb-8">
-        <h1 className="font-heading font-bold text-3xl text-foreground mb-1">Your profile</h1>
+        <div className="flex items-center gap-3 mb-1">
+          <h1 className="font-heading font-bold text-3xl text-foreground">Your profile</h1>
+          {profile?.banned === true && (
+            <Badge variant="outline" className="border-destructive/40 bg-destructive/5 text-destructive">
+              Banned
+            </Badge>
+          )}
+        </div>
         <p className="text-muted-foreground text-sm">Manage how you appear and how calls reach you.</p>
       </div>
+
+      {profile?.banned === true && (
+        <div className="mb-6 rounded-2xl border border-destructive/30 bg-destructive/5 p-4">
+          <p className="text-sm font-semibold text-destructive">Account status: Banned</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Your account is banned. Calling features may be restricted until an admin reinstates you.
+          </p>
+        </div>
+      )}
 
       {/* Completeness */}
       <div className="bg-card rounded-2xl p-5 border border-border/60 mb-6">
@@ -436,6 +495,22 @@ export function ProfileEditor() {
           className="gradient-gold border-0 text-primary-foreground font-semibold px-8"
         >
           {saving ? "Saving..." : "Save profile"}
+        </Button>
+      </div>
+
+      <div className="mt-8 rounded-2xl border border-destructive/30 bg-destructive/5 p-5">
+        <h2 className="text-sm font-semibold text-destructive">Delete account</h2>
+        <p className="mt-1 text-xs text-muted-foreground">
+          This archives your account record first. Permanent archive removal requires a written request and super admin approval.
+        </p>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={deletingAccount}
+          className="mt-4 border-destructive/40 text-destructive hover:bg-destructive/10"
+          onClick={handleDeleteAccount}
+        >
+          {deletingAccount ? "Deleting..." : "Delete my account"}
         </Button>
       </div>
     </div>

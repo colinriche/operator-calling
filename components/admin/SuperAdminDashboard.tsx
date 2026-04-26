@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Users, BarChart3, Shield, Settings, Search, AlertTriangle, CheckCircle2, Phone, Globe } from "lucide-react";
+import { Users, BarChart3, Shield, Settings, Search, AlertTriangle, CheckCircle2, Phone, Globe, Archive, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -26,7 +26,7 @@ interface UserRow {
   name: string;
   email: string;
   role: string;
-  status: "active" | "suspended";
+  status: "active" | "banned";
   joinedAt: Date | null;
 }
 
@@ -38,6 +38,25 @@ interface ReportRow {
   createdAt: Date | null;
   targetUserId: string | null;
 }
+
+interface ArchiveRow {
+  id: string;
+  userId: string;
+  displayName: string;
+  email: string;
+  status: string;
+  matchedDocumentCount: number;
+  archivedAt: string | null;
+  deletedAt: string | null;
+  completedAt: string | null;
+  archivedBy: string | null;
+  deletedBy: string | null;
+  deletionReason: string;
+  deletionType: string;
+}
+
+const USER_MANAGEMENT_FUNCTION_URL =
+  "https://us-central1-webrtc-clone-dc88c.cloudfunctions.net/sendFcmMessage";
 
 export function SuperAdminDashboard() {
   const { user, profile } = useAuth();
@@ -51,12 +70,17 @@ export function SuperAdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState<UserRow[]>([]);
   const [reports, setReports] = useState<ReportRow[]>([]);
+  const [archives, setArchives] = useState<ArchiveRow[]>([]);
+  const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
+  const [purgingArchiveId, setPurgingArchiveId] = useState<string | null>(null);
+  const [loadingArchives, setLoadingArchives] = useState(false);
   const [groupsCount, setGroupsCount] = useState(0);
   const [callsToday, setCallsToday] = useState(0);
   const [completedCalls30d, setCompletedCalls30d] = useState(0);
   const [failedCalls30d, setFailedCalls30d] = useState(0);
 
   const canSeedDashboardData = profile?.role === "admin";
+  const canPermanentlyDeleteArchives = profile?.role === "super_admin";
 
   const filteredUsers = users.filter(
     (u) =>
@@ -85,7 +109,7 @@ export function SuperAdminDashboard() {
   const systemHealth = useMemo(
     () => [
       { label: "Open reports", value: openReportsCount.toString(), ok: openReportsCount < 10 },
-      { label: "Suspended users", value: users.filter((u) => u.status === "suspended").length.toString(), ok: true },
+      { label: "Banned users", value: users.filter((u) => u.status === "banned").length.toString(), ok: true },
       { label: "Completed calls (30d)", value: completedCalls30d.toString(), ok: true },
       { label: "Failed calls (30d)", value: failedCalls30d.toString(), ok: failedCalls30d < completedCalls30d + 5 },
     ],
@@ -115,7 +139,7 @@ export function SuperAdminDashboard() {
             name: toStringOrFallback(data.displayName, "Unnamed user"),
             email: toStringOrFallback(data.email, `${docSnap.id}@unknown`),
             role: toStringOrFallback(data.role, "user"),
-            status: data.banned === true ? "suspended" : "active",
+            status: data.banned === true ? "banned" : "active",
             joinedAt: toDate(data.createdAt),
           };
         });
@@ -189,6 +213,124 @@ export function SuperAdminDashboard() {
     };
   }, []);
 
+  async function loadArchives() {
+    if (!user) return;
+    try {
+      setLoadingArchives(true);
+      const token = await user.getIdToken();
+      const res = await fetch("/api/admin/archive", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to load archive");
+      setArchives(data.archives ?? []);
+    } catch (error) {
+      toast.error(
+        `Failed loading archive: ${error instanceof Error ? error.message : "Unknown error"}`
+      );
+    } finally {
+      setLoadingArchives(false);
+    }
+  }
+
+  async function archiveAndDeleteUser(userRow: UserRow) {
+    if (!user) {
+      toast.error("Please sign in first.");
+      return;
+    }
+    if (user.uid === userRow.id) {
+      toast.error("You cannot archive/delete your own admin account.");
+      return;
+    }
+    const confirmed = window.confirm(
+      `Archive and delete ${userRow.name}? This will archive database references, remove active contact/group references, and delete their Auth account.`
+    );
+    if (!confirmed) return;
+    const reason = window.prompt(
+      "Reason for archive/delete (stored in the Archive record):",
+      "Admin deleted user account from dashboard"
+    );
+    if (reason === null) return;
+
+    try {
+      setDeletingUserId(userRow.id);
+      const token = await user.getIdToken();
+      const res = await fetch(USER_MANAGEMENT_FUNCTION_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          action: "deleteUser",
+          userId: userRow.id,
+          reason: reason.trim() || "Admin deleted user account from dashboard",
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Archive/delete failed");
+
+      setUsers((prev) => prev.filter((row) => row.id !== userRow.id));
+      toast.success(
+        `Archived and deleted ${userRow.name}. ${data.matchedDocumentCount ?? 0} matching documents archived.`
+      );
+      await loadArchives();
+    } catch (error) {
+      toast.error(
+        `Failed to archive/delete user: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
+    } finally {
+      setDeletingUserId(null);
+    }
+  }
+
+  async function permanentlyDeleteArchive(archive: ArchiveRow) {
+    if (!user) return;
+    if (!canPermanentlyDeleteArchives) {
+      toast.error("Only super admins can remove Archive records.");
+      return;
+    }
+
+    const reference = window.prompt(
+      "Enter the written user request reference before permanently deleting this archive:"
+    );
+    if (!reference?.trim()) return;
+    const confirmed = window.confirm(
+      `Permanently remove archive ${archive.id}? This cannot be undone.`
+    );
+    if (!confirmed) return;
+
+    try {
+      setPurgingArchiveId(archive.id);
+      const token = await user.getIdToken();
+      const res = await fetch("/api/admin/archive", {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          archiveId: archive.id,
+          writtenRequestReference: reference.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to delete archive");
+      setArchives((prev) => prev.filter((row) => row.id !== archive.id));
+      toast.success("Archive permanently removed.");
+    } catch (error) {
+      toast.error(
+        `Failed to remove archive: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
+    } finally {
+      setPurgingArchiveId(null);
+    }
+  }
+
   async function handleSeedDashboardData() {
     if (!user) {
       toast.error("Please sign in first.");
@@ -260,16 +402,16 @@ export function SuperAdminDashboard() {
     }
   }
 
-  async function setUserSuspended(userId: string, suspended: boolean, name: string) {
+  async function setUserBanned(userId: string, banned: boolean, name: string) {
     try {
       await updateDoc(doc(db, "user", userId), {
-        banned: suspended,
+        banned,
         updatedAt: serverTimestamp(),
       });
       setUsers((prev) =>
-        prev.map((u) => (u.id === userId ? { ...u, status: suspended ? "suspended" : "active" } : u))
+        prev.map((u) => (u.id === userId ? { ...u, status: banned ? "banned" : "active" } : u))
       );
-      toast.success(`${name} ${suspended ? "suspended" : "reinstated"}`);
+      toast.success(`${name} ${banned ? "banned" : "unbanned"}`);
     } catch (error) {
       toast.error(
         `Failed updating user status: ${
@@ -296,14 +438,14 @@ export function SuperAdminDashboard() {
     }
   }
 
-  async function suspendFromReport(report: ReportRow) {
+  async function banFromReport(report: ReportRow) {
     if (!report.targetUserId) {
       toast.error("No target user on this report.");
       return;
     }
 
     await Promise.all([
-      setUserSuspended(report.targetUserId, true, report.reported),
+      setUserBanned(report.targetUserId, true, report.reported),
       dismissReport(report.id),
     ]);
   }
@@ -367,11 +509,14 @@ export function SuperAdminDashboard() {
         </div>
       )}
 
-      <Tabs defaultValue="users">
-        <TabsList className="grid grid-cols-4 w-full mb-6">
+      <Tabs defaultValue="users" onValueChange={(value) => {
+        if (value === "archive") void loadArchives();
+      }}>
+        <TabsList className="grid grid-cols-5 w-full mb-6">
           <TabsTrigger value="users" className="gap-1.5 text-xs"><Users className="w-3.5 h-3.5" />Users</TabsTrigger>
           <TabsTrigger value="moderation" className="gap-1.5 text-xs"><Shield className="w-3.5 h-3.5" />Moderation</TabsTrigger>
           <TabsTrigger value="analytics" className="gap-1.5 text-xs"><BarChart3 className="w-3.5 h-3.5" />Analytics</TabsTrigger>
+          <TabsTrigger value="archive" className="gap-1.5 text-xs"><Archive className="w-3.5 h-3.5" />Archive</TabsTrigger>
           <TabsTrigger value="system" className="gap-1.5 text-xs"><Settings className="w-3.5 h-3.5" />System</TabsTrigger>
         </TabsList>
 
@@ -390,7 +535,7 @@ export function SuperAdminDashboard() {
           <div className="bg-card rounded-2xl border border-border/60 overflow-hidden">
             <div className="divide-y divide-border/60">
               {filteredUsers.map((u) => (
-                <div key={u.email} className="p-4 flex items-center gap-4">
+                <div key={u.id} className="p-4 flex items-center gap-4">
                   <div className="w-9 h-9 rounded-full gradient-gold flex items-center justify-center text-primary-foreground font-heading font-bold text-xs shrink-0">
                     {u.name[0]}
                   </div>
@@ -404,7 +549,7 @@ export function SuperAdminDashboard() {
                     <Badge
                       variant="outline"
                       className={`text-xs capitalize ${
-                        u.status === "suspended" ? "border-destructive/40 text-destructive bg-destructive/5" : ""
+                        u.status === "banned" ? "border-destructive/40 text-destructive bg-destructive/5" : ""
                       }`}
                     >
                       {u.status}
@@ -420,25 +565,37 @@ export function SuperAdminDashboard() {
                       <option value="group_admin">Group admin</option>
                       <option value="super_admin">Super admin</option>
                     </select>
-                    {u.status !== "suspended" ? (
+                    {u.status !== "banned" ? (
                       <button
                         className="text-xs text-destructive hover:underline"
                         onClick={() => {
-                          void setUserSuspended(u.id, true, u.name);
+                          void setUserBanned(u.id, true, u.name);
                         }}
                       >
-                        Suspend
+                        Ban
                       </button>
                     ) : (
                       <button
                         className="text-xs text-green-600 hover:underline"
                         onClick={() => {
-                          void setUserSuspended(u.id, false, u.name);
+                          void setUserBanned(u.id, false, u.name);
                         }}
                       >
-                        Reinstate
+                        Unban
                       </button>
                     )}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={deletingUserId === u.id}
+                      className="h-7 gap-1.5 border-destructive/30 text-destructive hover:bg-destructive/5"
+                      onClick={() => {
+                        void archiveAndDeleteUser(u);
+                      }}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      {deletingUserId === u.id ? "Archiving..." : "Archive/Delete"}
+                    </Button>
                   </div>
                 </div>
               ))}
@@ -478,10 +635,10 @@ export function SuperAdminDashboard() {
                         size="sm"
                         className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                         onClick={() => {
-                          void suspendFromReport(report);
+                          void banFromReport(report);
                         }}
                       >
-                        Suspend user
+                        Ban user
                       </Button>
                     </div>
                   </div>
@@ -515,6 +672,70 @@ export function SuperAdminDashboard() {
                     <span className="text-xs font-medium text-muted-foreground">
                       {item.change}
                     </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </TabsContent>
+
+        {/* Archive */}
+        <TabsContent value="archive" className="space-y-4">
+          <div className="bg-card rounded-2xl border border-border/60 overflow-hidden">
+            <div className="p-4 border-b border-border/60 flex items-center justify-between gap-4">
+              <div>
+                <h2 className="font-semibold text-sm text-foreground">Archived users</h2>
+                <p className="text-xs text-muted-foreground">
+                  Completed user archive/delete actions and their captured database references.
+                </p>
+              </div>
+              <Button size="sm" variant="outline" onClick={() => void loadArchives()} disabled={loadingArchives}>
+                {loadingArchives ? "Loading..." : "Refresh"}
+              </Button>
+            </div>
+            <div className="divide-y divide-border/60">
+              {archives.length === 0 && (
+                <div className="p-5 text-sm text-muted-foreground">
+                  {loadingArchives ? "Loading archived users..." : "No archived users yet."}
+                </div>
+              )}
+              {archives.map((archive) => (
+                <div key={archive.id} className="p-5 flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">{archive.displayName}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {archive.email || archive.userId} · Deleted {formatDate(archive.deletedAt ? new Date(archive.deletedAt) : null)}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Type: {archive.deletionType.replace("_", " ")} · By: {archive.deletedBy ?? archive.archivedBy ?? "unknown"}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Reason: {archive.deletionReason}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Archive ID: {archive.id}
+                    </p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <Badge variant="outline" className="capitalize mb-2">
+                      {archive.status}
+                    </Badge>
+                    <p className="text-xs text-muted-foreground">
+                      {archive.matchedDocumentCount} docs captured
+                    </p>
+                    {canPermanentlyDeleteArchives && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={purgingArchiveId === archive.id}
+                        className="mt-3 h-7 border-destructive/30 text-destructive hover:bg-destructive/5"
+                        onClick={() => {
+                          void permanentlyDeleteArchive(archive);
+                        }}
+                      >
+                        {purgingArchiveId === archive.id ? "Deleting..." : "Delete archive"}
+                      </Button>
+                    )}
                   </div>
                 </div>
               ))}

@@ -1,6 +1,6 @@
 // ─── Role System ─────────────────────────────────────────────────────────────
 
-export type UserRole = "user" | "admin";
+export type UserRole = "user" | "admin" | "super_admin" | "group_admin";
 
 // ─── User & Profile ───────────────────────────────────────────────────────────
 
@@ -11,6 +11,8 @@ export interface UserProfile {
   photoURL?: string;
   phoneNumber?: string;
   role: UserRole;
+  banned?: boolean;
+  archived?: boolean;
   /** Set by the mobile app at registration — presence means account is linked */
   systemName?: string;
   /** Populated when a web-first user links by entering their system name */
