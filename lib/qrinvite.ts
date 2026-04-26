@@ -118,7 +118,7 @@ export function attemptAppOpen(deepLink: string, timeoutMs = 1800): Promise<bool
 
 export const STORE_URLS = {
   ios: "https://apps.apple.com/app/the-operator/id0000000000",
-  android: "https://play.google.com/store/apps/details?id=com.theoperator",
+  android: "https://play.google.com/apps/internaltest/4701595307879698515",
 } as const;
 
 // ─── API helpers ──────────────────────────────────────────────────────────────

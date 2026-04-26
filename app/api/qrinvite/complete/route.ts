@@ -100,6 +100,49 @@ export async function POST(req: NextRequest): Promise<NextResponse<CompleteRespo
 
       batch.set(contactA, contactBase, { merge: true });
       batch.set(contactB, contactBase, { merge: true });
+
+      const currentUserSnap = await db.collection("user").doc(currentUserId).get();
+      const targetUserSnap = await db.collection("user").doc(tokenData.targetUserId).get();
+      const currentUserData = currentUserSnap.data() ?? {};
+      const targetUserData = targetUserSnap.data() ?? {};
+      const currentUserName =
+        currentUserData.name ?? currentUserData.displayName ?? currentUserData.username ?? "Someone";
+      const targetUserName =
+        targetUserData.name ?? targetUserData.displayName ?? tokenData.targetDisplayName ?? "Someone";
+
+      // Keep the Flutter app's contact and "New Contacts" sources in sync with
+      // QR completion. The web `users/*/contacts` records above are not read by
+      // the mobile contacts screen.
+      batch.set(
+        db.collection("user").doc(currentUserId),
+        { contactIds: FieldValue.arrayUnion(tokenData.targetUserId) },
+        { merge: true }
+      );
+      batch.set(
+        db.collection("user").doc(tokenData.targetUserId),
+        { contactIds: FieldValue.arrayUnion(currentUserId) },
+        { merge: true }
+      );
+
+      const requestId = `qr_${tokenData.targetUserId}_${currentUserId}`;
+      batch.set(
+        db.collection("friendRequests").doc(requestId),
+        {
+          senderId: tokenData.targetUserId,
+          receiverId: currentUserId,
+          senderName: targetUserName,
+          senderUsername: targetUserData.username ?? "",
+          receiverName: currentUserName,
+          receiverUsername: currentUserData.username ?? "",
+          status: "accepted",
+          acceptedAt: FieldValue.serverTimestamp(),
+          createdAt: FieldValue.serverTimestamp(),
+          via: "qr",
+          type: tokenData.type,
+          ...(tokenData.ctx ? { ctx: tokenData.ctx } : {}),
+        },
+        { merge: true }
+      );
     } else if (tokenData.type === "group" && tokenData.groupId) {
       const groupSnap = await db.collection("groups").doc(tokenData.groupId).get();
       if (!groupSnap.exists) {
