@@ -12,8 +12,6 @@ import {
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/hooks/useAuth";
 
-type DashboardStatKey = "callsThisWeek" | "hoursTalking" | "groups" | "pendingCallbacks";
-
 export interface DashboardStats {
   callsThisWeek: number;
   hoursTalking: number;
@@ -224,12 +222,20 @@ export function useDashboardData(): DashboardDataState {
           notifications: notificationViews,
           groups: groupViews,
         });
-      } catch (error) {
+      } catch (err) {
         if (cancelled) return;
+        const code = (err as { code?: string }).code ?? "";
+        // Silently fall back to empty data on permission-denied.
+        // This happens when Firestore rules haven't been configured for these
+        // collections yet — show an empty dashboard rather than an error.
+        if (code === "permission-denied") {
+          setState({ ...INITIAL_STATE, loading: false });
+          return;
+        }
         setState({
           ...INITIAL_STATE,
           loading: false,
-          error: error instanceof Error ? error.message : "Failed to load dashboard data.",
+          error: err instanceof Error ? err.message : "Failed to load dashboard data.",
         });
       }
     }

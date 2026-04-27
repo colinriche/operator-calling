@@ -2,7 +2,7 @@
 
 import { useAuth } from "@/hooks/useAuth";
 import { useDashboardData } from "@/hooks/useDashboardData";
-import { Phone, Calendar, Bell, Users, Clock, ArrowRight } from "lucide-react";
+import { Phone, Bell, Users, Clock, ArrowRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -10,7 +10,7 @@ import Link from "next/link";
 
 export function DashboardOverview() {
   const { user, profile } = useAuth();
-  const { loading, error, stats, upcomingCalls, notifications } = useDashboardData();
+  const { loading, stats, upcomingCalls, notifications } = useDashboardData();
   const firstName = profile?.displayName?.split(" ")[0] ?? user?.displayName?.split(" ")[0] ?? "there";
   const recentNotifications = notifications.slice(0, 4);
   const statCards = [
@@ -141,12 +141,6 @@ export function DashboardOverview() {
           </div>
         </div>
       </div>
-
-      {error && (
-        <p className="text-xs text-destructive mt-4">
-          Could not load some dashboard data: {error}
-        </p>
-      )}
     </div>
   );
 }

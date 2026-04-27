@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useDashboardData } from "@/hooks/useDashboardData";
 
 export function GroupsPageContent() {
-  const { loading, error, groups } = useDashboardData();
+  const { loading, groups } = useDashboardData();
 
   return (
     <div className="max-w-3xl mx-auto">
@@ -54,12 +54,6 @@ export function GroupsPageContent() {
             </div>
           ))}
       </div>
-
-      {error && (
-        <p className="text-xs text-destructive mt-4">
-          Could not load groups: {error}
-        </p>
-      )}
     </div>
   );
 }

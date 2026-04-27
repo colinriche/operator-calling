@@ -16,7 +16,7 @@ export function CallsPageContent() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const { loading, error, allCalls } = useDashboardData();
+  const { loading, allCalls } = useDashboardData();
 
   const statusFilter = useMemo(() => {
     const value = searchParams.get("status") ?? "all";
@@ -138,11 +138,6 @@ export function CallsPageContent() {
           ))}
       </div>
 
-      {error && (
-        <p className="text-xs text-destructive mt-4">
-          Could not load calls: {error}
-        </p>
-      )}
     </div>
   );
 }
