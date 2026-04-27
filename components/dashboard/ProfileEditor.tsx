@@ -242,6 +242,51 @@ export function ProfileEditor() {
     }
   }
 
+  async function handlePushNotificationsChange(next: boolean) {
+    if (!next) {
+      setPushNotifs(false);
+      return;
+    }
+
+    if (typeof window === "undefined" || typeof Notification === "undefined") {
+      toast.error("Push notifications are not supported in this browser.");
+      setPushNotifs(false);
+      return;
+    }
+
+    if (Notification.permission === "granted") {
+      setPushNotifs(true);
+      return;
+    }
+
+    if (Notification.permission === "denied") {
+      toast.error("Notification access is blocked. Enable it in your browser settings.");
+      setPushNotifs(false);
+      return;
+    }
+
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission === "granted") {
+        setPushNotifs(true);
+        toast.success("Notification access enabled.");
+      } else if (permission === "denied") {
+        setPushNotifs(false);
+        toast.error("Notification access denied.");
+      } else {
+        setPushNotifs(false);
+      }
+    } catch {
+      setPushNotifs(false);
+      toast.error("Could not request notification access.");
+    }
+  }
+
+  const pushPermission =
+    typeof window !== "undefined" && typeof Notification !== "undefined"
+      ? Notification.permission
+      : "unsupported";
+
   useEffect(() => {
     if (!user || qrInviteUrl) return;
     void generateProfileQr(false);
@@ -471,19 +516,45 @@ export function ProfileEditor() {
         {/* Notifications */}
         <TabsContent value="notifs" className="space-y-4">
           <div className="bg-card rounded-2xl p-6 border border-border/60 space-y-5">
-            {[
-              { label: "Email notifications", desc: "Receive call confirmations and summaries by email.", checked: emailNotifs, onCheckedChange: setEmailNotifs },
-              { label: "Push notifications", desc: "Get real-time alerts on your device.", checked: pushNotifs, onCheckedChange: setPushNotifs },
-              { label: "Upcoming call reminders", desc: "Get a reminder 15 minutes before a scheduled call.", checked: reminderNotifs, onCheckedChange: setReminderNotifs },
-            ].map((item) => (
-              <div key={item.label} className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-sm font-medium text-foreground">{item.label}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">{item.desc}</p>
-                </div>
-                <Switch checked={item.checked} onCheckedChange={item.onCheckedChange} />
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium text-foreground">Email notifications</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Receive call confirmations and summaries by email.
+                </p>
               </div>
-            ))}
+              <Switch checked={emailNotifs} onCheckedChange={setEmailNotifs} />
+            </div>
+
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium text-foreground">Push notifications</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Get real-time alerts on your device.
+                </p>
+                <p
+                  className={`text-xs mt-1 ${
+                    pushPermission === "denied" ? "text-destructive" : "text-muted-foreground"
+                  }`}
+                >
+                  {pushPermission === "granted" && "Browser access: enabled."}
+                  {pushPermission === "default" && "Browser access: not requested yet."}
+                  {pushPermission === "denied" && "Browser access: blocked. Enable notifications in browser site settings."}
+                  {pushPermission === "unsupported" && "Browser access: not supported on this browser."}
+                </p>
+              </div>
+              <Switch checked={pushNotifs} onCheckedChange={handlePushNotificationsChange} />
+            </div>
+
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium text-foreground">Upcoming call reminders</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Get a reminder 15 minutes before a scheduled call.
+                </p>
+              </div>
+              <Switch checked={reminderNotifs} onCheckedChange={setReminderNotifs} />
+            </div>
           </div>
         </TabsContent>
       </Tabs>
