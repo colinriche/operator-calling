@@ -179,16 +179,14 @@ export function PhoneAuthForm() {
           >
             {loading ? "Saving..." : "Save and continue"}
           </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            className="w-full"
-            disabled={loading}
-            onClick={() => router.push("/dashboard")}
-          >
-            Skip for now
-          </Button>
         </form>
+        <button
+          type="button"
+          className="w-full mt-2 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          onClick={() => { window.location.href = "/dashboard"; }}
+        >
+          Skip for now
+        </button>
       </div>
     );
   }
