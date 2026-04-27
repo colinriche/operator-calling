@@ -95,55 +95,225 @@ Notes:
 - You can run it again safely to restore missing starter records.
 - If your Firestore rules block some collections, the seeder now performs best-effort writes and reports which collections failed.
 
-### Required Firestore Rules
+### Required Firestore Rules (copy-paste reference)
 
-Your current rules must include matches for the dashboard collections below, otherwise seeding and dashboard reads will fail with `permission-denied`.
+The website and seed tool use these collections:
 
-Add these blocks inside `service cloud.firestore { match /databases/{database}/documents { ... } }`:
+| Collection | Used for |
+|------------|----------|
+| `schedules` | User dashboard calls, admin analytics |
+| `callbacks` | Callback requests |
+| `notifications` | In-app notifications |
+| `memberships` | Group membership (group admin lists members by `groupId`) |
+| `invites` | Pending group invites (group admin) |
+| `reports` | Super admin moderation + group-level counts |
+| `admin_controls` | Super admin platform toggles (`platform` doc) |
+
+**Important:** Your production rules file likely already defines helpers like `isSignedIn()` and matches for `user`, `groups`, `invites`, `reports`, etc. Do **not** duplicate those. Either:
+
+1. **Merge:** Add only the **helper functions** below that you do not already have (rename if they clash), then add only **missing** `match` blocks, or
+2. **Replace:** If you have no rules for these paths yet, you can paste the whole **helpers + matches** block in one go inside:
+
+`service cloud.firestore { match /databases/{database}/documents { ... } }`
+
+---
+
+#### Helpers (add once, next to your other `function` declarations)
+
+These names are chosen to avoid clashing with common names like `isOwner`. If a name exists, merge the logic manually.
+
+```text
+// Web app treats Firestore user doc role "admin" as super-admin for seeding + admin_controls.
+function isWebAdmin() {
+  return isSignedIn() &&
+    exists(/databases/$(database)/documents/user/$(request.auth.uid)) &&
+    get(/databases/$(database)/documents/user/$(request.auth.uid)).data.get('role', '') == 'admin';
+}
+
+function groupMemberIds(gid) {
+  return get(/databases/$(database)/documents/groups/$(gid)).data.get('memberIds', []);
+}
+
+function isMemberOfGroup(gid) {
+  return exists(/databases/$(database)/documents/groups/$(gid)) &&
+    groupMemberIds(gid).hasAny([request.auth.uid]);
+}
+
+function isGroupCreator(gid) {
+  return exists(/databases/$(database)/documents/groups/$(gid)) &&
+    get(/databases/$(database)/documents/groups/$(gid)).data.get('createdBy', '') == request.auth.uid;
+}
+
+// Optional: reporter/target on reports (adjust field names if yours differ)
+function isReportParticipant() {
+  return isSignedIn() && (
+    resource.data.get('reporterId', '') == request.auth.uid ||
+    resource.data.get('reportedId', '') == request.auth.uid
+  );
+}
+
+function reportGroupId() {
+  return resource.data.get('groupId', '');
+}
+
+function isReportForUsersGroup() {
+  let gid = reportGroupId();
+  return gid != '' && isMemberOfGroup(gid);
+}
+```
+
+---
+
+#### Collection rules (paste `match` blocks inside `match /databases/{database}/documents`)
+
+**`schedules`** — participants can read/write; optional admin read-all.
 
 ```text
 match /schedules/{docId} {
   allow read: if isSignedIn() && (
     resource.data.initiatorId == request.auth.uid ||
-    resource.data.recipientId == request.auth.uid
+    resource.data.recipientId == request.auth.uid ||
+    isWebAdmin()
   );
   allow create: if isSignedIn() &&
     (request.resource.data.initiatorId == request.auth.uid ||
      request.resource.data.recipientId == request.auth.uid);
   allow update, delete: if isSignedIn() && (
     resource.data.initiatorId == request.auth.uid ||
-    resource.data.recipientId == request.auth.uid
+    resource.data.recipientId == request.auth.uid ||
+    isWebAdmin()
   );
 }
+```
 
+**`callbacks`** — requester or target (same pattern as schedules).
+
+```text
 match /callbacks/{docId} {
   allow read: if isSignedIn() && (
     resource.data.requesterId == request.auth.uid ||
-    resource.data.targetId == request.auth.uid
+    resource.data.targetId == request.auth.uid ||
+    isWebAdmin()
   );
   allow create: if isSignedIn() &&
     (request.resource.data.requesterId == request.auth.uid ||
      request.resource.data.targetId == request.auth.uid);
   allow update, delete: if isSignedIn() && (
     resource.data.requesterId == request.auth.uid ||
-    resource.data.targetId == request.auth.uid
+    resource.data.targetId == request.auth.uid ||
+    isWebAdmin()
   );
 }
+```
 
+**`notifications`** — recipient only (admin generally does not need to read user notification inboxes).
+
+```text
 match /notifications/{docId} {
-  allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
-  allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-  allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
-}
-
-match /memberships/{docId} {
   allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
   allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
   allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
 }
 ```
 
-Then publish the rules:
+**`memberships`** — **must** allow members of a group to read membership docs for that group (group admin UI queries `where("groupId", "==", groupId)`). Without this, you get `permission-denied`.
 
-- Firebase Console -> Firestore Database -> Rules -> Publish
-- or via CLI: `firebase deploy --only firestore:rules`
+```text
+match /memberships/{docId} {
+  allow read: if isSignedIn() && (
+    resource.data.userId == request.auth.uid ||
+    isMemberOfGroup(resource.data.groupId) ||
+    isWebAdmin()
+  );
+  allow create: if isSignedIn() && (
+    request.resource.data.userId == request.auth.uid ||
+    isGroupCreator(request.resource.data.groupId) ||
+    isWebAdmin()
+  );
+  allow update, delete: if isSignedIn() && (
+    resource.data.userId == request.auth.uid ||
+    isGroupCreator(resource.data.groupId) ||
+    isWebAdmin()
+  );
+}
+```
+
+**`admin_controls`** — platform settings doc `platform`; restrict to web admin.
+
+```text
+match /admin_controls/{docId} {
+  allow read, write: if isWebAdmin();
+}
+```
+
+**`invites`** — if you **do not** already have `match /invites/{docId}`. The group admin queries pending invites by `groupId` + `status`. Simple dev-friendly rule:
+
+```text
+match /invites/{docId} {
+  allow read, write: if isSignedIn();
+}
+```
+
+Tighter option (only inviter, group creator, or web admin — may require composite indexes for your queries):
+
+```text
+match /invites/{docId} {
+  allow read: if isSignedIn() && (
+    resource.data.invitedBy == request.auth.uid ||
+    isGroupCreator(resource.data.groupId) ||
+    isWebAdmin()
+  );
+  allow create: if isSignedIn() &&
+    request.resource.data.invitedBy == request.auth.uid;
+  allow update, delete: if isSignedIn() && (
+    resource.data.invitedBy == request.auth.uid ||
+    isGroupCreator(resource.data.groupId) ||
+    isWebAdmin()
+  );
+}
+```
+
+**`reports`** — if you **do not** already have `match /reports/{docId}`. Super admin loads all reports; group admin filters by `groupId`.
+
+Minimum (matches many existing projects; any signed-in user can read/update — tighten for production):
+
+```text
+match /reports/{docId} {
+  allow create: if isSignedIn();
+  allow read, update: if isSignedIn();
+}
+```
+
+Stricter option (participant, same-group member, or web admin):
+
+```text
+match /reports/{docId} {
+  allow create: if isSignedIn();
+  allow read: if isSignedIn() && (
+    isReportParticipant() ||
+    isReportForUsersGroup() ||
+    isWebAdmin()
+  );
+  allow update: if isSignedIn() && (
+    isReportParticipant() ||
+    isReportForUsersGroup() ||
+    isWebAdmin()
+  );
+  allow delete: if isWebAdmin();
+}
+```
+
+Ensure seeded/admin fields align with these helpers: `reporterId`, `reportedId`, `groupId` (optional), `status`. If your schema uses different names, adjust the helper functions.
+
+---
+
+#### Indexes
+
+If you use **two equality filters** on one collection (e.g. `invites` with `groupId` + `status`), Firestore may prompt you to create a **composite index** when you first run the query in the app. Use the link in the Firebase console error to create it.
+
+---
+
+#### Publish
+
+- Firebase Console → Firestore Database → Rules → Publish  
+- or CLI: `firebase deploy --only firestore:rules`
