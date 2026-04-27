@@ -27,7 +27,18 @@ import {
   ArrowRight,
   WifiOff,
   AlertCircle,
+  Menu,
+  X,
+  Home,
+  HelpCircle,
+  Info,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 // ─── Animation preset ─────────────────────────────────────────────────────────
 
@@ -41,8 +52,55 @@ const fadeUp = {
 // ─── Shell ────────────────────────────────────────────────────────────────────
 
 function Shell({ children }: { children: React.ReactNode }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [aboutOpen, setAboutOpen] = useState(false);
+
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-background px-4 py-12">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-background px-4 py-12 relative">
+
+      {/* Hamburger menu */}
+      <div className="absolute top-4 left-4 z-30">
+        <button
+          onClick={() => setMenuOpen((v) => !v)}
+          className="p-2 rounded-lg hover:bg-muted transition-colors text-foreground"
+          aria-label="Menu"
+        >
+          {menuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+        </button>
+
+        {menuOpen && (
+          <>
+            {/* Backdrop to close on outside click */}
+            <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
+            <div className="absolute top-11 left-0 z-20 w-56 bg-card border border-border/60 rounded-xl shadow-xl overflow-hidden">
+              <a
+                href="/"
+                className="flex items-center gap-3 px-4 py-3 text-sm text-foreground hover:bg-muted transition-colors"
+                onClick={() => setMenuOpen(false)}
+              >
+                <Home className="w-4 h-4 text-muted-foreground shrink-0" />
+                Homepage
+              </a>
+              <button
+                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-foreground hover:bg-muted transition-colors"
+                onClick={() => { setMenuOpen(false); setHelpOpen(true); }}
+              >
+                <HelpCircle className="w-4 h-4 text-muted-foreground shrink-0" />
+                Help with this page
+              </button>
+              <button
+                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-foreground hover:bg-muted transition-colors"
+                onClick={() => { setMenuOpen(false); setAboutOpen(true); }}
+              >
+                <Info className="w-4 h-4 text-muted-foreground shrink-0" />
+                About
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+
       <div className="w-full max-w-sm">
         <div className="flex justify-center mb-10">
           <div className="flex items-center gap-2 font-heading font-bold text-lg text-foreground">
@@ -54,6 +112,42 @@ function Shell({ children }: { children: React.ReactNode }) {
         </div>
         <AnimatePresence mode="wait">{children}</AnimatePresence>
       </div>
+
+      {/* Help dialog */}
+      <Dialog open={helpOpen} onOpenChange={setHelpOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Help with this page</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            The QR code should automatically add user contacts to the app if you have it installed,
+            if not then should offer a link to the app/play stores.
+          </p>
+        </DialogContent>
+      </Dialog>
+
+      {/* About dialog */}
+      <Dialog open={aboutOpen} onOpenChange={setAboutOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>About The Operator</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 text-sm text-muted-foreground leading-relaxed">
+            <p>
+              <span className="font-semibold text-foreground">The Operator</span> is a
+              voice-first communication platform — real conversation, better timed.
+            </p>
+            <p>
+              A call only connects when both people answer, removing call pressure and
+              missed-timing friction. It supports one-to-one calls, privacy-focused
+              calls with people globally, and group-based calling.
+            </p>
+            <p className="text-xs pt-1 border-t border-border/50">
+              © {new Date().getFullYear()} The Operator
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
