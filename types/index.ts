@@ -8,6 +8,9 @@ export interface UserProfile {
   uid: string;
   email: string;
   displayName: string;
+  /** Flutter app field — present on mobile/linked accounts instead of displayName */
+  name?: string;
+  username?: string;
   photoURL?: string;
   phoneNumber?: string;
   role: UserRole;

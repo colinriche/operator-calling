@@ -11,7 +11,12 @@ import Link from "next/link";
 export function DashboardOverview() {
   const { user, profile } = useAuth();
   const { loading, stats, upcomingCalls, notifications } = useDashboardData();
-  const firstName = profile?.displayName?.split(" ")[0] ?? user?.displayName?.split(" ")[0] ?? "there";
+  const firstName =
+    profile?.displayName?.split(" ")[0] ??
+    profile?.name?.split(" ")[0] ??
+    profile?.username?.split(" ")[0] ??
+    user?.displayName?.split(" ")[0] ??
+    "there";
   const recentNotifications = notifications.slice(0, 4);
   const statCards = [
     { icon: Phone, label: "Calls this week", value: stats.callsThisWeek.toString() },
