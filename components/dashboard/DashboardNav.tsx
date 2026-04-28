@@ -44,6 +44,9 @@ export function DashboardNav() {
             <p className="text-sm font-semibold text-foreground truncate">
               {profile?.displayName ?? user.displayName ?? user.email}
             </p>
+            <p className="text-xs text-muted-foreground capitalize">
+              {profile?.role ?? "user"}
+            </p>
             {(profile?.systemName ?? profile?.linkedSystemName) && (
               <p className="text-xs text-muted-foreground truncate">
                 @{profile?.systemName ?? profile?.linkedSystemName}
