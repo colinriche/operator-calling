@@ -59,7 +59,25 @@ export function useAuth(): AuthState {
         }
       }
 
-      // 3. Brand new web-only account — no Firestore doc yet
+      // 3. Post-link fallback — the web doc was deleted; find the app doc that
+      //    recorded this web UID during the merge.
+      const linkedQ = await getDocs(
+        query(collection(db, "user"), where("linkedWebUid", "==", u.uid))
+      );
+      if (!linkedQ.empty) {
+        const docSnap = linkedQ.docs[0];
+        const p = docSnap.data() as UserProfile;
+        if (p.archived === true) {
+          await signOut(auth);
+          return;
+        }
+        setProfile(p);
+        setProfileDocId(docSnap.id);
+        setIsLinked(!!(p.systemName || p.linkedSystemName));
+        return;
+      }
+
+      // 4. Brand new web-only account — no Firestore doc yet
       setProfile(null);
       setProfileDocId(null);
       setIsLinked(false);

@@ -118,7 +118,7 @@ export function ProfileEditor() {
     if (!user) return;
     setSaving(true);
     try {
-      await updateDoc(doc(db, "user", user.uid), {
+      await updateDoc(doc(db, "user", profileDocId ?? user.uid), {
         displayName,
         bio,
         interests,
