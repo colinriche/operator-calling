@@ -20,6 +20,8 @@ export interface UserProfile {
   systemName?: string;
   /** Populated when a web-first user links by entering their system name */
   linkedSystemName?: string;
+  /** Written on the app doc during account merge — the Firebase Auth UID of the merged web account */
+  linkedWebUid?: string;
   createdAt: Date;
   updatedAt: Date;
 

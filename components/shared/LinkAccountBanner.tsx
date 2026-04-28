@@ -9,7 +9,7 @@ import { Smartphone, X, AlertCircle, CheckCircle2 } from "lucide-react";
 type Step = "banner" | "form" | "email_verify" | "name_conflict" | "success";
 
 export function LinkAccountBanner() {
-  const { user, isLinked, refreshProfile } = useAuth();
+  const { user, loading: authLoading, isLinked, refreshProfile } = useAuth();
   const [dismissed, setDismissed] = useState(false);
   const [step, setStep] = useState<Step>("banner");
 
@@ -24,7 +24,7 @@ export function LinkAccountBanner() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  if (isLinked || dismissed) return null;
+  if (authLoading || isLinked || dismissed) return null;
 
   async function callLinkApi(body: {
     supportCode: string;

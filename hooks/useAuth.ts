@@ -41,26 +41,30 @@ export function useAuth(): AuthState {
         return;
       }
 
-      // 2. UID doc not found — check if a mobile account shares this email
+      // 2. UID doc not found — check if a mobile account shares this email.
+      // Finding a doc by email alone does NOT mean accounts are linked — the mobile
+      // user doc has systemName set for all app users. Only treat as linked if the
+      // explicit merge has been done (linkedWebUid matches or linkedSystemName set).
       if (u.email) {
         const emailQ = await getDocs(
           query(collection(db, "user"), where("email", "==", u.email))
         );
         if (!emailQ.empty) {
-          const p = emailQ.docs[0].data() as UserProfile;
+          const docSnap = emailQ.docs[0];
+          const p = docSnap.data() as UserProfile;
           if (p.archived === true) {
             await signOut(auth);
             return;
           }
           setProfile(p);
-          setProfileDocId(emailQ.docs[0].id);
-          setIsLinked(!!(p.systemName || p.linkedSystemName));
+          setProfileDocId(docSnap.id);
+          setIsLinked(!!(p.linkedSystemName || p.linkedWebUid === u.uid));
           return;
         }
       }
 
       // 3. Post-link fallback — the web doc was deleted; find the app doc that
-      //    recorded this web UID during the merge.
+      //    recorded this web UID during the merge. The query itself proves the link.
       const linkedQ = await getDocs(
         query(collection(db, "user"), where("linkedWebUid", "==", u.uid))
       );
@@ -73,7 +77,7 @@ export function useAuth(): AuthState {
         }
         setProfile(p);
         setProfileDocId(docSnap.id);
-        setIsLinked(!!(p.systemName || p.linkedSystemName));
+        setIsLinked(true); // found specifically by linkedWebUid — link is confirmed
         return;
       }
 
