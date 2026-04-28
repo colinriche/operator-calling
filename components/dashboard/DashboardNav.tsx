@@ -40,13 +40,23 @@ export function DashboardNav() {
           The Operator
         </Link>
         {!loading && user && (
-          <div className="mt-3 pt-3 border-t border-border/60">
+          <div className="mt-3 pt-3 border-t border-border/60 space-y-1">
             <p className="text-sm font-semibold text-foreground truncate">
               {profile?.displayName ?? user.displayName ?? user.email}
             </p>
-            <p className="text-xs text-muted-foreground capitalize mt-0.5">
-              {profile?.role ?? "user"}
+            {(profile?.systemName ?? profile?.linkedSystemName) && (
+              <p className="text-xs text-muted-foreground truncate">
+                @{profile?.systemName ?? profile?.linkedSystemName}
+              </p>
+            )}
+            <p className="text-xs text-muted-foreground truncate">
+              {profile?.email ?? user.email}
             </p>
+            {(profile?.phoneNumber ?? user.phoneNumber) && (
+              <p className="text-xs text-muted-foreground truncate">
+                {profile?.phoneNumber ?? user.phoneNumber}
+              </p>
+            )}
           </div>
         )}
       </div>
