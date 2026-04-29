@@ -11,6 +11,8 @@ export interface UserProfile {
   /** Flutter app field — present on mobile/linked accounts instead of displayName */
   name?: string;
   username?: string;
+  city?: string;
+  country?: string;
   photoURL?: string;
   phoneNumber?: string;
   role: UserRole;

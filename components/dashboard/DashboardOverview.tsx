@@ -2,7 +2,7 @@
 
 import { useAuth } from "@/hooks/useAuth";
 import { useDashboardData } from "@/hooks/useDashboardData";
-import { Phone, Bell, Users, Clock, ArrowRight } from "lucide-react";
+import { Phone, Bell, Users, Clock, ArrowRight, MapPin } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -11,6 +11,7 @@ import Link from "next/link";
 export function DashboardOverview() {
   const { user, profile } = useAuth();
   const { loading, stats, upcomingCalls, notifications } = useDashboardData();
+  const location = [profile?.city, profile?.country].filter(Boolean).join(", ");
   const firstName =
     profile?.displayName?.split(" ")[0] ??
     profile?.name?.split(" ")[0] ??
@@ -33,6 +34,12 @@ export function DashboardOverview() {
           Hey, {firstName} 👋
         </h1>
         <p className="text-muted-foreground mt-1">Here's what's happening with your calls today.</p>
+        {location && (
+          <p className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
+            <MapPin className="w-3.5 h-3.5 shrink-0" />
+            {location}
+          </p>
+        )}
       </div>
 
       {/* Stats */}

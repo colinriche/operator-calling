@@ -40,6 +40,8 @@ export function ProfileEditor() {
 
   const [displayName, setDisplayName] = useState("");
   const [bio, setBio] = useState("");
+  const [city, setCity] = useState("");
+  const [country, setCountry] = useState("");
   const [interests, setInterests] = useState<string[]>([]);
   const [newInterest, setNewInterest] = useState("");
 
@@ -86,6 +88,8 @@ export function ProfileEditor() {
     setSeeded(true);
     setDisplayName(profile.displayName ?? "");
     setBio(profile.bio ?? "");
+    setCity(profile.city ?? "");
+    setCountry(profile.country ?? "");
     setInterests(profile.interests ?? []);
     setAvailStart(profile.callPreferences?.availableHours?.start ?? "09:00");
     setAvailEnd(profile.callPreferences?.availableHours?.end ?? "22:00");
@@ -121,6 +125,8 @@ export function ProfileEditor() {
       await updateDoc(doc(db, "user", profileDocId ?? user.uid), {
         displayName,
         bio,
+        city,
+        country,
         interests,
         completeness,
         "callPreferences.availableHours.start": availStart,
@@ -422,6 +428,18 @@ export function ProfileEditor() {
                 maxLength={200}
               />
               <p className="text-xs text-muted-foreground text-right mt-1">{bio.length}/200</p>
+            </div>
+
+            {/* Location */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-sm font-medium mb-1.5 block">City</Label>
+                <Input value={city} onChange={(e) => setCity(e.target.value)} placeholder="e.g. London" />
+              </div>
+              <div>
+                <Label className="text-sm font-medium mb-1.5 block">Country</Label>
+                <Input value={country} onChange={(e) => setCountry(e.target.value)} placeholder="e.g. United Kingdom" />
+              </div>
             </div>
 
             {/* Interests */}
