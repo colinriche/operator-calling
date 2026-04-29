@@ -50,7 +50,7 @@ export type QRInviteState =
   | { status: "network_error" }
   | { status: "trusted"; tokenData: QRToken }
   | { status: "completing" }
-  | { status: "success"; targetName: string; type: InviteType }
+  | { status: "success"; targetName: string; type: InviteType; isGroup: boolean }
   | { status: "join_requested"; groupName?: string }
   | { status: "app_opening"; deepLink: string }
   | { status: "install_app"; platform: Platform; token: string; type: InviteType }

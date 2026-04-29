@@ -76,10 +76,10 @@ export async function POST(req: NextRequest): Promise<NextResponse<CompleteRespo
 
     const batch = db.batch();
 
-    if (tokenData.type !== "group") {
-      // All contact types (personal, family, work, sport, social, event, other)
-      // create a mutual contact relationship. ctx (e.g. company/sport name) is
-      // preserved on the record for work and sport types.
+    if (!tokenData.groupId) {
+      // No groupId → pure contact invite (personal, family, event, or a
+      // work/sport/social invite without a specific group selected).
+      // Creates a mutual contact relationship; ctx is preserved on the record.
       const contactBase: Record<string, unknown> = {
         addedAt: FieldValue.serverTimestamp(),
         via: "qr",
@@ -143,7 +143,9 @@ export async function POST(req: NextRequest): Promise<NextResponse<CompleteRespo
         },
         { merge: true }
       );
-    } else if (tokenData.type === "group" && tokenData.groupId) {
+    } else {
+      // groupId is set → group invite (type describes the group category:
+      // 'group', 'work', 'sport', 'social', 'college', etc.)
       const groupSnap = await db.collection("groups").doc(tokenData.groupId).get();
       if (!groupSnap.exists) {
         return NextResponse.json({ success: false, error: "Group not found" }, { status: 404 });
@@ -177,6 +179,23 @@ export async function POST(req: NextRequest): Promise<NextResponse<CompleteRespo
             via: "qr",
           },
         });
+        // Write to memberships so the web dashboard shows this user in the
+        // member list (GroupAdminDashboard reads memberships, not memberIds).
+        const membershipId = `${tokenData.groupId}_${currentUserId}`;
+        batch.set(
+          db.collection("memberships").doc(membershipId),
+          {
+            groupId: tokenData.groupId,
+            userId: currentUserId,
+            name: displayName,
+            username,
+            role: "member",
+            status: "active",
+            joinedAt: FieldValue.serverTimestamp(),
+            via: "qr",
+          },
+          { merge: true }
+        );
       } else {
         // Private group — create a join request instead of adding directly
         if (memberIds.includes(currentUserId)) {

@@ -86,10 +86,12 @@ export async function GET(req: NextRequest): Promise<NextResponse<ValidateRespon
     }
     if (!targetDisplayName) targetDisplayName = "Someone";
 
-    // For group type, look up the group to get its privacy setting
+    // For any token with a groupId, look up the group to get its name and
+    // privacy setting. This covers 'group' type AND typed groups like
+    // 'work', 'sport', 'social', 'college' that have a specific group selected.
     let isPrivate = true;
     let groupName: string | undefined = data.groupName;
-    if (data.type === "group" && data.groupId) {
+    if (data.groupId) {
       try {
         const groupSnap = await db.collection("groups").doc(data.groupId).get();
         if (groupSnap.exists) {

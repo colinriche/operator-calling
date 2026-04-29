@@ -15,7 +15,7 @@ import {
   STORE_URLS,
 } from "@/lib/qrinvite";
 import type { QRInviteState, Platform, InviteType } from "@/lib/qrinvite";
-import { inviteTypeLabel, isGroupType } from "@/lib/qrinvite";
+import { inviteTypeLabel } from "@/lib/qrinvite";
 import {
   Phone,
   CheckCircle2,
@@ -253,8 +253,7 @@ function CompletingScreen({ name }: { name: string }) {
   );
 }
 
-function SuccessScreen({ targetName, type }: { targetName: string; type: InviteType }) {
-  const isGroup = isGroupType(type);
+function SuccessScreen({ targetName, type, isGroup }: { targetName: string; type: InviteType; isGroup: boolean }) {
   return (
     <motion.div key="success" {...fadeUp} className="text-center">
       <IconBadge variant="gold">
@@ -545,13 +544,14 @@ export function QRInviteFlow({ token, type, invalidReason }: QRInviteFlowProps) 
 
             if (!mounted.current) return;
 
+            const isGroup = !!tokenData.groupId;
             if (result.success) {
               if (result.pending) {
                 toast.success("Join request sent — waiting for approval.");
                 setState({ status: "join_requested", groupName: tokenData.groupName });
               } else {
                 toast.success(
-                  isGroupType(tokenData.type)
+                  isGroup
                     ? `You've joined the group!`
                     : `${tokenData.targetDisplayName} added as a ${inviteTypeLabel(tokenData.type)}.`
                 );
@@ -559,6 +559,7 @@ export function QRInviteFlow({ token, type, invalidReason }: QRInviteFlowProps) 
                   status: "success",
                   targetName: tokenData.targetDisplayName,
                   type: tokenData.type,
+                  isGroup,
                 });
               }
             } else {
@@ -621,7 +622,7 @@ export function QRInviteFlow({ token, type, invalidReason }: QRInviteFlowProps) 
         />
       )}
       {state.status === "success" && (
-        <SuccessScreen targetName={state.targetName} type={state.type} />
+        <SuccessScreen targetName={state.targetName} type={state.type} isGroup={state.isGroup} />
       )}
       {state.status === "app_opening" && <AppOpeningScreen />}
       {state.status === "install_app" && (
