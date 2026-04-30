@@ -180,6 +180,7 @@ export function GroupAdminDashboard({ defaultTab = "members" }: { defaultTab?: s
   const [showForm, setShowForm] = useState(false);
   const [scheduledAt, setScheduledAt] = useState("");
   const [callType, setCallType] = useState<"audio" | "video">("audio");
+  const [durationMinutes, setDurationMinutes] = useState<number | "">("");
   const [selectedUids, setSelectedUids] = useState<Set<string>>(new Set());
   const [submitting, setSubmitting] = useState(false);
   const [cancelling, setCancelling] = useState<string | null>(null);
@@ -589,6 +590,7 @@ export function GroupAdminDashboard({ defaultTab = "members" }: { defaultTab?: s
         participantVoipTokens,
         scheduledAt: Timestamp.fromDate(scheduledDate),
         callType,
+        ...(durationMinutes ? { durationMinutes: Number(durationMinutes) } : {}),
         status: "scheduled",
         createdAt: Timestamp.now(),
       });
@@ -598,6 +600,7 @@ export function GroupAdminDashboard({ defaultTab = "members" }: { defaultTab?: s
       setScheduledAt("");
       setSelectedUids(new Set());
       setCallType("audio");
+      setDurationMinutes("");
       await loadScheduledCalls();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to schedule call");
@@ -776,6 +779,19 @@ export function GroupAdminDashboard({ defaultTab = "members" }: { defaultTab?: s
                       <option value="video">Video</option>
                     </select>
                   </div>
+                </div>
+
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1 block">Max duration (minutes) — optional</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={180}
+                    placeholder="No limit"
+                    value={durationMinutes}
+                    onChange={(e) => setDurationMinutes(e.target.value === "" ? "" : Number(e.target.value))}
+                    className="text-sm w-40"
+                  />
                 </div>
 
                 <div>

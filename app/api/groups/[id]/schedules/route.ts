@@ -66,6 +66,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     callType?: string;
     participantIds?: string[];
     note?: string;
+    durationMinutes?: number;
   };
   try {
     body = await req.json();
@@ -79,6 +80,9 @@ export async function POST(req: NextRequest, { params }: Params) {
   }
 
   const callType = body.callType === "video" ? "video" : "audio";
+  const durationMinutes = typeof body.durationMinutes === "number" && body.durationMinutes > 0
+    ? body.durationMinutes
+    : undefined;
   const groupData = groupSnap.data()!;
   const allMemberIds: string[] = groupData.memberIds ?? [];
   const participantIds = body.participantIds?.filter((p: string) => allMemberIds.includes(p)) ?? allMemberIds;
@@ -106,6 +110,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     participantVoipTokens: {},
     scheduledAt,
     callType,
+    ...(durationMinutes !== undefined ? { durationMinutes } : {}),
     note: body.note?.trim() ?? "",
     status: "scheduled",
     createdAt: FieldValue.serverTimestamp(),
