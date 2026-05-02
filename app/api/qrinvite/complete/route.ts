@@ -21,9 +21,15 @@ function getAdminServices() {
 // ─── POST /api/qrinvite/complete ─────────────────────────────────────────────
 // Body: { token: string, currentUserId: string }
 // Header: Authorization: Bearer <firebase-id-token>
+//
+// Group tokens are multi-use: any number of users may scan the same QR code
+// until it expires. Only usageCount is incremented on each successful scan;
+// the token status stays "active".
+//
+// Personal/contact tokens (no groupId) are single-use: the token is marked
+// "used" after the first scan so the contact is only added once.
 
 export async function POST(req: NextRequest): Promise<NextResponse<CompleteResponse>> {
-  // Verify caller identity
   const authHeader = req.headers.get("authorization") ?? "";
   const idToken = authHeader.replace("Bearer ", "").trim();
 
@@ -46,13 +52,11 @@ export async function POST(req: NextRequest): Promise<NextResponse<CompleteRespo
   try {
     const { db, adminAuth } = getAdminServices();
 
-    // Verify the Firebase ID token matches the claimed userId
     const decoded = await adminAuth.verifyIdToken(idToken);
     if (decoded.uid !== currentUserId) {
       return NextResponse.json({ success: false, error: "Identity mismatch" }, { status: 403 });
     }
 
-    // JWT tokens store the Firestore doc key in the tokenId payload field
     const docId = resolveTokenDocId(token);
     const tokenRef = db.collection("qr_tokens").doc(docId);
     const tokenSnap = await tokenRef.get();
@@ -62,24 +66,31 @@ export async function POST(req: NextRequest): Promise<NextResponse<CompleteRespo
     }
 
     const tokenData = tokenSnap.data()!;
+    const isGroupToken = !!tokenData.groupId;
 
     const expiresAt: Date =
       tokenData.expiresAt?.toDate?.() ?? new Date(tokenData.expiresAt);
-    if (expiresAt < new Date() || tokenData.status === "used") {
-      return NextResponse.json({ success: false, error: "Token expired or used" }, { status: 410 });
+    if (expiresAt < new Date()) {
+      return NextResponse.json({ success: false, error: "Invite link has expired" }, { status: 410 });
     }
 
-    // Safety: do not let a user add themselves
+    // Personal tokens are single-use. Group tokens stay active for all users.
+    if (!isGroupToken && tokenData.status === "used") {
+      // Idempotent: same user's duplicate request (e.g. iOS double-fire)
+      if (tokenData.usedBy === currentUserId) {
+        return NextResponse.json({ success: true });
+      }
+      return NextResponse.json({ success: false, error: "This invite has already been used" }, { status: 410 });
+    }
+
     if (tokenData.targetUserId === currentUserId) {
       return NextResponse.json({ success: false, error: "Cannot invite yourself" }, { status: 400 });
     }
 
     const batch = db.batch();
 
-    if (!tokenData.groupId) {
-      // No groupId → pure contact invite (personal, family, event, or a
-      // work/sport/social invite without a specific group selected).
-      // Creates a mutual contact relationship; ctx is preserved on the record.
+    if (!isGroupToken) {
+      // ── Personal / contact invite ──────────────────────────────────────────
       const contactBase: Record<string, unknown> = {
         addedAt: FieldValue.serverTimestamp(),
         via: "qr",
@@ -87,19 +98,16 @@ export async function POST(req: NextRequest): Promise<NextResponse<CompleteRespo
       };
       if (tokenData.ctx) contactBase.ctx = tokenData.ctx;
 
-      const contactA = db
-        .collection("users")
-        .doc(currentUserId)
-        .collection("contacts")
-        .doc(tokenData.targetUserId);
-      const contactB = db
-        .collection("users")
-        .doc(tokenData.targetUserId)
-        .collection("contacts")
-        .doc(currentUserId);
-
-      batch.set(contactA, contactBase, { merge: true });
-      batch.set(contactB, contactBase, { merge: true });
+      batch.set(
+        db.collection("users").doc(currentUserId).collection("contacts").doc(tokenData.targetUserId),
+        contactBase,
+        { merge: true }
+      );
+      batch.set(
+        db.collection("users").doc(tokenData.targetUserId).collection("contacts").doc(currentUserId),
+        contactBase,
+        { merge: true }
+      );
 
       const currentUserSnap = await db.collection("user").doc(currentUserId).get();
       const targetUserSnap = await db.collection("user").doc(tokenData.targetUserId).get();
@@ -110,9 +118,6 @@ export async function POST(req: NextRequest): Promise<NextResponse<CompleteRespo
       const targetUserName =
         targetUserData.name ?? targetUserData.displayName ?? tokenData.targetDisplayName ?? "Someone";
 
-      // Keep the Flutter app's contact and "New Contacts" sources in sync with
-      // QR completion. The web `users/*/contacts` records above are not read by
-      // the mobile contacts screen.
       batch.set(
         db.collection("user").doc(currentUserId),
         { contactIds: FieldValue.arrayUnion(tokenData.targetUserId) },
@@ -143,108 +148,113 @@ export async function POST(req: NextRequest): Promise<NextResponse<CompleteRespo
         },
         { merge: true }
       );
-    } else {
-      // groupId is set → group invite (type describes the group category:
-      // 'group', 'work', 'sport', 'social', 'college', etc.)
-      const groupSnap = await db.collection("groups").doc(tokenData.groupId).get();
-      if (!groupSnap.exists) {
-        return NextResponse.json({ success: false, error: "Group not found" }, { status: 404 });
+
+      // Personal tokens are consumed on first use
+      batch.update(tokenRef, {
+        status: "used",
+        usedAt: FieldValue.serverTimestamp(),
+        usedBy: currentUserId,
+        usageCount: FieldValue.increment(1),
+      });
+
+      await batch.commit();
+      return NextResponse.json({ success: true });
+    }
+
+    // ── Group invite (multi-use) ─────────────────────────────────────────────
+    const groupSnap = await db.collection("groups").doc(tokenData.groupId).get();
+    if (!groupSnap.exists) {
+      return NextResponse.json({ success: false, error: "Group not found" }, { status: 404 });
+    }
+    const groupData = groupSnap.data()!;
+    const isPrivate: boolean = groupData.isPrivate ?? true;
+    const memberIds: string[] = groupData.memberIds ?? [];
+
+    let displayName = "Unknown";
+    let username = "";
+    try {
+      const profileSnap = await db.collection("user").doc(currentUserId).get();
+      if (profileSnap.exists) {
+        displayName = profileSnap.data()?.displayName ?? profileSnap.data()?.name ?? "Unknown";
+        username = profileSnap.data()?.username ?? "";
       }
-      const groupData = groupSnap.data()!;
-      const isPrivate: boolean = groupData.isPrivate ?? true;
-      const memberIds: string[] = groupData.memberIds ?? [];
+    } catch {}
 
-      // Resolve requester's display name and username once
-      let displayName = "Unknown";
-      let username = "";
-      try {
-        const profileSnap = await db.collection("user").doc(currentUserId).get();
-        if (profileSnap.exists) {
-          displayName = profileSnap.data()?.displayName ?? profileSnap.data()?.name ?? "Unknown";
-          username = profileSnap.data()?.username ?? "";
-        }
-      } catch {}
+    if (!isPrivate) {
+      // Public group — add directly
+      if (memberIds.includes(currentUserId)) {
+        // Already a member: silent success (QR may be shared to a forum)
+        return NextResponse.json({ success: true });
+      }
 
-      if (!isPrivate) {
-        // Public group — add directly (already a member check)
-        if (memberIds.includes(currentUserId)) {
-          return NextResponse.json({ success: false, error: "Already a member" }, { status: 409 });
-        }
-        batch.update(db.collection("groups").doc(tokenData.groupId), {
-          memberIds: FieldValue.arrayUnion(currentUserId),
-          [`members.${currentUserId}`]: {
-            name: displayName,
-            username,
-            joinedAt: FieldValue.serverTimestamp(),
-            via: "qr",
-          },
-        });
-        // Write to memberships so the web dashboard shows this user in the
-        // member list (GroupAdminDashboard reads memberships, not memberIds).
-        const membershipId = `${tokenData.groupId}_${currentUserId}`;
-        batch.set(
-          db.collection("memberships").doc(membershipId),
-          {
-            groupId: tokenData.groupId,
-            userId: currentUserId,
-            name: displayName,
-            username,
-            role: "member",
-            status: "active",
-            joinedAt: FieldValue.serverTimestamp(),
-            via: "qr",
-          },
-          { merge: true }
-        );
-      } else {
-        // Private group — create a join request instead of adding directly
-        if (memberIds.includes(currentUserId)) {
-          return NextResponse.json({ success: false, error: "Already a member" }, { status: 409 });
-        }
-
-        // Idempotent: return pending if request already exists
-        const existing = await db
-          .collection("group_join_requests")
-          .where("groupId", "==", tokenData.groupId)
-          .where("requesterId", "==", currentUserId)
-          .where("status", "==", "pending")
-          .limit(1)
-          .get();
-        if (!existing.empty) {
-          // Mark token used and return pending — no need to create another request
-          batch.update(tokenRef, { status: "used", usedAt: FieldValue.serverTimestamp(), usedBy: currentUserId });
-          await batch.commit();
-          return NextResponse.json({ success: true, pending: true });
-        }
-
-        batch.set(db.collection("group_join_requests").doc(), {
-          groupId: tokenData.groupId,
-          groupName: groupData.name ?? "",
-          requesterId: currentUserId,
-          requesterName: displayName,
-          requesterUsername: username,
-          status: "pending",
-          createdAt: FieldValue.serverTimestamp(),
+      batch.update(db.collection("groups").doc(tokenData.groupId), {
+        memberIds: FieldValue.arrayUnion(currentUserId),
+        [`members.${currentUserId}`]: {
+          name: displayName,
+          username,
+          joinedAt: FieldValue.serverTimestamp(),
           via: "qr",
-        });
+        },
+      });
 
-        // Mark token as used and return pending immediately — skip the usual used-mark below
-        batch.update(tokenRef, { status: "used", usedAt: FieldValue.serverTimestamp(), usedBy: currentUserId });
+      const membershipId = `${tokenData.groupId}_${currentUserId}`;
+      batch.set(
+        db.collection("memberships").doc(membershipId),
+        {
+          groupId: tokenData.groupId,
+          userId: currentUserId,
+          name: displayName,
+          username,
+          role: "member",
+          status: "active",
+          joinedAt: FieldValue.serverTimestamp(),
+          via: "qr",
+        },
+        { merge: true }
+      );
+    } else {
+      // Private group — create a join request
+      if (memberIds.includes(currentUserId)) {
+        // Already a member: silent success
+        return NextResponse.json({ success: true });
+      }
+
+      const existing = await db
+        .collection("group_join_requests")
+        .where("groupId", "==", tokenData.groupId)
+        .where("requesterId", "==", currentUserId)
+        .where("status", "==", "pending")
+        .limit(1)
+        .get();
+
+      if (!existing.empty) {
+        // Request already pending: silent success, token stays active
+        batch.update(tokenRef, { usageCount: FieldValue.increment(1) });
         await batch.commit();
         return NextResponse.json({ success: true, pending: true });
       }
+
+      batch.set(db.collection("group_join_requests").doc(), {
+        groupId: tokenData.groupId,
+        groupName: groupData.name ?? "",
+        requesterId: currentUserId,
+        requesterName: displayName,
+        requesterUsername: username,
+        status: "pending",
+        createdAt: FieldValue.serverTimestamp(),
+        via: "qr",
+      });
     }
 
-    // Mark token as used
+    // Group tokens stay active — only increment the usage counter
     batch.update(tokenRef, {
-      status: "used",
-      usedAt: FieldValue.serverTimestamp(),
-      usedBy: currentUserId,
+      usageCount: FieldValue.increment(1),
+      lastUsedAt: FieldValue.serverTimestamp(),
     });
 
     await batch.commit();
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, pending: isPrivate || undefined });
   } catch (err) {
     console.error("[qrinvite/complete]", err);
     return NextResponse.json({ success: false, error: "Server error" }, { status: 500 });
