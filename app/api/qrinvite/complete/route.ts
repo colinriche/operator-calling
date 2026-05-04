@@ -183,8 +183,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<CompleteRespo
     if (!isPrivate) {
       // Public group — add directly
       if (memberIds.includes(currentUserId)) {
-        // Already a member: silent success (QR may be shared to a forum)
-        return NextResponse.json({ success: true });
+        return NextResponse.json({ success: true, alreadyMember: true });
       }
 
       batch.update(db.collection("groups").doc(tokenData.groupId), {
@@ -215,8 +214,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<CompleteRespo
     } else {
       // Private group — create a join request
       if (memberIds.includes(currentUserId)) {
-        // Already a member: silent success
-        return NextResponse.json({ success: true });
+        return NextResponse.json({ success: true, alreadyMember: true });
       }
 
       const existing = await db
