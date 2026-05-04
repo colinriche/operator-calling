@@ -31,10 +31,11 @@ export async function POST(req: NextRequest): Promise<NextResponse<PendingRespon
     return NextResponse.json({ success: false }, { status: 400 });
   }
 
-  const { token, platform } = body;
+  const { token, platform, email } = body as { token?: string; platform?: string; email?: string };
   if (!token || !platform || !ALLOWED_PLATFORMS.includes(platform as Platform)) {
     return NextResponse.json({ success: false }, { status: 400 });
   }
+  const normalizedEmail = email?.trim().toLowerCase() || null;
 
   try {
     const db = getAdminDb();
@@ -65,6 +66,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<PendingRespon
       type: tokenData.type ?? "personal",
       groupId: tokenData.groupId ?? null,
       platform,
+      email: normalizedEmail,
       createdAt: FieldValue.serverTimestamp(),
       expiresAt: pendingExpiry,
       status: "pending",
