@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { GroupSetupModal } from "@/components/shared/GroupSetupModal";
 import { Smartphone, X, AlertCircle, CheckCircle2 } from "lucide-react";
 
 type Step = "banner" | "form" | "email_verify" | "name_conflict" | "success";
@@ -12,6 +13,7 @@ export function LinkAccountBanner() {
   const { user, loading: authLoading, isLinked, refreshProfile } = useAuth();
   const [dismissed, setDismissed] = useState(false);
   const [step, setStep] = useState<Step>("banner");
+  const [groupSetupOpen, setGroupSetupOpen] = useState(false);
 
   // Accumulated inputs across steps
   const [supportCode, setSupportCode] = useState("");
@@ -103,6 +105,7 @@ export function LinkAccountBanner() {
     if (data.status === "linked") {
       setStep("success");
       void refreshProfile();
+      setGroupSetupOpen(true);
       return;
     }
     // All error/rejection states
@@ -111,12 +114,28 @@ export function LinkAccountBanner() {
 
   if (step === "success") {
     return (
-      <div className="mb-6 flex items-center gap-3 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-2xl px-5 py-4">
-        <CheckCircle2 className="w-5 h-5 text-green-600 shrink-0" />
-        <p className="text-sm font-medium text-green-800 dark:text-green-300">
-          Account linked successfully! All features are now available.
-        </p>
-      </div>
+      <>
+        <div className="mb-6 flex items-center justify-between gap-3 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-2xl px-5 py-4">
+          <div className="flex items-center gap-3">
+            <CheckCircle2 className="w-5 h-5 text-green-600 shrink-0" />
+            <p className="text-sm font-medium text-green-800 dark:text-green-300">
+              Account linked! Set up your groups to unlock QR invites.
+            </p>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            className="border-green-300 text-green-800 hover:bg-green-100 text-xs h-8 shrink-0"
+            onClick={() => setGroupSetupOpen(true)}
+          >
+            Set up groups
+          </Button>
+        </div>
+        <GroupSetupModal
+          open={groupSetupOpen}
+          onClose={() => setGroupSetupOpen(false)}
+        />
+      </>
     );
   }
 
