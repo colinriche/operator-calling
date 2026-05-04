@@ -531,8 +531,12 @@ export function QRInviteFlow({ token, type, invalidReason }: QRInviteFlowProps) 
 
         if (!mounted.current) return;
 
-        if (user) {
-          // ── Branch A: trusted existing user ─────────────────────────────
+        if (user && platform === "web") {
+          // ── Branch A: desktop logged-in user — complete on the website ───
+          // On mobile we always fire the deep link (Branch B) regardless of
+          // auth state, so the app is the sole caller of /api/qrinvite/complete.
+          // This prevents the website and the app from racing to redeem the
+          // same single-use personal token.
           setState({ status: "completing" });
 
           try {
