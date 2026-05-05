@@ -5,13 +5,14 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { onAuthStateChanged, getIdToken } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { doc, getDoc } from "firebase/firestore";
+import { auth, db } from "@/lib/firebase";
 import { toast } from "sonner";
 import {
   Users, Calendar, Settings, Shield, ArrowLeft,
-  UserPlus, Loader2, Crown, Trash2, MoreHorizontal,
-  Clock, Video, Mic, X, ChevronRight, Lock, Unlock,
-  Phone, QrCode, Copy, Share2, RefreshCcw, Download,
+  UserPlus, Loader2, Crown, Trash2,
+  Clock, Video, Mic, X, Lock, Unlock,
+  Phone, QrCode, Copy, Share2, RefreshCcw, Download, ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -130,6 +131,7 @@ export default function GroupDetailPage({ params }: { params: Promise<{ id: stri
   const searchParams = useSearchParams();
 
   const [uid, setUid] = useState<string | null>(null);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [group, setGroup] = useState<GroupDetail | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
   const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([]);
@@ -197,6 +199,15 @@ export default function GroupDetailPage({ params }: { params: Promise<{ id: stri
     const unsub = onAuthStateChanged(auth, async (user) => {
       if (!user) { router.push("/login"); return; }
       setUid(user.uid);
+
+      // Check super admin status from the user doc
+      try {
+        const snap = await getDoc(doc(db, "user", user.uid));
+        if (snap.exists() && snap.data()?.role === "super_admin") {
+          setIsSuperAdmin(true);
+        }
+      } catch { /* non-fatal */ }
+
       const [groupData] = await Promise.all([loadGroup(), loadSchedules()]);
       if (groupData) {
         await loadJoinRequests(groupData, user.uid);
@@ -243,6 +254,7 @@ export default function GroupDetailPage({ params }: { params: Promise<{ id: stri
   }
 
   const isCreator = uid === group?.createdBy;
+  const canSeeMembers = isCreator || isSuperAdmin;
 
   if (loading) {
     return (
@@ -308,8 +320,9 @@ export default function GroupDetailPage({ params }: { params: Promise<{ id: stri
         {/* ── Members tab ──────────────────────────────────────────────────────── */}
         <TabsContent value="overview" className="space-y-5">
           {isCreator && (
-            <InviteMemberCard
+            <InviteOptionsCard
               groupId={id}
+              groupName={group.name}
               onInvited={(invite) => setPendingInvites((prev) => [invite, ...prev])}
             />
           )}
@@ -358,7 +371,7 @@ export default function GroupDetailPage({ params }: { params: Promise<{ id: stri
             </div>
           )}
 
-          {pendingInvites.length > 0 && (
+          {canSeeMembers && pendingInvites.length > 0 && (
             <div className="bg-card rounded-2xl border border-border/60 overflow-hidden">
               <div className="p-4 border-b border-border/60">
                 <p className="font-semibold text-sm text-foreground">
@@ -387,21 +400,26 @@ export default function GroupDetailPage({ params }: { params: Promise<{ id: stri
             </div>
           )}
 
-          <MemberList
-            members={members}
-            groupId={id}
-            isCreator={isCreator}
-            currentUid={uid ?? ""}
-            onMemberRemoved={(removedUid) => {
-              setMembers((prev) => prev.filter((m) => m.uid !== removedUid));
-              setGroup((prev) => prev ? { ...prev, memberCount: prev.memberCount - 1 } : prev);
-            }}
-            onRoleChanged={(memberUid, role) => {
-              setMembers((prev) =>
-                prev.map((m) => m.uid === memberUid ? { ...m, role } : m)
-              );
-            }}
-          />
+          {canSeeMembers ? (
+            <MemberList
+              members={members}
+              groupId={id}
+              isCreator={isCreator}
+              onMemberRemoved={(removedUid) => {
+                setMembers((prev) => prev.filter((m) => m.uid !== removedUid));
+                setGroup((prev) => prev ? { ...prev, memberCount: prev.memberCount - 1 } : prev);
+              }}
+              onRoleChanged={(memberUid, role) => {
+                setMembers((prev) =>
+                  prev.map((m) => m.uid === memberUid ? { ...m, role } : m)
+                );
+              }}
+            />
+          ) : (
+            <div className="bg-card rounded-2xl border border-border/60 p-8 text-center text-muted-foreground text-sm">
+              Member list is only visible to the group admin.
+            </div>
+          )}
         </TabsContent>
 
         {/* ── Schedule tab ─────────────────────────────────────────────────────── */}
@@ -593,19 +611,25 @@ function GroupQrShareCard({ groupId, groupName }: { groupId: string; groupName: 
   );
 }
 
-// ─── InviteMemberCard ─────────────────────────────────────────────────────────
+// ─── InviteOptionsCard ────────────────────────────────────────────────────────
 
-function InviteMemberCard({
+function InviteOptionsCard({
   groupId,
+  groupName,
   onInvited,
 }: {
   groupId: string;
+  groupName: string;
   onInvited: (invite: PendingInvite) => void;
 }) {
+  const [mode, setMode] = useState<"closed" | "username" | "qr">("closed");
   const [username, setUsername] = useState("");
   const [loading, setLoading] = useState(false);
+  const [qrDataUrl, setQrDataUrl] = useState("");
+  const [qrInviteUrl, setQrInviteUrl] = useState("");
+  const [qrExpiresAt, setQrExpiresAt] = useState<string | null>(null);
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleInviteByUsername(e: React.FormEvent) {
     e.preventDefault();
     if (!username.trim()) return;
     setLoading(true);
@@ -623,6 +647,7 @@ function InviteMemberCard({
         createdAt: new Date().toISOString(),
       });
       setUsername("");
+      setMode("closed");
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to send invite.");
     } finally {
@@ -630,30 +655,168 @@ function InviteMemberCard({
     }
   }
 
+  async function loadQr() {
+    if (qrDataUrl) return; // already loaded
+    setLoading(true);
+    try {
+      const data = await apiFetch("/api/qrinvite/token", {
+        method: "POST",
+        body: JSON.stringify({ type: "group", groupId, ctx: groupName }),
+      });
+      if (!data.publicUrl) throw new Error();
+      const qr = await toDataURL(data.publicUrl as string, { width: 600, margin: 1 });
+      setQrInviteUrl(data.publicUrl as string);
+      setQrDataUrl(qr);
+      setQrExpiresAt(data.expiresAt ?? null);
+    } catch {
+      toast.error("Could not generate invite QR.");
+      setMode("closed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function copyLink() {
+    if (!qrInviteUrl) return;
+    try {
+      await navigator.clipboard.writeText(qrInviteUrl);
+      toast.success("Invite link copied.");
+    } catch {
+      toast.error("Could not copy link.");
+    }
+  }
+
+  async function shareLink() {
+    if (!qrInviteUrl) return;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: `Join ${groupName} on The Operator`, url: qrInviteUrl });
+      } else {
+        await copyLink();
+      }
+    } catch { /* user cancelled */ }
+  }
+
   return (
-    <div className="bg-card rounded-2xl p-5 border border-border/60">
-      <div className="flex items-center gap-2 mb-4">
-        <UserPlus className="w-4 h-4 text-primary" />
-        <h2 className="font-semibold text-sm text-foreground">Invite a member</h2>
+    <div className="bg-card rounded-2xl border border-border/60 overflow-hidden">
+      {/* Header row — always visible */}
+      <div className="p-4 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <UserPlus className="w-4 h-4 text-primary" />
+          <span className="font-semibold text-sm text-foreground">Invite members</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => { setMode(mode === "username" ? "closed" : "username"); }}
+            className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border font-medium transition-colors ${
+              mode === "username"
+                ? "border-primary bg-primary/10 text-primary"
+                : "border-border text-foreground hover:bg-muted"
+            }`}
+          >
+            By username
+            <ChevronDown className={`w-3.5 h-3.5 transition-transform ${mode === "username" ? "rotate-180" : ""}`} />
+          </button>
+          <button
+            onClick={() => {
+              const next = mode === "qr" ? "closed" : "qr";
+              setMode(next);
+              if (next === "qr") loadQr();
+            }}
+            className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border font-medium transition-colors ${
+              mode === "qr"
+                ? "border-primary bg-primary/10 text-primary"
+                : "border-border text-foreground hover:bg-muted"
+            }`}
+          >
+            <QrCode className="w-3.5 h-3.5" />
+            Share QR
+            <ChevronDown className={`w-3.5 h-3.5 transition-transform ${mode === "qr" ? "rotate-180" : ""}`} />
+          </button>
+        </div>
       </div>
-      <form onSubmit={handleSubmit} className="flex gap-2">
-        <Input
-          placeholder="Username (from the app)"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          className="flex-1"
-        />
-        <Button
-          type="submit"
-          disabled={loading || !username.trim()}
-          className="gradient-gold border-0 text-primary-foreground font-semibold"
-        >
-          {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Invite"}
-        </Button>
-      </form>
-      <p className="text-xs text-muted-foreground mt-2">
-        They'll receive an in-app notification to accept.
-      </p>
+
+      {/* By username panel */}
+      <AnimatePresence>
+        {mode === "username" && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="overflow-hidden border-t border-border/60"
+          >
+            <form onSubmit={handleInviteByUsername} className="p-4 flex gap-2">
+              <Input
+                placeholder="Username (from the app)"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className="flex-1"
+                autoFocus
+              />
+              <Button
+                type="submit"
+                disabled={loading || !username.trim()}
+                className="gradient-gold border-0 text-primary-foreground font-semibold"
+              >
+                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Send"}
+              </Button>
+            </form>
+            <p className="text-xs text-muted-foreground px-4 pb-4 -mt-1">
+              They'll receive an in-app notification to accept.
+            </p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* QR panel */}
+      <AnimatePresence>
+        {mode === "qr" && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="overflow-hidden border-t border-border/60"
+          >
+            <div className="p-4">
+              {loading && !qrDataUrl ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="w-4 h-4 animate-spin" /> Generating…
+                </div>
+              ) : qrDataUrl ? (
+                <div className="flex flex-col sm:flex-row gap-4 items-start">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={qrDataUrl}
+                    alt="Group invite QR"
+                    className="w-36 h-36 rounded-xl border border-border bg-white p-2 shrink-0"
+                  />
+                  <div className="space-y-2 text-xs text-muted-foreground">
+                    <p>Anyone who scans this can request to join the group.</p>
+                    {qrExpiresAt && <p>Expires: {new Date(qrExpiresAt).toLocaleString("en-GB")}</p>}
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      <Button size="sm" variant="outline" className="gap-1.5" onClick={copyLink}>
+                        <Copy className="w-3.5 h-3.5" /> Copy link
+                      </Button>
+                      <Button size="sm" variant="outline" className="gap-1.5" onClick={shareLink}>
+                        <Share2 className="w-3.5 h-3.5" /> Share
+                      </Button>
+                      <a
+                        href={qrDataUrl}
+                        download={`${groupName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-invite-qr.png`}
+                        className="inline-flex items-center gap-1.5 rounded-md border border-input bg-background px-3 py-1.5 text-xs font-medium text-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+                      >
+                        <Download className="w-3.5 h-3.5" /> Download
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -664,14 +827,12 @@ function MemberList({
   members,
   groupId,
   isCreator,
-  currentUid,
   onMemberRemoved,
   onRoleChanged,
 }: {
   members: Member[];
   groupId: string;
   isCreator: boolean;
-  currentUid: string;
   onMemberRemoved: (uid: string) => void;
   onRoleChanged: (uid: string, role: string) => void;
 }) {
