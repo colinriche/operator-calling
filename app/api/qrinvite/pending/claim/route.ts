@@ -43,18 +43,22 @@ export async function POST(req: NextRequest) {
     const { db, adminAuth } = getAdminServices();
     const decoded = await adminAuth.verifyIdToken(idToken);
     const currentUserId = decoded.uid;
-    const userEmail = decoded.email?.toLowerCase();
+    // Phone auth provides phone_number; email auth provides email.
+    // The app uses phone auth, so phone_number is the primary identifier.
+    const userPhone = decoded.phone_number ?? null;
+    const userEmail = decoded.email?.toLowerCase() ?? null;
 
-    // Phone-auth users have no email — nothing to claim
-    if (!userEmail) {
+    if (!userPhone && !userEmail) {
       return NextResponse.json({ success: true, results: [] });
     }
 
-    // Find pending connections saved with this email that haven't been claimed yet
+    // Find pending connections saved with this phone (or email as fallback)
     const now = new Date();
+    const field = userPhone ? "phoneNumber" : "email";
+    const value = userPhone ?? userEmail!;
     const pendingSnap = await db
       .collection("pending_connections")
-      .where("email", "==", userEmail)
+      .where(field, "==", value)
       .where("status", "==", "pending")
       .get();
 
@@ -248,5 +252,3 @@ async function _completeInvite(
   return { success: true, type: tokenData.type, groupId: tokenData.groupId, pending: isPrivate };
 }
 
-// TypeScript needs this for the Firestore type
-declare const FirebaseFirestore: { Firestore: unknown };

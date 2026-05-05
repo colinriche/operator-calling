@@ -174,12 +174,12 @@ export async function completeInvite(
 export async function createPendingConnection(
   token: string,
   platform: Platform,
-  email?: string
+  phoneNumber?: string
 ): Promise<PendingResponse> {
   const res = await fetch("/api/qrinvite/pending", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ token, platform, ...(email ? { email } : {}) }),
+    body: JSON.stringify({ token, platform, ...(phoneNumber ? { phoneNumber } : {}) }),
   });
   if (!res.ok) return { success: false };
   return res.json() as Promise<PendingResponse>;

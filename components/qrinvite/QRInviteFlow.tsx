@@ -373,21 +373,21 @@ function InstallAppScreen({
   type: InviteType;
   onPendingSaved: (p: Platform, emailSaved: boolean) => void;
 }) {
-  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  const save = async (withEmail: boolean) => {
+  const save = async (withPhone: boolean) => {
     setSaving(true);
     setError("");
     try {
       const res = await createPendingConnection(
         token,
         platform,
-        withEmail ? email.trim() : undefined
+        withPhone ? phone.trim() : undefined
       );
       if (res.success) {
-        onPendingSaved(platform, withEmail && !!email.trim());
+        onPendingSaved(platform, withPhone && !!phone.trim());
       } else {
         setError("Couldn't save your invite. Try again.");
       }
@@ -400,9 +400,10 @@ function InstallAppScreen({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email.trim()) { setError("Please enter your email."); return; }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-      setError("Please enter a valid email address.");
+    if (!phone.trim()) { setError("Please enter your phone number."); return; }
+    // Must have at least 7 digits after stripping non-digits
+    if (phone.replace(/\D/g, "").length < 7) {
+      setError("Please enter a valid phone number with country code, e.g. +447911123456");
       return;
     }
     void save(true);
@@ -415,16 +416,16 @@ function InstallAppScreen({
       </IconBadge>
       <h1 className="font-heading font-bold text-2xl text-foreground mb-2">Get The Operator</h1>
       <p className="text-muted-foreground text-sm max-w-xs mx-auto mb-4">
-        Download the app to accept this invite. Enter the email you'll sign up
-        with and we'll apply the invite automatically once you're in.
+        Download the app to accept this invite. Enter the phone number you'll
+        sign up with and we'll apply the invite automatically once you're in.
       </p>
 
       <form onSubmit={handleSubmit} className="mb-4 flex flex-col gap-2 text-left">
         <input
-          type="email"
-          placeholder="your@email.com"
-          value={email}
-          onChange={(e) => { setEmail(e.target.value); setError(""); }}
+          type="tel"
+          placeholder="+44 7911 123456"
+          value={phone}
+          onChange={(e) => { setPhone(e.target.value); setError(""); }}
           className="w-full rounded-xl border border-border bg-background px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
           disabled={saving}
         />
@@ -471,7 +472,7 @@ function PendingSavedScreen({
       <h1 className="font-heading font-bold text-2xl text-foreground mb-2">Invite saved</h1>
       <p className="text-muted-foreground text-sm max-w-xs mx-auto mb-6">
         {emailSaved
-          ? "Download The Operator and sign up with that email — your invite will be applied automatically."
+          ? "Download The Operator and sign up with that phone number — your invite will be applied automatically."
           : "Download The Operator, then scan the QR code again or return to this page to claim your invite."}
       </p>
       <StoreButtons platform={platform} />
