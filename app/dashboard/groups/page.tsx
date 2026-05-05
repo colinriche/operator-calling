@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { onAuthStateChanged, getIdToken } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { toast } from "sonner";
-import { Users, Crown, Plus, X, Loader2 } from "lucide-react";
+import { Users, Crown, Plus, X, Loader2, Briefcase, Dumbbell, Users2, GraduationCap, LayoutGrid } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -31,6 +31,7 @@ export default function GroupsPage() {
   const [newName, setNewName] = useState("");
   const [newDesc, setNewDesc] = useState("");
   const [newIsPrivate, setNewIsPrivate] = useState(true);
+  const [newType, setNewType] = useState("general");
   const [creating, setCreating] = useState(false);
 
   const fetchGroups = useCallback(async (currentUser: { uid: string; getIdToken: () => Promise<string> }) => {
@@ -73,6 +74,7 @@ export default function GroupsPage() {
           name: newName.trim(),
           description: newDesc.trim(),
           isPrivate: newIsPrivate,
+          type: newType,
         }),
       });
       const data = await res.json();
@@ -82,6 +84,7 @@ export default function GroupsPage() {
       setNewName("");
       setNewDesc("");
       setNewIsPrivate(true);
+      setNewType("general");
       router.push(`/dashboard/groups/${data.groupId}`);
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to create group.");
@@ -126,6 +129,7 @@ export default function GroupsPage() {
                   onClick={() => {
                     setShowCreate(false);
                     setNewIsPrivate(true);
+                    setNewType("general");
                   }}
                   className="text-muted-foreground hover:text-foreground"
                 >
@@ -149,6 +153,32 @@ export default function GroupsPage() {
                     value={newDesc}
                     onChange={(e) => setNewDesc(e.target.value)}
                   />
+                </div>
+                <div>
+                  <Label className="text-sm font-medium mb-2 block">Group type</Label>
+                  <div className="grid grid-cols-5 gap-1.5">
+                    {([
+                      { value: "general", label: "General", Icon: LayoutGrid },
+                      { value: "work",    label: "Work",    Icon: Briefcase },
+                      { value: "sport",   label: "Sport",   Icon: Dumbbell },
+                      { value: "social",  label: "Social",  Icon: Users2 },
+                      { value: "college", label: "College", Icon: GraduationCap },
+                    ] as const).map(({ value, label, Icon }) => (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => setNewType(value)}
+                        className={`flex flex-col items-center gap-1 py-2 px-1 rounded-xl border text-xs font-medium transition-colors ${
+                          newType === value
+                            ? "border-primary bg-primary/10 text-primary"
+                            : "border-border text-muted-foreground hover:border-foreground hover:text-foreground"
+                        }`}
+                      >
+                        <Icon className="w-4 h-4" />
+                        {label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
                 <div className="flex items-start justify-between gap-4 rounded-xl border border-border/70 p-3">
                   <div>
@@ -177,6 +207,7 @@ export default function GroupsPage() {
                     onClick={() => {
                       setShowCreate(false);
                       setNewIsPrivate(true);
+                      setNewType("general");
                     }}
                   >
                     Cancel
