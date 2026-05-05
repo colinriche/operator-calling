@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { onAuthStateChanged, getIdToken } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { toast } from "sonner";
-import { Users, Crown, Plus, X, Loader2, MoreHorizontal, Settings, QrCode, LogOut, Trash2, Lock, Unlock } from "lucide-react";
+import { Users, Crown, Plus, X, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -32,8 +32,6 @@ export default function GroupsPage() {
   const [newDesc, setNewDesc] = useState("");
   const [newIsPrivate, setNewIsPrivate] = useState(true);
   const [creating, setCreating] = useState(false);
-  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
 
   const fetchGroups = useCallback(async (currentUser: { uid: string; getIdToken: () => Promise<string> }) => {
     try {
@@ -59,17 +57,6 @@ export default function GroupsPage() {
     });
     return unsub;
   }, [fetchGroups, router]);
-
-  // Close menu on outside click
-  useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setOpenMenuId(null);
-      }
-    }
-    if (openMenuId) document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, [openMenuId]);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -100,62 +87,6 @@ export default function GroupsPage() {
       toast.error(err instanceof Error ? err.message : "Failed to create group.");
     } finally {
       setCreating(false);
-    }
-  }
-
-  async function handleLeave(group: GroupSummary) {
-    if (!confirm(`Leave "${group.name}"?`)) return;
-    const user = auth.currentUser;
-    if (!user) return;
-    try {
-      const token = await getIdToken(user);
-      const res = await fetch(`/api/groups/${group.id}/members/${user.uid}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) throw new Error();
-      toast.success(`Left ${group.name}.`);
-      setGroups((prev) => prev.filter((g) => g.id !== group.id));
-    } catch {
-      toast.error("Failed to leave group.");
-    }
-  }
-
-  async function handleDelete(group: GroupSummary) {
-    if (!confirm(`Delete "${group.name}"? This cannot be undone.`)) return;
-    const user = auth.currentUser;
-    if (!user) return;
-    try {
-      const token = await getIdToken(user);
-      const res = await fetch(`/api/groups/${group.id}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) throw new Error();
-      toast.success("Group deleted.");
-      setGroups((prev) => prev.filter((g) => g.id !== group.id));
-    } catch {
-      toast.error("Failed to delete group.");
-    }
-  }
-
-  async function handleCopyInviteLink(group: GroupSummary) {
-    const user = auth.currentUser;
-    if (!user) return;
-    setOpenMenuId(null);
-    try {
-      const token = await getIdToken(user);
-      const res = await fetch("/api/qrinvite/token", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ type: "group", groupId: group.id, ctx: group.name }),
-      });
-      const data = await res.json();
-      if (!data.publicUrl) throw new Error();
-      await navigator.clipboard.writeText(data.publicUrl);
-      toast.success("Invite link copied.");
-    } catch {
-      toast.error("Could not generate invite link.");
     }
   }
 
@@ -192,7 +123,10 @@ export default function GroupsPage() {
               <div className="flex items-center justify-between mb-5">
                 <h2 className="font-heading font-bold text-lg text-foreground">Create a group</h2>
                 <button
-                  onClick={() => { setShowCreate(false); setNewIsPrivate(true); }}
+                  onClick={() => {
+                    setShowCreate(false);
+                    setNewIsPrivate(true);
+                  }}
                   className="text-muted-foreground hover:text-foreground"
                 >
                   <X className="w-5 h-5" />
@@ -209,9 +143,7 @@ export default function GroupsPage() {
                   />
                 </div>
                 <div>
-                  <Label className="text-sm font-medium mb-1.5 block">
-                    Description <span className="text-muted-foreground font-normal">(optional)</span>
-                  </Label>
+                  <Label className="text-sm font-medium mb-1.5 block">Description <span className="text-muted-foreground font-normal">(optional)</span></Label>
                   <Input
                     placeholder="What's this group about?"
                     value={newDesc}
@@ -242,7 +174,10 @@ export default function GroupsPage() {
                     type="button"
                     variant="outline"
                     className="flex-1"
-                    onClick={() => { setShowCreate(false); setNewIsPrivate(true); }}
+                    onClick={() => {
+                      setShowCreate(false);
+                      setNewIsPrivate(true);
+                    }}
                   >
                     Cancel
                   </Button>
@@ -272,98 +207,56 @@ export default function GroupsPage() {
           <p className="text-sm mt-1">Create one or accept an invite on the app.</p>
         </div>
       ) : (
-        <div className="space-y-3" ref={menuRef}>
+        <div className="space-y-3">
           {groups.map((g) => {
             const isAdmin = g.createdBy === uid;
-            const isOpen = openMenuId === g.id;
-
             return (
               <div
                 key={g.id}
                 className="bg-card rounded-2xl p-5 border border-border/60 flex items-center gap-4"
               >
-                {/* Avatar */}
                 <div className="w-11 h-11 rounded-full gradient-gold flex items-center justify-center text-primary-foreground font-heading font-bold text-base shrink-0">
                   {g.name[0]?.toUpperCase()}
                 </div>
-
-                {/* Info */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">
                     <p className="font-semibold text-foreground truncate">{g.name}</p>
                     {isAdmin && <Crown className="w-3.5 h-3.5 text-primary shrink-0" />}
-                    {g.isPrivate
-                      ? <Lock className="w-3 h-3 text-muted-foreground shrink-0" />
-                      : <Unlock className="w-3 h-3 text-muted-foreground shrink-0" />}
                   </div>
                   {g.description && (
                     <p className="text-xs text-muted-foreground truncate mt-0.5">{g.description}</p>
                   )}
                   <p className="text-xs text-muted-foreground mt-0.5">
                     {g.memberCount} {g.memberCount === 1 ? "member" : "members"}
-                    {" · "}
-                    <span className={isAdmin ? "text-primary font-medium" : ""}>
-                      {isAdmin ? "Admin" : "Member"}
-                    </span>
                   </p>
                 </div>
-
-                {/* ⋯ menu */}
-                <div className="relative shrink-0">
-                  <button
-                    onClick={() => setOpenMenuId(isOpen ? null : g.id)}
-                    className="p-2 rounded-xl hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+                <div className="flex items-center gap-2 shrink-0">
+                  <span
+                    className={`text-xs px-2.5 py-1 rounded-full font-medium ${
+                      g.isPrivate
+                        ? "bg-amber-100 text-amber-700"
+                        : "bg-emerald-100 text-emerald-700"
+                    }`}
                   >
-                    <MoreHorizontal className="w-4 h-4" />
-                  </button>
-
-                  <AnimatePresence>
-                    {isOpen && (
-                      <motion.div
-                        initial={{ opacity: 0, scale: 0.95, y: -4 }}
-                        animate={{ opacity: 1, scale: 1, y: 0 }}
-                        exit={{ opacity: 0, scale: 0.95, y: -4 }}
-                        transition={{ duration: 0.1 }}
-                        className="absolute right-0 top-full mt-1 z-20 bg-card border border-border rounded-xl shadow-lg overflow-hidden min-w-[160px]"
-                      >
-                        {isAdmin ? (
-                          <>
-                            <Link
-                              href={`/dashboard/groups/${g.id}`}
-                              onClick={() => setOpenMenuId(null)}
-                              className="flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-foreground hover:bg-muted transition-colors"
-                            >
-                              <Settings className="w-3.5 h-3.5 text-muted-foreground" />
-                              Manage
-                            </Link>
-                            <button
-                              onClick={() => handleCopyInviteLink(g)}
-                              className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-foreground hover:bg-muted transition-colors"
-                            >
-                              <QrCode className="w-3.5 h-3.5 text-muted-foreground" />
-                              Copy invite link
-                            </button>
-                            <div className="border-t border-border/60" />
-                            <button
-                              onClick={() => { setOpenMenuId(null); handleDelete(g); }}
-                              className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-destructive hover:bg-destructive/10 transition-colors"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                              Delete group
-                            </button>
-                          </>
-                        ) : (
-                          <button
-                            onClick={() => { setOpenMenuId(null); handleLeave(g); }}
-                            className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-destructive hover:bg-destructive/10 transition-colors"
-                          >
-                            <LogOut className="w-3.5 h-3.5" />
-                            Leave group
-                          </button>
-                        )}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
+                    {g.isPrivate ? "Private" : "Public"}
+                  </span>
+                  <span
+                    className={`text-xs px-2.5 py-1 rounded-full font-medium ${
+                      isAdmin
+                        ? "bg-primary/10 text-primary"
+                        : "bg-muted text-muted-foreground"
+                    }`}
+                  >
+                    {isAdmin ? "Admin" : "Member"}
+                  </span>
+                  {isAdmin && (
+                    <Link
+                      href={`/dashboard/groups/${g.id}`}
+                      className="text-xs px-3 py-1.5 rounded-xl border border-border font-medium text-foreground hover:bg-muted transition-colors"
+                    >
+                      Manage
+                    </Link>
+                  )}
                 </div>
               </div>
             );
