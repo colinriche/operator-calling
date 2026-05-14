@@ -62,7 +62,7 @@ export async function POST(req: NextRequest) {
   const uid = await verifyAuth(req.headers.get("authorization") ?? "");
   if (!uid) return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
 
-  const VALID_TYPES = ["general", "work", "sport", "social", "college"] as const;
+  const VALID_TYPES = ["general", "family", "work", "sport", "social", "college"] as const;
   type GroupType = (typeof VALID_TYPES)[number];
 
   let body: { name?: string; description?: string; isPrivate?: boolean; type?: string };

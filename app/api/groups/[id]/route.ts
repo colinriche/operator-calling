@@ -68,6 +68,7 @@ export async function GET(req: NextRequest, { params }: Params) {
       createdBy: data.createdBy,
       memberCount: memberIds.length,
       isPrivate: data.isPrivate ?? true,
+      type: data.type ?? "general",
       allowMemberCalls: data.allowMemberCalls ?? false,
       tags: data.tags ?? [],
       scheduleSettings: data.scheduleSettings ?? null,

@@ -12,7 +12,7 @@ import {
   Users, Calendar, Settings, Shield, ArrowLeft,
   UserPlus, Loader2, Crown, Trash2, MoreHorizontal,
   Clock, Video, Mic, X, ChevronRight, Lock, Unlock,
-  Phone, QrCode, Copy, Share2, RefreshCcw, Download,
+  Phone, QrCode, Copy, Share2, RefreshCcw, Download, Pencil,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,6 +31,7 @@ interface GroupDetail {
   createdBy: string;
   memberCount: number;
   isPrivate: boolean;
+  type: string;
   allowMemberCalls: boolean;
   scheduleSettings: {
     allowedDays: number[];
@@ -81,6 +82,7 @@ interface Schedule {
 
 const GROUP_TABS = ["overview", "schedule", "settings", "moderation"] as const;
 type GroupTab = (typeof GROUP_TABS)[number];
+const SCHEDULE_EDIT_LOCK_MS = 2 * 60 * 1000;
 
 function normalizeGroupTab(value: string | null): GroupTab {
   return GROUP_TABS.includes(value as GroupTab) ? (value as GroupTab) : "overview";
@@ -120,6 +122,34 @@ function fmtDateTime(iso: string | null) {
     day: "numeric", month: "short", year: "numeric",
     hour: "2-digit", minute: "2-digit",
   });
+}
+
+function padDatePart(value: number) {
+  return String(value).padStart(2, "0");
+}
+
+function toLocalDateTimeInputValue(date: Date) {
+  return [
+    date.getFullYear(),
+    padDatePart(date.getMonth() + 1),
+    padDatePart(date.getDate()),
+  ].join("-") + `T${padDatePart(date.getHours())}:${padDatePart(date.getMinutes())}`;
+}
+
+function parseLocalDateTimeInput(value: string) {
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function canEditSchedule(schedule: Schedule) {
+  if (!schedule.scheduledAt) return false;
+  return new Date(schedule.scheduledAt).getTime() - Date.now() > SCHEDULE_EDIT_LOCK_MS;
+}
+
+function sortSchedules(items: Schedule[]) {
+  return [...items].sort(
+    (a, b) => new Date(a.scheduledAt ?? 0).getTime() - new Date(b.scheduledAt ?? 0).getTime()
+  );
 }
 
 // ─── Main page ────────────────────────────────────────────────────────────────
@@ -254,6 +284,7 @@ export default function GroupDetailPage({ params }: { params: Promise<{ id: stri
   }
 
   const isCreator = uid === group?.createdBy;
+  const canManageSchedules = isCreator && group?.type === "family";
   const canSeeMembers = isCreator || isSuperAdmin;
 
   if (loading) {
@@ -423,13 +454,11 @@ export default function GroupDetailPage({ params }: { params: Promise<{ id: stri
 
         {/* ── Schedule tab ─────────────────────────────────────────────────────── */}
         <TabsContent value="schedule" className="space-y-5">
-          {isCreator && (
+          {canManageSchedules && (
             <CreateScheduleCard
               groupId={id}
               members={members}
-              onCreated={(s) => setSchedules((prev) => [s, ...prev].sort(
-                (a, b) => new Date(a.scheduledAt ?? 0).getTime() - new Date(b.scheduledAt ?? 0).getTime()
-              ))}
+              onCreated={(s) => setSchedules((prev) => sortSchedules([s, ...prev]))}
             />
           )}
 
@@ -449,9 +478,13 @@ export default function GroupDetailPage({ params }: { params: Promise<{ id: stri
                   <ScheduleRow
                     key={s.id}
                     schedule={s}
-                    isCreator={isCreator}
+                    members={members}
+                    canManage={canManageSchedules}
                     groupId={id}
                     onDeleted={(sid) => setSchedules((prev) => prev.filter((x) => x.id !== sid))}
+                    onUpdated={(updated) => setSchedules((prev) => sortSchedules(
+                      prev.map((x) => x.id === updated.id ? updated : x)
+                    ))}
                   />
                 ))}
               </div>
@@ -797,57 +830,6 @@ function CreateScheduleCard({
   onCreated: (s: Schedule) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [scheduledAt, setScheduledAt] = useState("");
-  const [callType, setCallType] = useState<"audio" | "video">("audio");
-  const [note, setNote] = useState("");
-  const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    if (open) setSelectedMemberIds(members.map((m) => m.uid));
-  }, [open, members]);
-
-  function toggleMember(uid: string) {
-    setSelectedMemberIds((prev) =>
-      prev.includes(uid) ? prev.filter((id) => id !== uid) : [...prev, uid]
-    );
-  }
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!scheduledAt) return;
-    setLoading(true);
-    try {
-      const data = await apiFetch(`/api/groups/${groupId}/schedules`, {
-        method: "POST",
-        body: JSON.stringify({
-          scheduledAt: new Date(scheduledAt).toISOString(),
-          callType,
-          participantIds: selectedMemberIds,
-          note: note.trim(),
-        }),
-      });
-      toast.success("Call scheduled!");
-      onCreated({
-        id: data.scheduleId,
-        creatorId: "",
-        creatorName: "You",
-        participantIds: selectedMemberIds,
-        participantNames: Object.fromEntries(members.map((m) => [m.uid, m.name])),
-        scheduledAt: new Date(scheduledAt).toISOString(),
-        callType,
-        note: note.trim(),
-        status: "scheduled",
-      });
-      setOpen(false);
-      setScheduledAt("");
-      setNote("");
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to schedule call.");
-    } finally {
-      setLoading(false);
-    }
-  }
 
   return (
     <>
@@ -860,106 +842,203 @@ function CreateScheduleCard({
 
       <AnimatePresence>
         {open && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4"
-          >
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-card rounded-2xl border border-border p-6 w-full max-w-md shadow-2xl max-h-[90vh] overflow-y-auto"
-            >
-              <div className="flex items-center justify-between mb-5">
-                <h2 className="font-heading font-bold text-lg text-foreground">Schedule a call</h2>
-                <button onClick={() => setOpen(false)} className="text-muted-foreground hover:text-foreground">
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <Label className="text-sm font-medium mb-1.5 block">Date &amp; time</Label>
-                  <Input
-                    type="datetime-local"
-                    value={scheduledAt}
-                    onChange={(e) => setScheduledAt(e.target.value)}
-                    min={new Date(Date.now() + 60000).toISOString().slice(0, 16)}
-                    required
-                  />
-                </div>
-
-                <div>
-                  <Label className="text-sm font-medium mb-2 block">Call type</Label>
-                  <div className="flex gap-2">
-                    {(["audio", "video"] as const).map((type) => (
-                      <button
-                        key={type}
-                        type="button"
-                        onClick={() => setCallType(type)}
-                        className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-sm font-medium transition-colors ${
-                          callType === type
-                            ? "border-primary bg-primary/10 text-primary"
-                            : "border-border text-muted-foreground hover:border-foreground"
-                        }`}
-                      >
-                        {type === "audio" ? <Mic className="w-3.5 h-3.5" /> : <Video className="w-3.5 h-3.5" />}
-                        {type === "audio" ? "Audio" : "Video"}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <Label className="text-sm font-medium mb-2 block">
-                    Participants ({selectedMemberIds.length}/{members.length})
-                  </Label>
-                  <div className="space-y-1.5 max-h-40 overflow-y-auto">
-                    {members.map((m) => (
-                      <label key={m.uid} className="flex items-center gap-2.5 cursor-pointer py-1">
-                        <input
-                          type="checkbox"
-                          checked={selectedMemberIds.includes(m.uid)}
-                          onChange={() => toggleMember(m.uid)}
-                          className="rounded"
-                        />
-                        <span className="text-sm text-foreground">{m.name}</span>
-                        <span className="text-xs text-muted-foreground">@{m.username}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <Label className="text-sm font-medium mb-1.5 block">
-                    Note <span className="text-muted-foreground font-normal">(optional)</span>
-                  </Label>
-                  <Input
-                    placeholder="e.g. Monthly check-in"
-                    value={note}
-                    onChange={(e) => setNote(e.target.value)}
-                  />
-                </div>
-
-                <div className="flex gap-2 pt-1">
-                  <Button type="button" variant="outline" className="flex-1" onClick={() => setOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button
-                    type="submit"
-                    disabled={loading || !scheduledAt || selectedMemberIds.length === 0}
-                    className="flex-1 gradient-gold border-0 text-primary-foreground font-semibold"
-                  >
-                    {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Schedule"}
-                  </Button>
-                </div>
-              </form>
-            </motion.div>
-          </motion.div>
+          <ScheduleFormModal
+            mode="create"
+            groupId={groupId}
+            members={members}
+            onClose={() => setOpen(false)}
+            onSaved={onCreated}
+          />
         )}
       </AnimatePresence>
     </>
+  );
+}
+
+function ScheduleFormModal({
+  mode,
+  groupId,
+  members,
+  schedule,
+  onClose,
+  onSaved,
+}: {
+  mode: "create" | "edit";
+  groupId: string;
+  members: Member[];
+  schedule?: Schedule;
+  onClose: () => void;
+  onSaved: (s: Schedule) => void;
+}) {
+  const [scheduledAt, setScheduledAt] = useState(
+    schedule?.scheduledAt ? toLocalDateTimeInputValue(new Date(schedule.scheduledAt)) : ""
+  );
+  const [callType, setCallType] = useState<"audio" | "video">(schedule?.callType ?? "audio");
+  const [note, setNote] = useState(schedule?.note ?? "");
+  const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>(
+    schedule?.participantIds?.length ? schedule.participantIds : members.map((m) => m.uid)
+  );
+  const [loading, setLoading] = useState(false);
+
+  const selectedDate = scheduledAt ? parseLocalDateTimeInput(scheduledAt) : null;
+  const isFuture = Boolean(selectedDate && selectedDate > new Date());
+  const minDateTime = toLocalDateTimeInputValue(new Date(Date.now() + 60000));
+
+  function toggleMember(uid: string) {
+    setSelectedMemberIds((prev) =>
+      prev.includes(uid) ? prev.filter((id) => id !== uid) : [...prev, uid]
+    );
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selectedDate || !isFuture) return;
+    setLoading(true);
+    try {
+      const data = await apiFetch(
+        mode === "edit" && schedule
+          ? `/api/groups/${groupId}/schedules/${schedule.id}`
+          : `/api/groups/${groupId}/schedules`,
+        {
+          method: mode === "edit" ? "PATCH" : "POST",
+          body: JSON.stringify({
+            scheduledAt: selectedDate.toISOString(),
+            callType,
+            participantIds: selectedMemberIds,
+            note: note.trim(),
+          }),
+        }
+      );
+
+      const fallback: Schedule = {
+        id: schedule?.id ?? data.scheduleId,
+        creatorId: schedule?.creatorId ?? "",
+        creatorName: schedule?.creatorName ?? "You",
+        participantIds: selectedMemberIds,
+        participantNames: Object.fromEntries(
+          members
+            .filter((m) => selectedMemberIds.includes(m.uid))
+            .map((m) => [m.uid, m.name])
+        ),
+        scheduledAt: selectedDate.toISOString(),
+        callType,
+        note: note.trim(),
+        status: schedule?.status ?? "scheduled",
+      };
+
+      toast.success(mode === "edit" ? "Call updated." : "Call scheduled!");
+      onSaved(data.schedule ?? fallback);
+      onClose();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to save scheduled call.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4"
+    >
+      <motion.div
+        initial={{ scale: 0.95, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.95, opacity: 0 }}
+        className="bg-card rounded-2xl border border-border p-6 w-full max-w-md shadow-2xl max-h-[90vh] overflow-y-auto"
+      >
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="font-heading font-bold text-lg text-foreground">
+            {mode === "edit" ? "Edit scheduled call" : "Schedule a call"}
+          </h2>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <Label className="text-sm font-medium mb-1.5 block">Date &amp; time</Label>
+            <Input
+              type="datetime-local"
+              value={scheduledAt}
+              onChange={(e) => setScheduledAt(e.target.value)}
+              min={minDateTime}
+              required
+            />
+            {scheduledAt && !isFuture && (
+              <p className="text-xs text-destructive mt-1">Choose a future time.</p>
+            )}
+          </div>
+
+          <div>
+            <Label className="text-sm font-medium mb-2 block">Call type</Label>
+            <div className="flex gap-2">
+              {(["audio", "video"] as const).map((type) => (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => setCallType(type)}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-sm font-medium transition-colors ${
+                    callType === type
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border text-muted-foreground hover:border-foreground"
+                  }`}
+                >
+                  {type === "audio" ? <Mic className="w-3.5 h-3.5" /> : <Video className="w-3.5 h-3.5" />}
+                  {type === "audio" ? "Audio" : "Video"}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <Label className="text-sm font-medium mb-2 block">
+              Participants ({selectedMemberIds.length}/{members.length})
+            </Label>
+            <div className="space-y-1.5 max-h-40 overflow-y-auto">
+              {members.map((m) => (
+                <label key={m.uid} className="flex items-center gap-2.5 cursor-pointer py-1">
+                  <input
+                    type="checkbox"
+                    checked={selectedMemberIds.includes(m.uid)}
+                    onChange={() => toggleMember(m.uid)}
+                    className="rounded"
+                  />
+                  <span className="text-sm text-foreground">{m.name}</span>
+                  <span className="text-xs text-muted-foreground">@{m.username}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <Label className="text-sm font-medium mb-1.5 block">
+              Note <span className="text-muted-foreground font-normal">(optional)</span>
+            </Label>
+            <Input
+              placeholder="e.g. Monthly check-in"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+            />
+          </div>
+
+          <div className="flex gap-2 pt-1">
+            <Button type="button" variant="outline" className="flex-1" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              disabled={loading || !scheduledAt || !isFuture || selectedMemberIds.length === 0}
+              className="flex-1 gradient-gold border-0 text-primary-foreground font-semibold"
+            >
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : mode === "edit" ? "Save" : "Schedule"}
+            </Button>
+          </div>
+        </form>
+      </motion.div>
+    </motion.div>
   );
 }
 
@@ -967,16 +1046,21 @@ function CreateScheduleCard({
 
 function ScheduleRow({
   schedule,
+  members,
   groupId,
-  isCreator,
+  canManage,
   onDeleted,
+  onUpdated,
 }: {
   schedule: Schedule;
+  members: Member[];
   groupId: string;
-  isCreator: boolean;
+  canManage: boolean;
   onDeleted: (id: string) => void;
+  onUpdated: (schedule: Schedule) => void;
 }) {
   const [deleting, setDeleting] = useState(false);
+  const [editing, setEditing] = useState(false);
 
   async function handleDelete() {
     if (!confirm("Cancel this scheduled call?")) return;
@@ -993,6 +1077,7 @@ function ScheduleRow({
   }
 
   const participantCount = schedule.participantIds.length;
+  const editable = canEditSchedule(schedule);
 
   return (
     <div className="p-4 flex items-start gap-4">
@@ -1013,15 +1098,44 @@ function ScheduleRow({
           {schedule.note ? ` · ${schedule.note}` : ""}
         </p>
       </div>
-      {isCreator && (
-        <button
-          onClick={handleDelete}
-          disabled={deleting}
-          className="p-1.5 rounded-lg text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50 shrink-0"
-        >
-          {deleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-        </button>
+      {canManage && (
+        <div className="flex items-center gap-1.5 shrink-0">
+          {editable ? (
+            <button
+              onClick={() => setEditing(true)}
+              className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              aria-label="Edit scheduled call"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+            </button>
+          ) : (
+            <span className="hidden sm:inline text-[11px] text-muted-foreground">Too close to edit</span>
+          )}
+          <button
+            onClick={handleDelete}
+            disabled={deleting}
+            className="p-1.5 rounded-lg text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50"
+            aria-label="Cancel scheduled call"
+          >
+            {deleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+          </button>
+        </div>
       )}
+      <AnimatePresence>
+        {editing && (
+          <ScheduleFormModal
+            mode="edit"
+            groupId={groupId}
+            members={members}
+            schedule={schedule}
+            onClose={() => setEditing(false)}
+            onSaved={(updated) => {
+              onUpdated(updated);
+              setEditing(false);
+            }}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

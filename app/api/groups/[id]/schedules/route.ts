@@ -1,8 +1,49 @@
 import { NextRequest, NextResponse } from "next/server";
-import { FieldValue } from "firebase-admin/firestore";
+import { FieldValue, type DocumentData } from "firebase-admin/firestore";
 import { getAdminServices, verifyAuth } from "@/lib/firebase-admin";
 
 type Params = { params: Promise<{ id: string }> };
+type GroupData = {
+  createdBy?: string;
+  type?: string;
+  name?: string;
+  memberIds?: string[];
+  members?: Record<string, { name?: string }>;
+};
+
+function canManageSchedules(groupData: GroupData, uid: string) {
+  return groupData.createdBy === uid && groupData.type === "family";
+}
+
+function mapSchedule(id: string, data: DocumentData) {
+  return {
+    id,
+    groupId: data.groupId,
+    creatorId: data.creatorId,
+    creatorName: data.creatorName,
+    participantIds: data.participantIds ?? [],
+    participantNames: data.participantNames ?? {},
+    scheduledAt: data.scheduledAt?.toDate?.()?.toISOString() ?? null,
+    callType: data.callType ?? "audio",
+    status: data.status ?? "scheduled",
+    note: data.note ?? "",
+    createdAt: data.createdAt?.toDate?.()?.toISOString() ?? null,
+  };
+}
+
+function resolveParticipants(groupData: GroupData, requestedIds: unknown) {
+  const allMemberIds = groupData.memberIds ?? [];
+  const requested = Array.isArray(requestedIds)
+    ? requestedIds.filter((p): p is string => typeof p === "string")
+    : allMemberIds;
+  const participantIds = requested.filter((p) => allMemberIds.includes(p));
+  const membersMap = groupData.members ?? {};
+  const participantNames: Record<string, string> = {};
+  for (const pid of participantIds) {
+    participantNames[pid] = membersMap[pid]?.name ?? pid;
+  }
+  return { participantIds, participantNames };
+}
 
 // GET /api/groups/[id]/schedules — list upcoming scheduled calls for this group
 export async function GET(req: NextRequest, { params }: Params) {
@@ -27,22 +68,7 @@ export async function GET(req: NextRequest, { params }: Params) {
     .limit(50)
     .get();
 
-  const schedules = snap.docs.map((d) => {
-    const data = d.data();
-    return {
-      id: d.id,
-      groupId: data.groupId,
-      creatorId: data.creatorId,
-      creatorName: data.creatorName,
-      participantIds: data.participantIds ?? [],
-      participantNames: data.participantNames ?? {},
-      scheduledAt: data.scheduledAt?.toDate?.()?.toISOString() ?? null,
-      callType: data.callType ?? "audio",
-      status: data.status ?? "scheduled",
-      note: data.note ?? "",
-      createdAt: data.createdAt?.toDate?.()?.toISOString() ?? null,
-    };
-  });
+  const schedules = snap.docs.map((d) => mapSchedule(d.id, d.data()));
 
   return NextResponse.json({ schedules });
 }
@@ -57,7 +83,8 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   const groupSnap = await db.collection("groups").doc(id).get();
   if (!groupSnap.exists) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  if (groupSnap.data()!.createdBy !== uid) {
+  const groupData = groupSnap.data()! as GroupData;
+  if (!canManageSchedules(groupData, uid)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -83,25 +110,19 @@ export async function POST(req: NextRequest, { params }: Params) {
   const durationMinutes = typeof body.durationMinutes === "number" && body.durationMinutes > 0
     ? body.durationMinutes
     : undefined;
-  const groupData = groupSnap.data()!;
-  const allMemberIds: string[] = groupData.memberIds ?? [];
-  const participantIds = body.participantIds?.filter((p: string) => allMemberIds.includes(p)) ?? allMemberIds;
-
-  // Resolve participant names from group members map
-  const membersMap: Record<string, { name?: string }> = groupData.members ?? {};
-  const participantNames: Record<string, string> = {};
-  for (const pid of participantIds) {
-    participantNames[pid] = membersMap[pid]?.name ?? pid;
+  const { participantIds, participantNames } = resolveParticipants(groupData, body.participantIds);
+  if (participantIds.length === 0) {
+    return NextResponse.json({ error: "At least one participant is required" }, { status: 400 });
   }
 
   // Creator name
-  const creatorName = membersMap[uid]?.name ?? "Admin";
+  const creatorName = groupData.members?.[uid]?.name ?? "Admin";
 
   const ref = db.collection("scheduledGroupCalls").doc();
   await ref.set({
     callId: ref.id,
     groupId: id,
-    groupName: groupData.name,
+    groupName: groupData.name ?? "",
     creatorId: uid,
     creatorName,
     participantIds,
@@ -116,5 +137,10 @@ export async function POST(req: NextRequest, { params }: Params) {
     createdAt: FieldValue.serverTimestamp(),
   });
 
-  return NextResponse.json({ success: true, scheduleId: ref.id });
+  const createdSnap = await ref.get();
+  return NextResponse.json({
+    success: true,
+    scheduleId: ref.id,
+    schedule: mapSchedule(ref.id, createdSnap.data()!),
+  });
 }

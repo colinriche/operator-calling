@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { onAuthStateChanged, getIdToken } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { toast } from "sonner";
-import { Users, Crown, Plus, X, Loader2, Briefcase, Dumbbell, Users2, GraduationCap, LayoutGrid } from "lucide-react";
+import { Users, Crown, Plus, X, Loader2, Briefcase, Dumbbell, Users2, GraduationCap, LayoutGrid, Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -156,9 +156,10 @@ export default function GroupsPage() {
                 </div>
                 <div>
                   <Label className="text-sm font-medium mb-2 block">Group type</Label>
-                  <div className="grid grid-cols-5 gap-1.5">
+                  <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
                     {([
                       { value: "general", label: "General", Icon: LayoutGrid },
+                      { value: "family",  label: "Family",  Icon: Heart },
                       { value: "work",    label: "Work",    Icon: Briefcase },
                       { value: "sport",   label: "Sport",   Icon: Dumbbell },
                       { value: "social",  label: "Social",  Icon: Users2 },
