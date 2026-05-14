@@ -226,6 +226,7 @@ export async function POST(req: NextRequest) {
 
         // Web UID stored for post-link fallback lookups in useAuth
         linkedWebUid: webUid,
+        linkedWebUids: FieldValue.arrayUnion(webUid),
 
         // Profile photo: prefer app's existing photo; fall back to web (Google) photo
         ...(appDataTx.photoURL

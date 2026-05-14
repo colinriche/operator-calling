@@ -57,6 +57,19 @@ export function PhoneAuthForm() {
     };
   }, []);
 
+  async function resolveLinkedAccount(idToken: string) {
+    const res = await fetch("/api/account/resolve", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${idToken}`,
+      },
+    });
+    if (!res.ok) return false;
+    const data = (await res.json()) as { isLinked?: boolean };
+    return data.isLinked === true;
+  }
+
   async function handleSendOtp(e: React.FormEvent) {
     e.preventDefault();
     setError("");
@@ -97,6 +110,11 @@ export function PhoneAuthForm() {
       const result = await confirmationRef.current.confirm(otp);
       const idToken = await getIdToken(result.user);
       document.cookie = `__session=${idToken}; path=/; SameSite=Lax; max-age=3600`;
+
+      if (await resolveLinkedAccount(idToken)) {
+        router.push("/dashboard");
+        return;
+      }
 
       const uid = result.user.uid;
       const snap = await getDoc(doc(db, "user", uid));
