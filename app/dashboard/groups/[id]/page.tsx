@@ -78,6 +78,7 @@ interface Schedule {
   callType: "audio" | "video";
   note: string;
   status: string;
+  showUser?: boolean;
 }
 
 const GROUP_TABS = ["overview", "schedule", "settings", "moderation"] as const;
@@ -877,6 +878,7 @@ function ScheduleFormModal({
   );
   const [callType, setCallType] = useState<"audio" | "video">(schedule?.callType ?? "audio");
   const [note, setNote] = useState(schedule?.note ?? "");
+  const [showUser, setShowUser] = useState<boolean>(schedule?.showUser ?? true);
   const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>(
     schedule?.participantIds?.length ? schedule.participantIds : members.map((m) => m.uid)
   );
@@ -908,6 +910,7 @@ function ScheduleFormModal({
             callType,
             participantIds: selectedMemberIds,
             note: note.trim(),
+            showUser,
           }),
         }
       );
@@ -926,6 +929,7 @@ function ScheduleFormModal({
         callType,
         note: note.trim(),
         status: schedule?.status ?? "scheduled",
+        showUser,
       };
 
       toast.success(mode === "edit" ? "Call updated." : "Call scheduled!");
@@ -1023,6 +1027,21 @@ function ScheduleFormModal({
               placeholder="e.g. Monthly check-in"
               value={note}
               onChange={(e) => setNote(e.target.value)}
+            />
+          </div>
+
+          <div className="flex items-center justify-between py-1">
+            <div>
+              <p className="text-sm font-medium text-foreground">Show user</p>
+              <p className="text-xs text-muted-foreground">
+                {showUser
+                  ? "Partner's name is shown — e.g. Family · John Smith"
+                  : "Partner is anonymous — shows Family only"}
+              </p>
+            </div>
+            <Switch
+              checked={showUser}
+              onCheckedChange={setShowUser}
             />
           </div>
 

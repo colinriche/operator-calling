@@ -34,6 +34,7 @@ function mapSchedule(id: string, data: DocumentData) {
     callType: data.callType ?? "audio",
     status: data.status ?? "scheduled",
     note: data.note ?? "",
+    showUser: data.showUser !== false,
     createdAt: data.createdAt?.toDate?.()?.toISOString() ?? null,
   };
 }
@@ -185,6 +186,8 @@ export async function POST(req: NextRequest, { params }: Params) {
   }
 
   const callType = body.callType === "video" ? "video" : "audio";
+  const showUser = body.showUser !== false; // default true
+  const callLabel = groupData.type === "family" ? "Family" : null;
   const durationMinutes = typeof body.durationMinutes === "number" && body.durationMinutes > 0
     ? body.durationMinutes
     : undefined;
@@ -213,6 +216,8 @@ export async function POST(req: NextRequest, { params }: Params) {
     participantVoipTokens: {},
     scheduledAt,
     callType,
+    showUser,
+    ...(callLabel ? { callLabel } : {}),
     ...(durationMinutes !== undefined ? { durationMinutes } : {}),
     note: body.note?.trim() ?? "",
     status: "scheduled",
