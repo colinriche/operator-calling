@@ -3,12 +3,19 @@ import { FieldValue, type DocumentData } from "firebase-admin/firestore";
 import { getAdminServices, verifyAuth } from "@/lib/firebase-admin";
 
 type Params = { params: Promise<{ id: string }> };
+type AdminServices = ReturnType<typeof getAdminServices>;
+type EmbeddedMember = {
+  name?: unknown;
+  displayName?: unknown;
+  username?: unknown;
+  email?: unknown;
+};
 type GroupData = {
   createdBy?: string;
   type?: string;
   name?: string;
   memberIds?: string[];
-  members?: Record<string, { name?: string }>;
+  members?: Record<string, EmbeddedMember>;
 };
 
 function canManageSchedules(groupData: GroupData, uid: string) {
@@ -31,7 +38,61 @@ function mapSchedule(id: string, data: DocumentData) {
   };
 }
 
-function resolveParticipants(groupData: GroupData, requestedIds: unknown) {
+function usableString(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function usableDisplayName(value: unknown) {
+  const text = usableString(value);
+  return text && !["unknown", "unknown user"].includes(text.toLowerCase()) ? text : "";
+}
+
+function firstValue(...values: string[]) {
+  return values.find((value) => value.length > 0) ?? "";
+}
+
+async function resolveMemberName(
+  db: AdminServices["db"],
+  adminAuth: AdminServices["adminAuth"],
+  memberId: string,
+  embedded: EmbeddedMember = {}
+) {
+  let profile: Record<string, unknown> = {};
+  let authDisplayName = "";
+  let authEmail = "";
+
+  try {
+    const profileSnap = await db.collection("user").doc(memberId).get();
+    profile = profileSnap.data() ?? {};
+  } catch {}
+
+  try {
+    const authUser = await adminAuth.getUser(memberId);
+    authDisplayName = authUser.displayName ?? "";
+    authEmail = authUser.email ?? "";
+  } catch {}
+
+  return firstValue(
+    usableDisplayName(embedded.name),
+    usableDisplayName(embedded.displayName),
+    usableDisplayName(profile.name),
+    usableDisplayName(profile.displayName),
+    usableDisplayName(embedded.username),
+    usableDisplayName(profile.username),
+    usableDisplayName(embedded.email),
+    usableDisplayName(profile.email),
+    usableDisplayName(authDisplayName),
+    usableDisplayName(authEmail),
+    "Unknown"
+  );
+}
+
+async function resolveParticipants(
+  db: AdminServices["db"],
+  adminAuth: AdminServices["adminAuth"],
+  groupData: GroupData,
+  requestedIds: unknown
+) {
   const allMemberIds = groupData.memberIds ?? [];
   const requested = Array.isArray(requestedIds)
     ? requestedIds.filter((p): p is string => typeof p === "string")
@@ -39,9 +100,9 @@ function resolveParticipants(groupData: GroupData, requestedIds: unknown) {
   const participantIds = requested.filter((p) => allMemberIds.includes(p));
   const membersMap = groupData.members ?? {};
   const participantNames: Record<string, string> = {};
-  for (const pid of participantIds) {
-    participantNames[pid] = membersMap[pid]?.name ?? pid;
-  }
+  await Promise.all(participantIds.map(async (pid) => {
+    participantNames[pid] = await resolveMemberName(db, adminAuth, pid, membersMap[pid]);
+  }));
   return { participantIds, participantNames };
 }
 
@@ -60,15 +121,32 @@ export async function GET(req: NextRequest, { params }: Params) {
   }
 
   const now = new Date();
-  const snap = await db
-    .collection("scheduledGroupCalls")
-    .where("groupId", "==", id)
-    .where("scheduledAt", ">=", now)
-    .orderBy("scheduledAt", "asc")
-    .limit(50)
-    .get();
+  let snap;
+  try {
+    snap = await db
+      .collection("scheduledGroupCalls")
+      .where("groupId", "==", id)
+      .where("scheduledAt", ">=", now)
+      .orderBy("scheduledAt", "asc")
+      .limit(50)
+      .get();
+  } catch (error) {
+    console.warn("[group schedules GET] Falling back to unindexed query:", error);
+    snap = await db
+      .collection("scheduledGroupCalls")
+      .where("groupId", "==", id)
+      .get();
+  }
 
-  const schedules = snap.docs.map((d) => mapSchedule(d.id, d.data()));
+  const schedules = snap.docs
+    .map((d) => mapSchedule(d.id, d.data()))
+    .filter((s) =>
+      s.status === "scheduled" &&
+      s.scheduledAt !== null &&
+      new Date(s.scheduledAt) >= now
+    )
+    .sort((a, b) => new Date(a.scheduledAt ?? 0).getTime() - new Date(b.scheduledAt ?? 0).getTime())
+    .slice(0, 50);
 
   return NextResponse.json({ schedules });
 }
@@ -79,7 +157,7 @@ export async function POST(req: NextRequest, { params }: Params) {
   if (!uid) return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
 
   const { id } = await params;
-  const { db } = getAdminServices();
+  const { db, adminAuth } = getAdminServices();
 
   const groupSnap = await db.collection("groups").doc(id).get();
   if (!groupSnap.exists) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -110,13 +188,17 @@ export async function POST(req: NextRequest, { params }: Params) {
   const durationMinutes = typeof body.durationMinutes === "number" && body.durationMinutes > 0
     ? body.durationMinutes
     : undefined;
-  const { participantIds, participantNames } = resolveParticipants(groupData, body.participantIds);
+  const { participantIds, participantNames } = await resolveParticipants(
+    db,
+    adminAuth,
+    groupData,
+    body.participantIds
+  );
   if (participantIds.length === 0) {
     return NextResponse.json({ error: "At least one participant is required" }, { status: 400 });
   }
 
-  // Creator name
-  const creatorName = groupData.members?.[uid]?.name ?? "Admin";
+  const creatorName = await resolveMemberName(db, adminAuth, uid, groupData.members?.[uid]);
 
   const ref = db.collection("scheduledGroupCalls").doc();
   await ref.set({

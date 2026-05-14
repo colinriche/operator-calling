@@ -3,6 +3,72 @@ import { FieldValue } from "firebase-admin/firestore";
 import { getAdminServices, verifyAuth } from "@/lib/firebase-admin";
 
 type Params = { params: Promise<{ id: string }> };
+type AdminServices = ReturnType<typeof getAdminServices>;
+type EmbeddedMember = {
+  name?: unknown;
+  displayName?: unknown;
+  username?: unknown;
+  email?: unknown;
+  joinedAt?: unknown;
+};
+
+function usableString(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function usableDisplayName(value: unknown) {
+  const text = usableString(value);
+  return text && !["unknown", "unknown user"].includes(text.toLowerCase()) ? text : "";
+}
+
+function firstValue(...values: string[]) {
+  return values.find((value) => value.length > 0) ?? "";
+}
+
+async function resolveMemberSummary(
+  db: AdminServices["db"],
+  adminAuth: AdminServices["adminAuth"],
+  memberId: string,
+  embedded: EmbeddedMember
+) {
+  let profile: Record<string, unknown> = {};
+  let authDisplayName = "";
+  let authEmail = "";
+
+  try {
+    const profileSnap = await db.collection("user").doc(memberId).get();
+    profile = profileSnap.data() ?? {};
+  } catch {}
+
+  try {
+    const authUser = await adminAuth.getUser(memberId);
+    authDisplayName = authUser.displayName ?? "";
+    authEmail = authUser.email ?? "";
+  } catch {}
+
+  const username = firstValue(
+    usableString(embedded.username),
+    usableString(profile.username)
+  );
+  const email = firstValue(
+    usableString(embedded.email),
+    usableString(profile.email),
+    authEmail
+  );
+  const name = firstValue(
+    usableDisplayName(embedded.name),
+    usableDisplayName(embedded.displayName),
+    usableDisplayName(profile.name),
+    usableDisplayName(profile.displayName),
+    usableDisplayName(username),
+    usableDisplayName(email),
+    usableDisplayName(authDisplayName),
+    usableDisplayName(authEmail),
+    "Unknown"
+  );
+
+  return { name, username, email };
+}
 
 // GET /api/groups/[id] — group detail + members
 export async function GET(req: NextRequest, { params }: Params) {
@@ -10,7 +76,7 @@ export async function GET(req: NextRequest, { params }: Params) {
   if (!uid) return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
 
   const { id } = await params;
-  const { db } = getAdminServices();
+  const { db, adminAuth } = getAdminServices();
 
   const snap = await db.collection("groups").doc(id).get();
   if (!snap.exists) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -22,22 +88,17 @@ export async function GET(req: NextRequest, { params }: Params) {
 
   // Enrich members with email from user profiles
   const memberIds: string[] = data.memberIds ?? [];
-  const membersMap: Record<string, { name: string; username: string; joinedAt: unknown }> =
-    data.members ?? {};
+  const membersMap: Record<string, EmbeddedMember> = data.members ?? {};
 
   const enriched = await Promise.all(
     memberIds.map(async (memberId) => {
       const m = membersMap[memberId] ?? {};
-      let email = "";
-      try {
-        const profileSnap = await db.collection("user").doc(memberId).get();
-        email = profileSnap.data()?.email ?? "";
-      } catch {}
+      const summary = await resolveMemberSummary(db, adminAuth, memberId, m);
       return {
         uid: memberId,
-        name: m.name ?? "",
-        username: m.username ?? "",
-        email,
+        name: summary.name,
+        username: summary.username,
+        email: summary.email,
         joinedAt:
           (m.joinedAt as { toDate?: () => Date } | null)?.toDate?.()?.toISOString() ?? null,
         isCreator: memberId === data.createdBy,

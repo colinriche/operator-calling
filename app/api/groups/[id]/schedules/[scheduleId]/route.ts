@@ -4,11 +4,18 @@ import { getAdminServices, verifyAuth } from "@/lib/firebase-admin";
 
 type Params = { params: Promise<{ id: string; scheduleId: string }> };
 const SCHEDULE_EDIT_LOCK_MS = 2 * 60 * 1000;
+type AdminServices = ReturnType<typeof getAdminServices>;
+type EmbeddedMember = {
+  name?: unknown;
+  displayName?: unknown;
+  username?: unknown;
+  email?: unknown;
+};
 type GroupData = {
   createdBy?: string;
   type?: string;
   memberIds?: string[];
-  members?: Record<string, { name?: string }>;
+  members?: Record<string, EmbeddedMember>;
 };
 
 function canManageSchedules(groupData: GroupData, uid: string) {
@@ -31,7 +38,61 @@ function mapSchedule(id: string, data: DocumentData) {
   };
 }
 
-function resolveParticipants(groupData: GroupData, requestedIds: unknown) {
+function usableString(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function usableDisplayName(value: unknown) {
+  const text = usableString(value);
+  return text && !["unknown", "unknown user"].includes(text.toLowerCase()) ? text : "";
+}
+
+function firstValue(...values: string[]) {
+  return values.find((value) => value.length > 0) ?? "";
+}
+
+async function resolveMemberName(
+  db: AdminServices["db"],
+  adminAuth: AdminServices["adminAuth"],
+  memberId: string,
+  embedded: EmbeddedMember = {}
+) {
+  let profile: Record<string, unknown> = {};
+  let authDisplayName = "";
+  let authEmail = "";
+
+  try {
+    const profileSnap = await db.collection("user").doc(memberId).get();
+    profile = profileSnap.data() ?? {};
+  } catch {}
+
+  try {
+    const authUser = await adminAuth.getUser(memberId);
+    authDisplayName = authUser.displayName ?? "";
+    authEmail = authUser.email ?? "";
+  } catch {}
+
+  return firstValue(
+    usableDisplayName(embedded.name),
+    usableDisplayName(embedded.displayName),
+    usableDisplayName(profile.name),
+    usableDisplayName(profile.displayName),
+    usableDisplayName(embedded.username),
+    usableDisplayName(profile.username),
+    usableDisplayName(embedded.email),
+    usableDisplayName(profile.email),
+    usableDisplayName(authDisplayName),
+    usableDisplayName(authEmail),
+    "Unknown"
+  );
+}
+
+async function resolveParticipants(
+  db: AdminServices["db"],
+  adminAuth: AdminServices["adminAuth"],
+  groupData: GroupData,
+  requestedIds: unknown
+) {
   const allMemberIds = groupData.memberIds ?? [];
   const requested = Array.isArray(requestedIds)
     ? requestedIds.filter((p): p is string => typeof p === "string")
@@ -39,9 +100,9 @@ function resolveParticipants(groupData: GroupData, requestedIds: unknown) {
   const participantIds = requested.filter((p) => allMemberIds.includes(p));
   const membersMap = groupData.members ?? {};
   const participantNames: Record<string, string> = {};
-  for (const pid of participantIds) {
-    participantNames[pid] = membersMap[pid]?.name ?? pid;
-  }
+  await Promise.all(participantIds.map(async (pid) => {
+    participantNames[pid] = await resolveMemberName(db, adminAuth, pid, membersMap[pid]);
+  }));
   return { participantIds, participantNames };
 }
 
@@ -79,7 +140,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   if (!uid) return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
 
   const { id, scheduleId } = await params;
-  const { db } = getAdminServices();
+  const { db, adminAuth } = getAdminServices();
 
   const groupSnap = await db.collection("groups").doc(id).get();
   if (!groupSnap.exists) return NextResponse.json({ error: "Group not found" }, { status: 404 });
@@ -121,7 +182,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "scheduledAt must be a future date" }, { status: 400 });
   }
 
-  const { participantIds, participantNames } = resolveParticipants(groupData, body.participantIds);
+  const { participantIds, participantNames } = await resolveParticipants(
+    db,
+    adminAuth,
+    groupData,
+    body.participantIds
+  );
   if (participantIds.length === 0) {
     return NextResponse.json({ error: "At least one participant is required" }, { status: 400 });
   }

@@ -214,7 +214,9 @@ export default function GroupDetailPage({ params }: { params: Promise<{ id: stri
     try {
       const data = await apiFetch(`/api/groups/${id}/schedules`);
       setSchedules(data.schedules ?? []);
-    } catch {}
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Could not load scheduled calls.");
+    }
   }, [id]);
 
   const loadJoinRequests = useCallback(async (groupData: GroupDetail, currentUid: string) => {
