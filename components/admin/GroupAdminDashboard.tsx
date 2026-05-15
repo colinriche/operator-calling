@@ -182,6 +182,7 @@ export function GroupAdminDashboard({ defaultTab = "members" }: { defaultTab?: s
   const [callType, setCallType] = useState<"audio" | "video">("audio");
   const [durationMinutes, setDurationMinutes] = useState<number | "">("");
   const [selectedUids, setSelectedUids] = useState<Set<string>>(new Set());
+  const [showUser, setShowUser] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [cancelling, setCancelling] = useState<string | null>(null);
 
@@ -590,6 +591,7 @@ export function GroupAdminDashboard({ defaultTab = "members" }: { defaultTab?: s
         participantVoipTokens,
         scheduledAt: Timestamp.fromDate(scheduledDate),
         callType,
+        showUser,
         ...(durationMinutes ? { durationMinutes: Number(durationMinutes) } : {}),
         status: "scheduled",
         createdAt: Timestamp.now(),
@@ -601,6 +603,7 @@ export function GroupAdminDashboard({ defaultTab = "members" }: { defaultTab?: s
       setSelectedUids(new Set());
       setCallType("audio");
       setDurationMinutes("");
+      setShowUser(false);
       await loadScheduledCalls();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to schedule call");
@@ -836,12 +839,20 @@ export function GroupAdminDashboard({ defaultTab = "members" }: { defaultTab?: s
                   )}
                 </div>
 
+                <div className="flex items-center justify-between py-1">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Show partner identity</p>
+                    <p className="text-xs text-muted-foreground">When off, participants see a generic label instead of each other&apos;s names</p>
+                  </div>
+                  <Switch checked={showUser} onCheckedChange={setShowUser} />
+                </div>
+
                 <div className="flex gap-2 justify-end">
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => { setShowForm(false); setSelectedUids(new Set()); setScheduledAt(""); }}
+                    onClick={() => { setShowForm(false); setSelectedUids(new Set()); setScheduledAt(""); setShowUser(false); }}
                   >
                     Cancel
                   </Button>
