@@ -173,6 +173,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     participantIds?: string[];
     note?: string;
     durationMinutes?: number;
+    showUser?: boolean;
   };
   try {
     body = await req.json();
