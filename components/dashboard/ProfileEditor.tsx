@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
@@ -48,6 +49,8 @@ export function ProfileEditor() {
   const [availStart, setAvailStart] = useState("09:00");
   const [availEnd, setAvailEnd] = useState("22:00");
   const [allowUnknown, setAllowUnknown] = useState(false);
+  const [restrictionPeriod, setRestrictionPeriod] = useState<string>("");
+  const [restrictionMax, setRestrictionMax] = useState<string>("");
 
   const [showOnline, setShowOnline] = useState(true);
   const [allowDiscovery, setAllowDiscovery] = useState(true);
@@ -94,6 +97,8 @@ export function ProfileEditor() {
     setAvailStart(profile.callPreferences?.availableHours?.start ?? "09:00");
     setAvailEnd(profile.callPreferences?.availableHours?.end ?? "22:00");
     setAllowUnknown(profile.callPreferences?.allowUnknownCalls ?? false);
+    setRestrictionPeriod(profile.autoCallRestrictionPeriod ?? "");
+    setRestrictionMax(profile.autoCallRestrictionMax ? String(profile.autoCallRestrictionMax) : "");
     setShowOnline(profile.privacy?.showOnlineStatus ?? true);
     setAllowDiscovery(profile.privacy?.allowGroupDiscovery ?? true);
     setEmailNotifs(profile.notifications?.email ?? true);
@@ -132,6 +137,8 @@ export function ProfileEditor() {
         "callPreferences.availableHours.start": availStart,
         "callPreferences.availableHours.end": availEnd,
         "callPreferences.allowUnknownCalls": allowUnknown,
+        autoCallRestrictionPeriod: restrictionPeriod || null,
+        autoCallRestrictionMax: restrictionMax ? parseInt(restrictionMax) : null,
         "privacy.showOnlineStatus": showOnline,
         "privacy.allowGroupDiscovery": allowDiscovery,
         "notifications.email": emailNotifs,
@@ -509,6 +516,45 @@ export function ProfileEditor() {
                 <p className="text-xs text-muted-foreground mt-0.5">Opt into privacy-first calls with people outside your network, matched by interest.</p>
               </div>
               <Switch checked={allowUnknown} onCheckedChange={setAllowUnknown} />
+            </div>
+
+            <div className="pt-2 border-t border-border space-y-3">
+              <div>
+                <p className="text-sm font-medium text-foreground">Auto-call restriction</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Limit how many auto-calls you receive per period. When the limit is reached, further auto-calls are blocked until the period resets.</p>
+              </div>
+              <div className="flex gap-2">
+                <Select
+                  value={restrictionPeriod}
+                  onValueChange={(val) => {
+                    setRestrictionPeriod(val);
+                    setRestrictionMax(val === "monthly" ? "4" : val ? "1" : "");
+                  }}
+                >
+                  <SelectTrigger className="w-36">
+                    <SelectValue placeholder="Not set" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Not set</SelectItem>
+                    <SelectItem value="daily">Daily</SelectItem>
+                    <SelectItem value="weekly">Weekly</SelectItem>
+                    <SelectItem value="monthly">Monthly</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                {restrictionPeriod && (
+                  <Select value={restrictionMax} onValueChange={setRestrictionMax}>
+                    <SelectTrigger className="w-28">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(restrictionPeriod === "monthly" ? [4, 8] : [1, 3]).map((n) => (
+                        <SelectItem key={n} value={String(n)}>{n} calls</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
             </div>
           </div>
         </TabsContent>

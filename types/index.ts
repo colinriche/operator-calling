@@ -35,6 +35,10 @@ export interface UserProfile {
     maxDailyCallMinutes?: number;
   };
 
+  // Auto-call count restriction (user-set)
+  autoCallRestrictionPeriod?: "daily" | "weekly" | "monthly" | null;
+  autoCallRestrictionMax?: number | null;
+
   // Privacy
   privacy: {
     showOnlineStatus: boolean;
