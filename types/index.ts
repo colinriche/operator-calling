@@ -143,6 +143,21 @@ export interface MobileDeepLinkPayload {
   groupId?: string;
 }
 
+// ─── Group Admin Requests ─────────────────────────────────────────────────────
+
+export interface GroupAdminRequest {
+  id: string;
+  requesterName: string;
+  requesterEmail: string;
+  groupName: string;
+  description: string;
+  location: string; // "global" or free-text region/city/country
+  memberEmails: string[];
+  status: "pending" | "approved" | "rejected";
+  createdAt: Date;
+  notes?: string;
+}
+
 // ─── Invites ──────────────────────────────────────────────────────────────────
 
 export interface Invite {

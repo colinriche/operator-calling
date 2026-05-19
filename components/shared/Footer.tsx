@@ -6,6 +6,7 @@ const footerLinks = {
     { href: "/how-it-works", label: "How it works" },
     { href: "/features", label: "Features" },
     { href: "/groups", label: "Groups" },
+    { href: "/groups/start", label: "Start a group" },
     { href: "/use-cases", label: "Use cases" },
     { href: "/download", label: "Download app" },
   ],
