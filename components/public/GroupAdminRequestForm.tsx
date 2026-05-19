@@ -1,8 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
-import { db } from "@/lib/firebase";
 import { Plus, X, CheckCircle, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -41,16 +39,19 @@ export function GroupAdminRequestForm() {
     if (!EMAIL_RE.test(email.trim())) return;
     setStatus("submitting");
     try {
-      await addDoc(collection(db, "group_admin_requests"), {
-        requesterName: name.trim(),
-        requesterEmail: email.trim().toLowerCase(),
-        groupName: groupName.trim(),
-        description: description.trim(),
-        location: isGlobal ? "global" : location.trim(),
-        memberEmails,
-        status: "pending",
-        createdAt: serverTimestamp(),
+      const res = await fetch("/api/group-admin-requests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          requesterName: name.trim(),
+          requesterEmail: email.trim().toLowerCase(),
+          groupName: groupName.trim(),
+          description: description.trim(),
+          location: isGlobal ? "global" : location.trim(),
+          memberEmails,
+        }),
       });
+      if (!res.ok) throw new Error(await res.text());
       setStatus("success");
     } catch (err) {
       console.error(err);
