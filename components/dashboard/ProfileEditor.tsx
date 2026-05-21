@@ -527,8 +527,9 @@ export function ProfileEditor() {
                 <Select
                   value={restrictionPeriod}
                   onValueChange={(val) => {
-                    setRestrictionPeriod(val);
-                    setRestrictionMax(val === "monthly" ? "4" : val ? "1" : "");
+                    const period = val ?? "";
+                    setRestrictionPeriod(period);
+                    setRestrictionMax(period === "monthly" ? "4" : period ? "1" : "");
                   }}
                 >
                   <SelectTrigger className="w-36">
@@ -543,7 +544,7 @@ export function ProfileEditor() {
                 </Select>
 
                 {restrictionPeriod && (
-                  <Select value={restrictionMax} onValueChange={setRestrictionMax}>
+                  <Select value={restrictionMax} onValueChange={(val) => setRestrictionMax(val ?? "")}>
                     <SelectTrigger className="w-28">
                       <SelectValue />
                     </SelectTrigger>
