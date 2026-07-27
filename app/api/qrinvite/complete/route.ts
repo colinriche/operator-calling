@@ -1,22 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { initializeApp, getApps, cert } from "firebase-admin/app";
-import { getFirestore, FieldValue } from "firebase-admin/firestore";
-import { getAuth } from "firebase-admin/auth";
+import { FieldValue } from "firebase-admin/firestore";
 import type { CompleteResponse } from "@/lib/qrinvite";
-import { resolveTokenDocId } from "@/lib/qrinvite-server";
-
-function getAdminServices() {
-  if (!getApps().length) {
-    initializeApp({
-      credential: cert({
-        projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-        privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
-      }),
-    });
-  }
-  return { db: getFirestore(), adminAuth: getAuth() };
-}
+import { verifyIdTokenAnyProject } from "@/lib/firebase-admin";
+import { resolveTokenProject } from "@/lib/qrinvite-admin";
 
 // ─── POST /api/qrinvite/complete ─────────────────────────────────────────────
 // Body: { token: string, currentUserId: string }
@@ -50,20 +36,23 @@ export async function POST(req: NextRequest): Promise<NextResponse<CompleteRespo
   }
 
   try {
-    const { db, adminAuth } = getAdminServices();
-
-    const decoded = await adminAuth.verifyIdToken(idToken);
-    if (decoded.uid !== currentUserId) {
+    // Verify the caller against whichever project issued their ID token
+    // (web users authenticate against dev; the staging app against staging).
+    const identity = await verifyIdTokenAnyProject(idToken);
+    if (!identity) {
+      return NextResponse.json({ success: false, error: "Unauthenticated" }, { status: 401 });
+    }
+    if (identity.uid !== currentUserId) {
       return NextResponse.json({ success: false, error: "Identity mismatch" }, { status: 403 });
     }
 
-    const docId = resolveTokenDocId(token);
-    const tokenRef = db.collection("qr_tokens").doc(docId);
-    const tokenSnap = await tokenRef.get();
-
-    if (!tokenSnap.exists) {
+    // Re-resolve which project holds the token; all writes below go to that
+    // same project so the invite lands in the correct Firebase project.
+    const resolved = await resolveTokenProject(token);
+    if (!resolved) {
       return NextResponse.json({ success: false, error: "Token not found" }, { status: 404 });
     }
+    const { db, ref: tokenRef, snap: tokenSnap } = resolved;
 
     const tokenData = tokenSnap.data()!;
     const isGroupToken = !!tokenData.groupId;

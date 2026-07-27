@@ -1,20 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { initializeApp, getApps, cert } from "firebase-admin/app";
-import { getFirestore, FieldValue } from "firebase-admin/firestore";
-import { getAuth } from "firebase-admin/auth";
-
-function getAdminServices() {
-  if (!getApps().length) {
-    initializeApp({
-      credential: cert({
-        projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-        privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
-      }),
-    });
-  }
-  return { db: getFirestore(), adminAuth: getAuth() };
-}
+import { FieldValue } from "firebase-admin/firestore";
+import {
+  getConfiguredProjectKeys,
+  getProjectDb,
+  verifyIdTokenAnyProject,
+} from "@/lib/firebase-admin";
+import { resolveTokenProject } from "@/lib/qrinvite-admin";
 
 // ─── POST /api/qrinvite/pending/claim ─────────────────────────────────────────
 // Header: Authorization: Bearer <firebase-id-token>
@@ -40,61 +31,72 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { db, adminAuth } = getAdminServices();
-    const decoded = await adminAuth.verifyIdToken(idToken);
-    const currentUserId = decoded.uid;
+    // The caller may be authenticated against either project's app.
+    const identity = await verifyIdTokenAnyProject(idToken);
+    if (!identity) {
+      return NextResponse.json({ success: false, error: "Unauthenticated" }, { status: 401 });
+    }
+    const currentUserId = identity.uid;
     // Phone auth provides phone_number; email auth provides email.
     // The app uses phone auth, so phone_number is the primary identifier.
-    const userPhone = decoded.phone_number ?? null;
-    const userEmail = decoded.email?.toLowerCase() ?? null;
+    const userPhone = identity.phone;
+    const userEmail = identity.email;
 
     if (!userPhone && !userEmail) {
       return NextResponse.json({ success: true, results: [] });
     }
 
-    // Find pending connections saved with this phone (or email as fallback)
     const now = new Date();
     const field = userPhone ? "phoneNumber" : "email";
     const value = userPhone ?? userEmail!;
-    const pendingSnap = await db
-      .collection("pending_connections")
-      .where(field, "==", value)
-      .where("status", "==", "pending")
-      .get();
-
-    if (pendingSnap.empty) {
-      return NextResponse.json({ success: true, results: [] });
-    }
-
     const results: ClaimResult[] = [];
 
-    for (const pendingDoc of pendingSnap.docs) {
-      const p = pendingDoc.data();
-      const pendingId = pendingDoc.id;
-
-      // Skip expired records
-      const expiresAt: Date = p.expiresAt?.toDate?.() ?? new Date(p.expiresAt);
-      if (expiresAt < now) {
-        await pendingDoc.ref.update({ status: "expired" });
+    // Pending records live in the same project as their token, so scan every
+    // configured project's pending_connections and complete each within the
+    // project it was found in.
+    for (const projectKey of getConfiguredProjectKeys()) {
+      let db: FirebaseFirestore.Firestore;
+      try {
+        db = getProjectDb(projectKey);
+      } catch (err) {
+        console.error(`[pending/claim] skipping "${projectKey}" project:`, (err as Error).message);
         continue;
       }
 
-      // Mark as processing immediately to prevent concurrent double-claims
-      await pendingDoc.ref.update({ status: "processing", claimedBy: currentUserId });
+      const pendingSnap = await db
+        .collection("pending_connections")
+        .where(field, "==", value)
+        .where("status", "==", "pending")
+        .get();
 
-      try {
-        const result = await _completeInvite(db, p.token, currentUserId);
-        await pendingDoc.ref.update({
-          status: result.success ? "claimed" : "failed",
-          claimedAt: FieldValue.serverTimestamp(),
-          claimedBy: currentUserId,
-          ...(result.error ? { error: result.error } : {}),
-        });
-        results.push({ pendingId, ...result });
-      } catch (err) {
-        await pendingDoc.ref.update({ status: "pending", claimedBy: null });
-        console.error("[pending/claim] completion error for", pendingId, err);
-        results.push({ pendingId, success: false, error: "Server error" });
+      for (const pendingDoc of pendingSnap.docs) {
+        const p = pendingDoc.data();
+        const pendingId = pendingDoc.id;
+
+        // Skip expired records
+        const expiresAt: Date = p.expiresAt?.toDate?.() ?? new Date(p.expiresAt);
+        if (expiresAt < now) {
+          await pendingDoc.ref.update({ status: "expired" });
+          continue;
+        }
+
+        // Mark as processing immediately to prevent concurrent double-claims
+        await pendingDoc.ref.update({ status: "processing", claimedBy: currentUserId });
+
+        try {
+          const result = await _completeInvite(p.token, currentUserId);
+          await pendingDoc.ref.update({
+            status: result.success ? "claimed" : "failed",
+            claimedAt: FieldValue.serverTimestamp(),
+            claimedBy: currentUserId,
+            ...(result.error ? { error: result.error } : {}),
+          });
+          results.push({ pendingId, ...result });
+        } catch (err) {
+          await pendingDoc.ref.update({ status: "pending", claimedBy: null });
+          console.error("[pending/claim] completion error for", pendingId, err);
+          results.push({ pendingId, success: false, error: "Server error" });
+        }
       }
     }
 
@@ -108,17 +110,15 @@ export async function POST(req: NextRequest) {
 // ─── Shared completion logic (mirrors /api/qrinvite/complete) ─────────────────
 
 async function _completeInvite(
-  db: FirebaseFirestore.Firestore,
   token: string,
   currentUserId: string
 ): Promise<Omit<ClaimResult, "pendingId">> {
-  // Resolve token doc from JWT payload
-  const { resolveTokenDocId } = await import("@/lib/qrinvite-server");
-  const docId = resolveTokenDocId(token);
-  const tokenRef = db.collection("qr_tokens").doc(docId);
-  const tokenSnap = await tokenRef.get();
+  // Re-resolve which project holds the token; all reads/writes below use that
+  // project's db so the completion lands in the correct Firebase project.
+  const resolved = await resolveTokenProject(token);
+  if (!resolved) return { success: false, error: "Token not found" };
 
-  if (!tokenSnap.exists) return { success: false, error: "Token not found" };
+  const { db, ref: tokenRef, snap: tokenSnap } = resolved;
 
   const tokenData = tokenSnap.data()!;
   const isGroupToken = !!tokenData.groupId;

@@ -1,21 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { initializeApp, getApps, cert } from "firebase-admin/app";
-import { getFirestore, FieldValue } from "firebase-admin/firestore";
+import { FieldValue } from "firebase-admin/firestore";
 import type { PendingResponse, Platform } from "@/lib/qrinvite";
-import { resolveTokenDocId } from "@/lib/qrinvite-server";
-
-function getAdminDb() {
-  if (!getApps().length) {
-    initializeApp({
-      credential: cert({
-        projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-        privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
-      }),
-    });
-  }
-  return getFirestore();
-}
+import { resolveTokenProject } from "@/lib/qrinvite-admin";
 
 const ALLOWED_PLATFORMS: Platform[] = ["ios", "android", "web"];
 
@@ -42,14 +28,13 @@ export async function POST(req: NextRequest): Promise<NextResponse<PendingRespon
     : null;
 
   try {
-    const db = getAdminDb();
-
-    // JWT tokens store the Firestore doc key in the tokenId payload field
-    const docId = resolveTokenDocId(token);
-    const tokenSnap = await db.collection("qr_tokens").doc(docId).get();
-    if (!tokenSnap.exists) {
+    // Resolve which project holds the token; the pending record is written to
+    // that same project so pending/claim can complete it there later.
+    const resolved = await resolveTokenProject(token);
+    if (!resolved) {
       return NextResponse.json({ success: false }, { status: 404 });
     }
+    const { db, docId, project, snap: tokenSnap } = resolved;
 
     const tokenData = tokenSnap.data()!;
     const expiresAt: Date =
@@ -66,6 +51,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<PendingRespon
     await pendingRef.set({
       token,
       tokenDocId: docId,
+      project,
       targetUserId: tokenData.targetUserId,
       type: tokenData.type ?? "personal",
       groupId: tokenData.groupId ?? null,
