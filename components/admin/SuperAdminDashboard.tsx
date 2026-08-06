@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Users, BarChart3, Shield, Settings, Search, AlertTriangle, CheckCircle2, Phone, Globe, Archive, Trash2 } from "lucide-react";
+import { Users, BarChart3, Shield, Settings, Search, AlertTriangle, CheckCircle2, Phone, Globe, Archive, Trash2, Megaphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -10,6 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { seedDashboardStarterData } from "@/lib/dashboardSeed";
+import { OutreachSourcesPanel } from "@/components/admin/OutreachSourcesPanel";
 import {
   collection,
   doc,
@@ -512,10 +513,11 @@ export function SuperAdminDashboard() {
       <Tabs defaultValue="users" onValueChange={(value) => {
         if (value === "archive") void loadArchives();
       }}>
-        <TabsList className="grid grid-cols-5 w-full mb-6">
+        <TabsList className="grid grid-cols-3 sm:grid-cols-6 w-full mb-6">
           <TabsTrigger value="users" className="gap-1.5 text-xs"><Users className="w-3.5 h-3.5" />Users</TabsTrigger>
           <TabsTrigger value="moderation" className="gap-1.5 text-xs"><Shield className="w-3.5 h-3.5" />Moderation</TabsTrigger>
           <TabsTrigger value="analytics" className="gap-1.5 text-xs"><BarChart3 className="w-3.5 h-3.5" />Analytics</TabsTrigger>
+          <TabsTrigger value="outreach" className="gap-1.5 text-xs"><Megaphone className="w-3.5 h-3.5" />Outreach</TabsTrigger>
           <TabsTrigger value="archive" className="gap-1.5 text-xs"><Archive className="w-3.5 h-3.5" />Archive</TabsTrigger>
           <TabsTrigger value="system" className="gap-1.5 text-xs"><Settings className="w-3.5 h-3.5" />System</TabsTrigger>
         </TabsList>
@@ -677,6 +679,11 @@ export function SuperAdminDashboard() {
               ))}
             </div>
           </div>
+        </TabsContent>
+
+        {/* Outreach — demand sources and tracked waitlist links */}
+        <TabsContent value="outreach" className="space-y-4">
+          <OutreachSourcesPanel />
         </TabsContent>
 
         {/* Archive */}

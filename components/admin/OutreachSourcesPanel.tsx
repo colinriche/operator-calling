@@ -1,0 +1,769 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Copy,
+  ExternalLink,
+  Link2,
+  Loader2,
+  Plus,
+  RefreshCw,
+  Search,
+  AlertTriangle,
+  UsersRound,
+} from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
+import { toast } from "sonner";
+import { useAuth } from "@/hooks/useAuth";
+import { cn } from "@/lib/utils";
+import {
+  DEMAND_STATUSES,
+  PLATFORMS,
+  RELATIONSHIP_STATUSES,
+  SOURCE_TYPES,
+  platformLabel,
+} from "@/lib/waitlist/constants";
+import { countryName, languageName } from "@/lib/waitlist/locales";
+import type { DemandSourceRow } from "@/lib/waitlist/types";
+
+// ─── Outreach sources ────────────────────────────────────────────────────────
+//
+// Where a possible calling group is tracked before it becomes a real group:
+// the audience, the tracked links posted for it, and how much demand those
+// links have actually produced.
+//
+// Adding a source here creates no Operator group. A group is only created after
+// demand clears the threshold and a person reviews it.
+
+type SortKey =
+  | "recent"
+  | "signups"
+  | "visits"
+  | "conversion"
+  | "closest"
+  | "name";
+
+const SORTS: Array<{ id: SortKey; label: string }> = [
+  { id: "recent", label: "Most recent" },
+  { id: "signups", label: "Most registrations" },
+  { id: "visits", label: "Most visits" },
+  { id: "conversion", label: "Best conversion" },
+  { id: "closest", label: "Closest to threshold" },
+  { id: "name", label: "Source name" },
+];
+
+interface RegistrationRow {
+  id: string;
+  email: string;
+  displayName: string;
+  interestedInOrganising: boolean;
+  country: string;
+  englishFirstLanguage: boolean;
+  firstLanguage: string | null;
+  sourceCode: string | null;
+  shareChannel: string | null;
+  createdAt: string | null;
+}
+
+const BLANK_FORM = {
+  sourceName: "",
+  platformId: "reddit",
+  sourceType: "subreddit",
+  topicName: "",
+  sourceUrl: "",
+  publicAudienceLabel: "",
+  postingRules: "",
+  internalNotes: "",
+  demandThreshold: "",
+};
+
+export function OutreachSourcesPanel() {
+  const { user } = useAuth();
+  const [sources, setSources] = useState<DemandSourceRow[]>([]);
+  const [globalThreshold, setGlobalThreshold] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState("");
+
+  const [query, setQuery] = useState("");
+  const [sort, setSort] = useState<SortKey>("recent");
+  const [platformFilter, setPlatformFilter] = useState("all");
+
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ ...BLANK_FORM });
+  const [saving, setSaving] = useState(false);
+
+  // Registrations are loaded per source on demand — emails are the most
+  // sensitive thing here, so they are never bulk-loaded with the list.
+  const [openRegistrations, setOpenRegistrations] = useState<string | null>(null);
+  const [registrations, setRegistrations] = useState<RegistrationRow[]>([]);
+  const [loadingRegistrations, setLoadingRegistrations] = useState(false);
+
+  const load = useCallback(async () => {
+    if (!user) return;
+    setLoading(true);
+    setError("");
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch("/api/admin/demand-sources", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to load sources");
+      setSources(data.sources ?? []);
+      setGlobalThreshold(data.globalThreshold ?? 0);
+      setLoaded(true);
+    } catch (err) {
+      console.error(err);
+      setError(err instanceof Error ? err.message : "Failed to load sources");
+    } finally {
+      setLoading(false);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (user && !loaded) void load();
+  }, [user, loaded, load]);
+
+  async function copy(text: string, label: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success(label);
+    } catch {
+      toast.error("Could not copy — check clipboard permissions");
+    }
+  }
+
+  async function handleCreate(e: React.FormEvent) {
+    e.preventDefault();
+    if (!user) return;
+    if (!form.sourceName.trim()) {
+      toast.error("Source name is required");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const token = await user.getIdToken();
+      const threshold = parseInt(form.demandThreshold, 10);
+      const res = await fetch("/api/admin/demand-sources", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          ...form,
+          demandThreshold: Number.isFinite(threshold) && threshold > 0 ? threshold : null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to create source");
+
+      await copy(data.trackedUrl, "Source created — waitlist link copied");
+      setForm({ ...BLANK_FORM });
+      setShowForm(false);
+      await load();
+    } catch (err) {
+      console.error(err);
+      toast.error(err instanceof Error ? err.message : "Failed to create source");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function addLink(sourceId: string) {
+    if (!user) return;
+    const label = window.prompt(
+      "Label for this tracked link (e.g. 'Comment on weekly thread, 6 Aug')"
+    );
+    if (label === null) return;
+
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch("/api/admin/source-links", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ demandSourceId: sourceId, label }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to create link");
+
+      await copy(data.trackedUrl, "New tracked link copied");
+      await load();
+    } catch (err) {
+      console.error(err);
+      toast.error(err instanceof Error ? err.message : "Failed to create link");
+    }
+  }
+
+  async function toggleRegistrations(sourceId: string) {
+    if (openRegistrations === sourceId) {
+      setOpenRegistrations(null);
+      return;
+    }
+    if (!user) return;
+
+    setOpenRegistrations(sourceId);
+    setRegistrations([]);
+    setLoadingRegistrations(true);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(
+        `/api/admin/demand-sources/${sourceId}/registrations`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to load registrations");
+      setRegistrations(data.registrations ?? []);
+    } catch (err) {
+      console.error(err);
+      toast.error(
+        err instanceof Error ? err.message : "Failed to load registrations"
+      );
+      setOpenRegistrations(null);
+    } finally {
+      setLoadingRegistrations(false);
+    }
+  }
+
+  const visible = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const filtered = sources.filter((s) => {
+      if (platformFilter !== "all" && s.platformId !== platformFilter) return false;
+      if (!q) return true;
+      return [
+        s.sourceName,
+        s.topicName,
+        s.publicAudienceLabel,
+        s.sourceUrl,
+        s.internalNotes,
+        s.postingRules,
+        platformLabel(s.platformId),
+        ...s.links.map((l) => l.sourceCode),
+      ]
+        .filter(Boolean)
+        .some((field) => String(field).toLowerCase().includes(q));
+    });
+
+    const sorted = [...filtered];
+    sorted.sort((a, b) => {
+      switch (sort) {
+        case "signups":
+          return b.signupCount - a.signupCount;
+        case "visits":
+          return b.uniqueVisitCount - a.uniqueVisitCount;
+        case "conversion":
+          return b.conversionRate - a.conversionRate;
+        case "closest": {
+          // Sources already over the line first, then by proportion complete.
+          const ratio = (s: DemandSourceRow) =>
+            s.effectiveThreshold > 0 ? s.signupCount / s.effectiveThreshold : 0;
+          return ratio(b) - ratio(a);
+        }
+        case "name":
+          return a.sourceName.localeCompare(b.sourceName);
+        case "recent":
+        default:
+          return (b.createdAt ?? "").localeCompare(a.createdAt ?? "");
+      }
+    });
+    return sorted;
+  }, [sources, query, sort, platformFilter]);
+
+  const thresholdReached = sources.filter((s) => s.thresholdReachedAt);
+
+  const inputClass =
+    "w-full h-10 px-3 rounded-lg border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40";
+
+  return (
+    <div className="space-y-4">
+      {/* Threshold alerts */}
+      {thresholdReached.length > 0 && (
+        <div className="rounded-xl border border-primary/40 bg-primary/10 p-4">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+            <div>
+              <p className="font-heading font-semibold text-sm text-foreground mb-1">
+                {thresholdReached.length} source
+                {thresholdReached.length !== 1 ? "s have" : " has"} reached the demand
+                threshold
+              </p>
+              <p className="text-sm text-muted-foreground">
+                {thresholdReached.map((s) => s.sourceName).join(", ")} — review the
+                demand before creating any group. Nothing is created automatically.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Controls */}
+      <div className="flex flex-wrap gap-2 items-center">
+        <div className="relative flex-1 min-w-[220px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            className="pl-9"
+            placeholder="Search sources, topics, notes, tracking codes…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </div>
+
+        <select
+          value={platformFilter}
+          onChange={(e) => setPlatformFilter(e.target.value)}
+          className="h-9 px-2 rounded-lg border border-border bg-background text-sm"
+          aria-label="Filter by platform"
+        >
+          <option value="all">All platforms</option>
+          {PLATFORMS.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.label}
+            </option>
+          ))}
+        </select>
+
+        <select
+          value={sort}
+          onChange={(e) => setSort(e.target.value as SortKey)}
+          className="h-9 px-2 rounded-lg border border-border bg-background text-sm"
+          aria-label="Sort sources"
+        >
+          {SORTS.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.label}
+            </option>
+          ))}
+        </select>
+
+        <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading}>
+          {loading ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <RefreshCw className="w-4 h-4" />
+          )}
+        </Button>
+
+        <Button size="sm" onClick={() => setShowForm((v) => !v)}>
+          <Plus className="w-4 h-4" />
+          Add source
+        </Button>
+      </div>
+
+      {error && (
+        <p className="text-sm text-destructive bg-destructive/10 px-4 py-3 rounded-lg">
+          {error}
+        </p>
+      )}
+
+      {/* Create form */}
+      {showForm && (
+        <form
+          onSubmit={handleCreate}
+          className="rounded-xl border border-border/60 bg-card p-5 space-y-4"
+        >
+          <p className="text-sm text-muted-foreground">
+            Creates a demand source and its first tracked link. No Operator group is
+            created.
+          </p>
+
+          <div className="grid sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-foreground mb-1.5">
+                Source name *
+              </label>
+              <input
+                required
+                value={form.sourceName}
+                onChange={(e) => setForm({ ...form, sourceName: e.target.value })}
+                placeholder="e.g. r/phonecalls"
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-foreground mb-1.5">
+                Topic
+              </label>
+              <input
+                value={form.topicName}
+                onChange={(e) => setForm({ ...form, topicName: e.target.value })}
+                placeholder="e.g. Talking with new people"
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-foreground mb-1.5">
+                Platform
+              </label>
+              <select
+                value={form.platformId}
+                onChange={(e) => setForm({ ...form, platformId: e.target.value })}
+                className={inputClass}
+              >
+                {PLATFORMS.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-foreground mb-1.5">
+                Source type
+              </label>
+              <select
+                value={form.sourceType}
+                onChange={(e) => setForm({ ...form, sourceType: e.target.value })}
+                className={inputClass}
+              >
+                {SOURCE_TYPES.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-medium text-foreground mb-1.5">
+                Source URL
+              </label>
+              <input
+                value={form.sourceUrl}
+                onChange={(e) => setForm({ ...form, sourceUrl: e.target.value })}
+                placeholder="https://…"
+                className={inputClass}
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-medium text-foreground mb-1.5">
+                Public audience label
+              </label>
+              <input
+                value={form.publicAudienceLabel}
+                onChange={(e) =>
+                  setForm({ ...form, publicAudienceLabel: e.target.value })
+                }
+                placeholder="e.g. live poker — completes “people interested in …”"
+                className={inputClass}
+              />
+              <p className="text-xs text-muted-foreground mt-1.5">
+                Shown publicly. Leave blank to use the neutral fallback. Don&apos;t use
+                &ldquo;official&rdquo;, &ldquo;partner&rdquo; or &ldquo;approved&rdquo;
+                unless it is accurate.
+              </p>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-foreground mb-1.5">
+                Threshold override
+              </label>
+              <input
+                type="number"
+                min={1}
+                value={form.demandThreshold}
+                onChange={(e) =>
+                  setForm({ ...form, demandThreshold: e.target.value })
+                }
+                placeholder={`Default: ${globalThreshold}`}
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-foreground mb-1.5">
+                Posting rules
+              </label>
+              <input
+                value={form.postingRules}
+                onChange={(e) => setForm({ ...form, postingRules: e.target.value })}
+                placeholder="e.g. No repetitive promotion"
+                className={inputClass}
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-medium text-foreground mb-1.5">
+                Internal notes
+              </label>
+              <textarea
+                value={form.internalNotes}
+                onChange={(e) => setForm({ ...form, internalNotes: e.target.value })}
+                rows={2}
+                className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/40"
+              />
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            <Button type="submit" size="sm" disabled={saving}>
+              {saving && <Loader2 className="w-4 h-4 animate-spin" />}
+              Create source and link
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setShowForm(false)}
+            >
+              Cancel
+            </Button>
+          </div>
+        </form>
+      )}
+
+      {/* Rows */}
+      {loaded && visible.length === 0 && (
+        <p className="text-sm text-muted-foreground rounded-xl border border-border/60 bg-card p-6 text-center">
+          {sources.length === 0
+            ? "No outreach sources yet. Add one to generate a tracked waitlist link."
+            : "No sources match those filters."}
+        </p>
+      )}
+
+      <div className="space-y-3">
+        {visible.map((source) => {
+          const pct =
+            source.effectiveThreshold > 0
+              ? Math.min(
+                  100,
+                  Math.round((source.signupCount / source.effectiveThreshold) * 100)
+                )
+              : 0;
+          const statusLabel =
+            DEMAND_STATUSES.find((s) => s.id === source.status)?.label ?? source.status;
+          const relLabel =
+            RELATIONSHIP_STATUSES.find((r) => r.id === source.relationshipStatus)
+              ?.label ?? source.relationshipStatus;
+
+          return (
+            <div
+              key={source.id}
+              className="rounded-xl border border-border/60 bg-card p-5 space-y-4"
+            >
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2 mb-1">
+                    <h3 className="font-heading font-semibold text-base text-foreground">
+                      {source.sourceName}
+                    </h3>
+                    <Badge variant="outline" className="text-xs">
+                      {platformLabel(source.platformId)}
+                    </Badge>
+                    <Badge
+                      variant={source.thresholdReachedAt ? "default" : "secondary"}
+                      className="text-xs"
+                    >
+                      {statusLabel}
+                    </Badge>
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "text-xs",
+                        source.relationshipStatus === "unverified" &&
+                          "text-muted-foreground"
+                      )}
+                    >
+                      {relLabel}
+                    </Badge>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    {source.topicName || "No topic recorded"}
+                    {source.publicAudienceLabel && (
+                      <>
+                        {" · public label: "}
+                        <span className="text-foreground">
+                          {source.publicAudienceLabel}
+                        </span>
+                      </>
+                    )}
+                  </p>
+                </div>
+
+                <div className="flex gap-2 shrink-0">
+                  {source.sourceUrl && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => window.open(source.sourceUrl, "_blank", "noopener")}
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      Open source
+                    </Button>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void addLink(source.id)}
+                  >
+                    <Link2 className="w-3.5 h-3.5" />
+                    New link
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void toggleRegistrations(source.id)}
+                  >
+                    <UsersRound className="w-3.5 h-3.5" />
+                    {openRegistrations === source.id ? "Hide" : "Registrations"}
+                  </Button>
+                </div>
+              </div>
+
+              {/* Demand */}
+              <div>
+                <div className="flex justify-between text-xs text-muted-foreground mb-1.5">
+                  <span>
+                    {source.signupCount} of {source.effectiveThreshold} registrations
+                    {source.demandThreshold === null && " (global default)"}
+                  </span>
+                  <span>{pct}%</span>
+                </div>
+                <Progress value={pct} className="h-2" />
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-sm">
+                {[
+                  { label: "Visits", value: source.totalVisitCount },
+                  { label: "Unique", value: source.uniqueVisitCount },
+                  { label: "Registrations", value: source.signupCount },
+                  { label: "Organisers", value: source.organiserInterestCount },
+                  {
+                    label: "Conversion",
+                    value: `${Math.round(source.conversionRate * 100)}%`,
+                  },
+                ].map((stat) => (
+                  <div key={stat.label}>
+                    <p className="text-xs text-muted-foreground">{stat.label}</p>
+                    <p className="font-heading font-semibold text-foreground">
+                      {stat.value}
+                    </p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Tracked links */}
+              <div className="space-y-2 pt-1">
+                {source.links.length === 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    No tracked links yet.
+                  </p>
+                )}
+                {source.links.map((link) => (
+                  <div
+                    key={link.id}
+                    className="flex flex-wrap items-center gap-2 rounded-lg border border-border/60 bg-background px-3 py-2"
+                  >
+                    <code className="text-xs font-mono text-foreground">
+                      {link.sourceCode}
+                    </code>
+                    <span className="text-xs text-muted-foreground truncate max-w-[220px]">
+                      {link.label}
+                    </span>
+                    <span className="text-xs text-muted-foreground ml-auto">
+                      {link.uniqueVisitCount} unique · {link.signupCount} joined ·{" "}
+                      {link.shareClickCount} shares
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => void copy(link.trackedUrl, "Link copied")}
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                      Copy
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() =>
+                        window.open(
+                          `${link.trackedUrl}&preview=1`,
+                          "_blank",
+                          "noopener"
+                        )
+                      }
+                    >
+                      Preview
+                    </Button>
+                  </div>
+                ))}
+              </div>
+
+              {openRegistrations === source.id && (
+                <div className="border-t border-border/60 pt-3">
+                  {loadingRegistrations ? (
+                    <p className="text-xs text-muted-foreground flex items-center gap-2">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      Loading registrations…
+                    </p>
+                  ) : registrations.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">
+                      No registrations yet.
+                    </p>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="text-left text-muted-foreground">
+                            <th className="pb-2 pr-3 font-medium">Email</th>
+                            <th className="pb-2 pr-3 font-medium">Name</th>
+                            <th className="pb-2 pr-3 font-medium">Country</th>
+                            <th className="pb-2 pr-3 font-medium">First language</th>
+                            <th className="pb-2 pr-3 font-medium">Organiser</th>
+                            <th className="pb-2 pr-3 font-medium">Code</th>
+                            <th className="pb-2 font-medium">Joined</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {registrations.map((r) => (
+                            <tr key={r.id} className="border-t border-border/40">
+                              <td className="py-2 pr-3 text-foreground">{r.email}</td>
+                              <td className="py-2 pr-3 text-muted-foreground">
+                                {r.displayName || "—"}
+                              </td>
+                              <td className="py-2 pr-3 text-muted-foreground">
+                                {r.country ? countryName(r.country) : "—"}
+                              </td>
+                              <td className="py-2 pr-3 text-muted-foreground">
+                                {r.englishFirstLanguage
+                                  ? "English"
+                                  : r.firstLanguage
+                                    ? languageName(r.firstLanguage)
+                                    : "—"}
+                              </td>
+                              <td className="py-2 pr-3 text-muted-foreground">
+                                {r.interestedInOrganising ? "Yes" : "—"}
+                              </td>
+                              <td className="py-2 pr-3 font-mono text-muted-foreground">
+                                {r.sourceCode ?? "—"}
+                              </td>
+                              <td className="py-2 text-muted-foreground">
+                                {r.createdAt
+                                  ? new Date(r.createdAt).toLocaleDateString()
+                                  : "—"}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {source.postingRules && (
+                <p className="text-xs text-muted-foreground border-t border-border/60 pt-3">
+                  <span className="font-medium text-foreground">Posting rules:</span>{" "}
+                  {source.postingRules}
+                </p>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
