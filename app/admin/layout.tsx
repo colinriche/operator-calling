@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Phone, LayoutDashboard, Users, Calendar, Settings, Shield, BarChart3 } from "lucide-react";
+import { Phone, LayoutDashboard, Users, Calendar, Settings, Shield, BarChart3, Megaphone } from "lucide-react";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
 
 const adminNav = [
@@ -8,6 +8,7 @@ const adminNav = [
   { href: "/admin/schedules", icon: Calendar, label: "Schedules" },
   { href: "/admin/moderation", icon: Shield, label: "Moderation" },
   { href: "/admin/settings", icon: Settings, label: "Group settings" },
+  { href: "/admin/outreach", icon: Megaphone, label: "Outreach" },
   { href: "/admin/super", icon: BarChart3, label: "Super admin", superOnly: true },
 ];
 
