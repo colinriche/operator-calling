@@ -97,7 +97,8 @@ export function OutreachSourcesPanel() {
   const [saving, setSaving] = useState(false);
 
   // Registrations are loaded per source on demand — emails are the most
-  // sensitive thing here, so they are never bulk-loaded with the list.
+  // sensitive thing here, so they are never bulk-loaded with the list. The
+  // route is open to admin and super_admin.
   const [openRegistrations, setOpenRegistrations] = useState<string | null>(null);
   const [registrations, setRegistrations] = useState<RegistrationRow[]>([]);
   const [loadingRegistrations, setLoadingRegistrations] = useState(false);

@@ -37,9 +37,9 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const caller = await requireAdmin(req, { superAdminOnly: true });
+  const caller = await requireAdmin(req);
   if (!caller) {
-    return NextResponse.json({ error: "Super admin role required" }, { status: 403 });
+    return NextResponse.json({ error: "Admin role required" }, { status: 403 });
   }
 
   const { id } = await params;

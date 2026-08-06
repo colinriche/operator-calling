@@ -54,7 +54,6 @@ export function normaliseSourceCode(raw: unknown): string | null {
 function salt(): string {
   return (
     process.env.WAITLIST_HASH_SALT ||
-    process.env.FIREBASE_PRIVATE_KEY_STAGING ||
     process.env.FIREBASE_PRIVATE_KEY ||
     "operator-waitlist-fallback-salt"
   );
@@ -64,9 +63,22 @@ export function hashValue(value: string): string {
   return createHash("sha256").update(`${salt()}::${value}`).digest("hex");
 }
 
-/** Short hash for use inside deterministic document ids. */
+/** Short salted hash — visitor identity, rate-limit buckets. */
 export function shortHash(value: string): string {
   return hashValue(value).slice(0, 32);
+}
+
+/**
+ * Unsalted hash, for deterministic document ids only.
+ *
+ * Duplicate detection keys a waitlist entry on hash(email), so that id has to
+ * stay identical forever: if the salt ever rotated, the same address would
+ * resolve to a new document and re-register as fresh demand. Salting buys
+ * nothing here anyway — the entry stores the plaintext email alongside it, so
+ * anyone who can read the id can already read the address.
+ */
+export function stableHash(value: string): string {
+  return createHash("sha256").update(value).digest("hex").slice(0, 32);
 }
 
 /**

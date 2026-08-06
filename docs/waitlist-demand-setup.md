@@ -2,16 +2,24 @@
 
 Stage 1 of the outreach / group-demand system. Covers the tracked link →
 public waitlist page → registration → attribution → counters path, plus the
-super-admin panel for creating sources and copying links.
+admin panel for creating sources and copying links.
+
+Access: `admin` and `super_admin` both reach the Outreach tab and everything
+behind it, including registration emails.
 
 ## Where the data lives
 
-Everything is in the **staging** Firebase project (`operator-calling`), reached
-through `getProjectDb("staging")`. Admin role checks still run against the
-**dev** project (`webrtc-clone-dc88c`), because web sign-in and the `user`
-role documents live there.
+Everything is in the **dev** Firebase project (`webrtc-clone-dc88c`), reached
+through `getProjectDb("dev")` — the same project as web sign-in and the `user`
+role documents, so the role check and the data it guards sit together and the
+whole flow can be exercised without touching the live-data project.
 
-Collections created (all in staging):
+`waitlistDb()` in `lib/waitlist/server.ts` is the single line that decides this.
+Moving to staging later means changing it there and nowhere else — but note the
+role check in `lib/admin-auth.ts` would then read a different project from the
+data.
+
+Collections created (all in dev):
 
 | Collection | Holds |
 |---|---|
@@ -30,23 +38,27 @@ stage 2.
 
 ## Firestore security rules
 
-Rules are owned by the **main project's Development branch** and promoted to
-Staging — not editable from this repo or the Firebase console. So this cannot
-ship on the website's deploy timeline; it has to be transported separately. See
-[`firestore-rules-waitlist-additions.md`](./firestore-rules-waitlist-additions.md)
-for the block to paste and, more importantly, the caveat that goes with it.
+**Nothing here needs rules to work.** Every read and write goes through the
+Admin SDK in server routes, which bypasses security rules entirely. The site
+functions with no rules change at all.
 
-The short version: these collections are written only by the Admin SDK, which
-bypasses rules, so no client needs access. But Firestore grants access if *any*
-matching rule allows it — `allow read, write: if false` declines to grant and
-cannot take access away. If the staging rules contain a recursive wildcard
-(`match /{document=**}`) that grants signed-in users access, registration emails
-are readable by app users and the deny block will not change that. Fixing it
-means editing a rule the mobile app depends on.
+The block in
+[`firestore-rules-waitlist-additions.md`](./firestore-rules-waitlist-additions.md)
+is defensive only: it declines client access to collections that now exist in
+the dev project, one of which (`waitlistEntries`) holds email addresses.
+
+Two things to know before assuming it helps:
+
+- Firestore grants access if *any* matching rule allows it.
+  `allow read, write: if false` declines to grant and **cannot take access
+  away**. Against a recursive `match /{document=**}` that already grants
+  signed-in users, the block does nothing.
+- Rules are owned by the **main project's Development branch** and promoted —
+  not editable from this repo or the console — so this cannot ship on the
+  website's deploy timeline and has to be transported separately.
 
 `settings/waitlistDemand` is only read server-side; if the `settings` collection
-is already client-readable in staging, that is harmless — it holds a single
-number.
+is already client-readable, that is harmless — it holds a single number.
 
 ## Indexes
 
@@ -62,14 +74,16 @@ equalities plus in-memory sorting for anything added later.
 
 ## Environment variables
 
-None new. The staging credentials already set in Vercel
-(`FIREBASE_PROJECT_ID_STAGING`, `FIREBASE_CLIENT_EMAIL_STAGING`,
-`FIREBASE_PRIVATE_KEY_STAGING`) are what this uses.
+None new. This uses the dev project's existing credentials
+(`NEXT_PUBLIC_FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`,
+`FIREBASE_PRIVATE_KEY`), which are already set everywhere the site runs.
 
 Optional: `WAITLIST_HASH_SALT`. Visitor IPs are hashed before storage, never
-kept raw. Without this variable the salt is derived from the staging private
-key, which is fine — set it only if you want the hashing salt rotatable
-independently of the service account.
+kept raw. Without this variable the salt derives from the dev private key, which
+is fine — set it only if you want the salt rotatable independently of the
+service account. Rotating it resets unique-visit dedupe but is safe for
+duplicate-signup detection, which uses an unsalted hash precisely so that the
+entry id for an email never changes.
 
 ## Threshold
 
@@ -89,7 +103,7 @@ cleared if someone raises the threshold.
 
 ## Using it
 
-1. `/admin/super` → **Outreach** tab (super admins only).
+1. `/admin/super` → **Outreach** tab (admin or super admin).
 2. **Add source** — platform, name, topic, source URL, public audience label.
    Creating a source mints its first tracked link and copies the URL.
 3. Post that link. Use **New link** for each separate post/comment so their

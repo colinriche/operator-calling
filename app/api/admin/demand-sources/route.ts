@@ -17,8 +17,12 @@ import {
 } from "@/lib/waitlist/server";
 import type { DemandSourceRow, SourceLinkRow } from "@/lib/waitlist/types";
 
-// Demand sources — super-admin only. These records hold internal notes and back
-// the registration emails, so they never widen beyond super_admin.
+// Demand sources — admin or super_admin.
+//
+// These records hold internal notes and posting rules, and the registrations
+// endpoint behind them exposes email addresses. Opened to `admin` deliberately;
+// tighten to super_admin only (requireAdmin(req, { superAdminOnly: true })) if
+// that access should narrow again.
 
 export const runtime = "nodejs";
 
@@ -64,9 +68,9 @@ function buildLinkRow(
 // ─── GET — list every demand source with its tracked links ───────────────────
 
 export async function GET(req: NextRequest) {
-  const caller = await requireAdmin(req, { superAdminOnly: true });
+  const caller = await requireAdmin(req);
   if (!caller) {
-    return NextResponse.json({ error: "Super admin role required" }, { status: 403 });
+    return NextResponse.json({ error: "Admin role required" }, { status: 403 });
   }
 
   try {
@@ -143,9 +147,9 @@ export async function GET(req: NextRequest) {
 // ─── POST — create a demand source and its first tracked link ────────────────
 
 export async function POST(req: NextRequest) {
-  const caller = await requireAdmin(req, { superAdminOnly: true });
+  const caller = await requireAdmin(req);
   if (!caller) {
-    return NextResponse.json({ error: "Super admin role required" }, { status: 403 });
+    return NextResponse.json({ error: "Admin role required" }, { status: 403 });
   }
 
   let body: Record<string, unknown>;

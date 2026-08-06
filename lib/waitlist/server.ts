@@ -18,7 +18,7 @@ import {
   generateSourceCode,
   normaliseEmail,
   normaliseSourceCode,
-  shortHash,
+  stableHash,
 } from "./source-code";
 import type {
   RegistrationInput,
@@ -28,14 +28,18 @@ import type {
 
 // ─── Project routing ─────────────────────────────────────────────────────────
 //
-// All waitlist and demand data lives in the "staging" project
-// (operator-calling) — the same project the main mobile app reads groups from,
-// so a demand source that graduates into a real group ends up alongside it.
-// Admin role checks still run against the "dev" project, where web sign-in and
-// the `user` role documents live.
+// All waitlist and demand data lives in the "dev" project (webrtc-clone-dc88c)
+// — the same project as web sign-in and the `user` role documents, so the admin
+// role check and the data it guards are in one place, and the whole flow can be
+// exercised without touching the live-data project.
+//
+// If this later moves to "staging" so that demand sources sit alongside the
+// groups the mobile app reads, this is the only line that changes — but note
+// the role check in lib/admin-auth.ts would then be reading a different project
+// from the data.
 
 export function waitlistDb(): Firestore {
-  return getProjectDb("staging");
+  return getProjectDb("dev");
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -305,7 +309,7 @@ export async function registerWaitlistEntry(
   const sourceData = resolved?.sourceData ?? {};
   const audienceLabel = resolveAudienceLabel(sourceData.publicAudienceLabel);
 
-  const entryId = `${demandSourceId}__${shortHash(normalisedEmail)}`;
+  const entryId = `${demandSourceId}__${stableHash(normalisedEmail)}`;
   const entryRef = db.collection(COLLECTIONS.waitlistEntries).doc(entryId);
 
   const threshold = resolved ? await getGlobalThreshold(db) : 0;

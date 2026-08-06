@@ -1,4 +1,4 @@
-# Firestore rules — waitlist collections
+# Firestore rules — waitlist collections (dev project)
 
 > **This is an insert for the main project, not a ruleset.** Do not deploy it
 > from this repo and do not paste it into the Firebase console.
@@ -15,9 +15,6 @@ Consequence for planning: this cannot ship on the website's deploy timeline. The
 website can go live without it (the feature works regardless — see below), but
 the collections stay unprotected until the promotion lands.
 
-Note also that the Staging Firebase project holds **live data**. These are new
-collections landing in a live project.
-
 ## Nothing here is needed for the website to work
 
 Every read and write in this feature goes through the Admin SDK in server
@@ -25,7 +22,7 @@ routes, which bypasses security rules entirely. No client — web or app — rea
 these collections directly.
 
 So this block is purely defensive: it declines to grant client access to
-collections that now exist in a project the mobile app can reach, one of which
+collections that now exist in the dev project, one of which
 (`waitlistEntries`) holds email addresses.
 
 ## The block
@@ -57,12 +54,12 @@ The practical consequence: **`allow read, write: if false` cannot take access
 away.** It only declines to grant. If another rule already grants access to
 these paths, the block above changes nothing at all.
 
-So the block is only sufficient if the staging rules have no wildcard covering
+So the block is only sufficient if the dev project rules have no wildcard covering
 these collections.
 
 ## Which situation are you in?
 
-Look at the current staging rules for a recursive wildcard — a `match` whose
+Look at the dev project rules for a recursive wildcard — a `match` whose
 path ends in `{document=**}`:
 
 **A. No recursive wildcard** (rules name each collection explicitly)
@@ -78,7 +75,7 @@ nothing grants access to them. Done.
     }
 ```
 
-Then any signed-in app user can already read `waitlistEntries` — which is the
+Then any signed-in user can already read `waitlistEntries` — which is the
 registration emails — and the block above will not stop them. Fixing this means
 **editing that existing rule**, which affects the app, so it is your call rather
 than something I should do blind.
@@ -105,7 +102,7 @@ intent.
 
 Read the rules file on the main project's Development branch — that is the
 source of truth, so it answers the wildcard question without touching anything
-live. The Firebase console for the **operator-calling** project shows what is
+live. The Firebase console for the **webrtc-clone-dc88c** (dev) project shows what is
 currently promoted, which is useful for confirming the two agree, but is not
 where the answer lives.
 
@@ -115,9 +112,9 @@ the app is the kind of thing that goes wrong quietly.
 ## What is at stake
 
 `waitlistEntries` holds email addresses, and `groupDemandSources` holds internal
-notes and posting rules. Neither should be readable by an app client. The other
+notes and posting rules. Neither should be readable by any client. The other
 five collections are counters and event logs — lower stakes, but there is no
 reason for a client to reach them either.
 
 Until you have confirmed you are in situation A or have made the change for B,
-treat registration emails in staging as readable by any signed-in app user.
+treat registration emails as readable by any signed-in user of the dev project.
