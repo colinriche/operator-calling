@@ -1,40 +1,34 @@
-# Firestore rules — waitlist collections (dev project)
+# Firestore rules — waitlist collections
 
-> **This is an insert for the main project, not a ruleset.** Do not deploy it
-> from this repo and do not paste it into the Firebase console.
+## No change is required
 
-## Where this goes
+Checked against the live dev-project rules. **The waitlist collections need no
+rules change at all.**
 
-Rules are owned by the **main project**, where the **Development branch is the
-source of truth**. This snippet has to be committed there and then promoted to
-Staging along with everything else. Applying it any other way — console edit,
-`firebase deploy` from this repo — gets overwritten by the next promotion and
-diverges the source of truth.
+Two reasons, and both hold:
 
-Consequence for planning: this cannot ship on the website's deploy timeline. The
-website can go live without it (the feature works regardless — see below), but
-the collections stay unprotected until the promotion lands.
+1. **Nothing reads them from a client.** Every read and write in this feature
+   goes through the Admin SDK in server routes, which bypasses security rules
+   entirely.
+2. **The rules have no recursive wildcard.** There is no
+   `match /{document=**}` anywhere; every collection is matched by name.
+   Firestore denies by default, so a collection with no `match` block is
+   already unreachable from any client.
 
-## Nothing here is needed for the website to work
+`groupDemandSources`, `sourceLinks`, `waitlistEntries`, `sourceVisits`,
+`shareEvents` and `rateLimits` have no match block, so they are closed to
+clients today. Adding rules for them would not change behaviour.
 
-Every read and write in this feature goes through the Admin SDK in server
-routes, which bypasses security rules entirely. No client — web or app — reads
-these collections directly.
+## Only if the rules ever gain a wildcard
 
-So this block is purely defensive: it declines to grant client access to
-collections that now exist in the dev project, one of which
-(`waitlistEntries`) holds email addresses.
-
-## The block
-
-Goes inside the existing
-`service cloud.firestore { match /databases/{database}/documents { … } }`,
-alongside the app's current `match` statements:
+If a `match /{document=**}` granting access is ever introduced, these
+collections become client-readable — and `waitlistEntries` holds email
+addresses. In that case add the block below **and** confirm it actually helps,
+because it may not:
 
 ```
     // ── Waitlist & demand tracking (website) ──────────────────────────────
-    // Written only by the Admin SDK from server routes, which bypasses rules
-    // entirely. No client — web or app — has any reason to touch these.
+    // Written only by the Admin SDK from server routes. No client needs these.
     match /groupDemandSources/{doc}        { allow read, write: if false; }
     match /sourceLinks/{doc}               { allow read, write: if false; }
     match /sourceLinks/{doc}/visitors/{v}  { allow read, write: if false; }
@@ -44,77 +38,46 @@ alongside the app's current `match` statements:
     match /rateLimits/{doc}                { allow read, write: if false; }
 ```
 
-## Read this before assuming it worked
+Firestore evaluates **every** matching block and grants if **any** `allow`
+returns true. Order means nothing, and `allow read, write: if false` declines to
+grant — it **cannot take away** access another rule grants. Against a permissive
+wildcard this block does nothing; the wildcard itself has to narrow.
 
-Firestore evaluates **every** `match` block whose path matches the request, and
-grants access if **any** `allow` in any of them returns true. Rules are not
-first-match-wins, and order on the page means nothing.
+Rules are owned by the **main project's Development branch** and promoted to
+Staging, so any such change travels that route — not the console, not this repo.
 
-The practical consequence: **`allow read, write: if false` cannot take access
-away.** It only declines to grant. If another rule already grants access to
-these paths, the block above changes nothing at all.
+## Separate finding: the admin dashboard is broken by these rules
 
-So the block is only sufficient if the dev project rules have no wildcard covering
-these collections.
+Not a waitlist issue, but it surfaced while diagnosing one, and it is why
+`/admin/super` shows a permissions error.
 
-## Which situation are you in?
+`components/admin/SuperAdminDashboard.tsx:126` runs five client-SDK reads in a
+single `Promise.all`. Three are denied:
 
-Look at the dev project rules for a recursive wildcard — a `match` whose
-path ends in `{document=**}`:
+| Read | Why it fails |
+|---|---|
+| `getDocs(collection(db, "schedules"))` | No `schedules` match block exists — default deny |
+| `getDoc(doc(db, "admin_controls", "platform"))` | No `admin_controls` match block exists — default deny |
+| `getDocs(collection(db, "groups"))` | Rule is `uid in resource.data.memberIds \|\| isAdmin()`. Firestore rejects an unconstrained collection query it cannot prove is satisfiable for every document |
 
-**A. No recursive wildcard** (rules name each collection explicitly)
+One rejection fails the whole `Promise.all`, so the dashboard loads no data and
+toasts "Missing or insufficient permissions".
 
-The block above is all you need. The new collections match nothing else, so
-nothing grants access to them. Done.
+Fixing it means a choice per read: add rules for `schedules` and
+`admin_controls`, or move those reads server-side behind an Admin SDK route the
+way `/api/admin/archive` already does. The `groups` query additionally needs the
+caller to satisfy `isAdmin()`, which requires signing in through the admin
+custom-token flow so `auth.uid` equals their user document id.
 
-**B. A recursive wildcard that grants access**, e.g.
+`/admin/outreach` deliberately does not depend on any of this.
 
-```
-    match /{document=**} {
-      allow read, write: if request.auth != null;
-    }
-```
+## Note: the `user` collection is world-readable
 
-Then any signed-in user can already read `waitlistEntries` — which is the
-registration emails — and the block above will not stop them. Fixing this means
-**editing that existing rule**, which affects the app, so it is your call rather
-than something I should do blind.
+`match /user/{userId} { allow read: if true; }` — deliberate, and the inline
+comment explains why (admin username login queries the collection before any
+Firebase Auth session exists). It does mean every user document, including email
+addresses, is readable by anyone who can reach the project.
 
-The narrowest change is to exclude the new collections from the wildcard by
-name. Firestore has no "except" syntax, so the wildcard has to become explicit
-about what it covers — which for a shared ruleset usually means replacing
-
-```
-    match /{document=**} { allow read, write: if request.auth != null; }
-```
-
-with one `match /<collection>/{doc}` per collection the app actually uses.
-That is a real change to app behaviour and needs testing against the app, not
-just the website.
-
-**C. A recursive wildcard that grants nothing** (e.g. `if false`, or rules in
-locked mode)
-
-The block above is redundant but harmless. Add it anyway as documentation of
-intent.
-
-## How to check which situation applies
-
-Read the rules file on the main project's Development branch — that is the
-source of truth, so it answers the wildcard question without touching anything
-live. The Firebase console for the **webrtc-clone-dc88c** (dev) project shows what is
-currently promoted, which is useful for confirming the two agree, but is not
-where the answer lives.
-
-I did not read the live rules: pulling and regenerating a ruleset shared with
-the app is the kind of thing that goes wrong quietly.
-
-## What is at stake
-
-`waitlistEntries` holds email addresses, and `groupDemandSources` holds internal
-notes and posting rules. Neither should be readable by any client. The other
-five collections are counters and event logs — lower stakes, but there is no
-reason for a client to reach them either.
-
-Until you have confirmed you are in situation A or have made the change for B,
-treat registration emails as readable by any signed-in user of the dev project.
+Out of scope for the waitlist work, but worth recording as a known exposure
+rather than leaving it implicit — particularly since it makes `waitlistEntries`
+the *better*-protected of the two places this site stores email addresses.

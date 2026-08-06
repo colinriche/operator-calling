@@ -38,27 +38,15 @@ stage 2.
 
 ## Firestore security rules
 
-**Nothing here needs rules to work.** Every read and write goes through the
-Admin SDK in server routes, which bypasses security rules entirely. The site
-functions with no rules change at all.
+**None needed.** Checked against the live dev-project rules: every read and
+write goes through the Admin SDK, which bypasses rules, and the ruleset has no
+recursive `match /{document=**}` — so these collections, having no match block,
+are already denied to every client by default.
 
-The block in
 [`firestore-rules-waitlist-additions.md`](./firestore-rules-waitlist-additions.md)
-is defensive only: it declines client access to collections that now exist in
-the dev project, one of which (`waitlistEntries`) holds email addresses.
-
-Two things to know before assuming it helps:
-
-- Firestore grants access if *any* matching rule allows it.
-  `allow read, write: if false` declines to grant and **cannot take access
-  away**. Against a recursive `match /{document=**}` that already grants
-  signed-in users, the block does nothing.
-- Rules are owned by the **main project's Development branch** and promoted —
-  not editable from this repo or the console — so this cannot ship on the
-  website's deploy timeline and has to be transported separately.
-
-`settings/waitlistDemand` is only read server-side; if the `settings` collection
-is already client-readable, that is harmless — it holds a single number.
+records the check, the block to add if a permissive wildcard is ever
+introduced, and two unrelated findings from the same review: the super-admin
+dashboard is broken by these rules, and the `user` collection is world-readable.
 
 ## Indexes
 
