@@ -473,7 +473,12 @@ export function OutreachSourcesPanel() {
     return sorted;
   }, [sources, query, sort, platformFilter]);
 
-  const thresholdReached = sources.filter((s) => s.thresholdReachedAt);
+  // Only sources still awaiting a decision. thresholdReachedAt stays stamped
+  // after review as a historical fact, so filtering on it alone would leave the
+  // banner up forever once a group had been created.
+  const thresholdReached = sources.filter(
+    (s) => s.thresholdReachedAt && !s.groupId
+  );
 
   const inputClass =
     "w-full h-10 px-3 rounded-lg border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40";
