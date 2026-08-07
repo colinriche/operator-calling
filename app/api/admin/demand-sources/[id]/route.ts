@@ -8,7 +8,7 @@ import {
   RELATIONSHIP_STATUS_IDS,
   SOURCE_TYPE_IDS,
 } from "@/lib/waitlist/constants";
-import { waitlistDb } from "@/lib/waitlist/server";
+import { getGlobalThreshold, waitlistDb } from "@/lib/waitlist/server";
 
 // PATCH /api/admin/demand-sources/[id] — edit a demand source.
 //
@@ -80,13 +80,14 @@ export async function PATCH(
     }
   }
 
-  if (body.demandThreshold === null) {
-    update.demandThreshold = null;
-  } else if (typeof body.demandThreshold === "number" && body.demandThreshold > 0) {
-    update.demandThreshold = Math.floor(body.demandThreshold);
-    // Raising the bar past the current count reopens collection rather than
-    // leaving the source stuck in threshold_reached.
-    update.thresholdReachedAt = null;
+  const thresholdChanged =
+    body.demandThreshold === null ||
+    (typeof body.demandThreshold === "number" && body.demandThreshold > 0);
+  if (thresholdChanged) {
+    update.demandThreshold =
+      body.demandThreshold === null
+        ? null
+        : Math.floor(body.demandThreshold as number);
   }
 
   try {
@@ -95,6 +96,36 @@ export async function PATCH(
     const snap = await ref.get();
     if (!snap.exists) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+
+    // Changing the bar re-evaluates against the signups already collected,
+    // rather than waiting for the next one. Lowering it below the current count
+    // should flag the source immediately; raising it above should reopen
+    // collection instead of leaving it stuck at threshold_reached.
+    if (thresholdChanged) {
+      const current = snap.data() ?? {};
+      const effective =
+        update.demandThreshold === null
+          ? await getGlobalThreshold(db)
+          : (update.demandThreshold as number);
+      const met = (current.signupCount ?? 0) >= effective;
+
+      if (met && !current.groupId) {
+        update.thresholdReachedAt =
+          current.thresholdReachedAt ?? FieldValue.serverTimestamp();
+        // Never move a source that has already been reviewed or actioned.
+        if (
+          current.status === "active_waitlist" ||
+          current.status === "researching"
+        ) {
+          update.status = "threshold_reached";
+        }
+      } else if (!met) {
+        update.thresholdReachedAt = null;
+        if (current.status === "threshold_reached") {
+          update.status = "active_waitlist";
+        }
+      }
     }
 
     await ref.set(update, { merge: true });

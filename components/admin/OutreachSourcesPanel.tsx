@@ -140,6 +140,13 @@ export function OutreachSourcesPanel() {
   const [acknowledgeDuplicates, setAcknowledgeDuplicates] = useState(false);
   const [savingGroup, setSavingGroup] = useState(false);
 
+  // Threshold editing — global default, and per-source overrides.
+  const [thresholdDraft, setThresholdDraft] = useState("");
+  const [savingThreshold, setSavingThreshold] = useState(false);
+  const [sourceThresholdDraft, setSourceThresholdDraft] = useState<
+    Record<string, string>
+  >({});
+
   const load = useCallback(async () => {
     if (!user) return;
     setLoading(true);
@@ -153,6 +160,7 @@ export function OutreachSourcesPanel() {
       if (!res.ok) throw new Error(data.error ?? "Failed to load sources");
       setSources(data.sources ?? []);
       setGlobalThreshold(data.globalThreshold ?? 0);
+      setThresholdDraft(String(data.globalThreshold ?? ""));
       setLoaded(true);
     } catch (err) {
       console.error(err);
@@ -268,6 +276,74 @@ export function OutreachSourcesPanel() {
       setOpenRegistrations(null);
     } finally {
       setLoadingRegistrations(false);
+    }
+  }
+
+  async function saveGlobalThreshold() {
+    if (!user) return;
+    const value = parseInt(thresholdDraft, 10);
+    if (!Number.isFinite(value) || value < 1) {
+      toast.error("Threshold must be 1 or more");
+      return;
+    }
+
+    setSavingThreshold(true);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch("/api/admin/demand-settings", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ minimumWaitlistSignups: value }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to save threshold");
+      toast.success(`Default threshold set to ${value}`);
+      await load();
+    } catch (err) {
+      console.error(err);
+      toast.error(err instanceof Error ? err.message : "Failed to save threshold");
+    } finally {
+      setSavingThreshold(false);
+    }
+  }
+
+  async function saveSourceThreshold(sourceId: string, raw: string) {
+    if (!user) return;
+    const trimmed = raw.trim();
+    // Empty clears the override and falls back to the global default.
+    const value = trimmed === "" ? null : parseInt(trimmed, 10);
+    if (value !== null && (!Number.isFinite(value) || value < 1)) {
+      toast.error("Threshold must be 1 or more, or blank to use the default");
+      return;
+    }
+
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/admin/demand-sources/${sourceId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ demandThreshold: value }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to save");
+      toast.success(
+        value === null ? "Using the default threshold" : `Threshold set to ${value}`
+      );
+      setSourceThresholdDraft((prev) => {
+        const next = { ...prev };
+        delete next[sourceId];
+        return next;
+      });
+      await load();
+    } catch (err) {
+      console.error(err);
+      toast.error(err instanceof Error ? err.message : "Failed to save");
     }
   }
 
@@ -482,6 +558,37 @@ export function OutreachSourcesPanel() {
           {error}
         </p>
       )}
+
+      {/* Global threshold — editable here so changing it needs no deploy. */}
+      <div className="rounded-xl border border-border/60 bg-card px-4 py-3 flex flex-wrap items-center gap-3">
+        <label
+          htmlFor="global-threshold"
+          className="text-sm text-foreground font-medium"
+        >
+          Default demand threshold
+        </label>
+        <input
+          id="global-threshold"
+          type="number"
+          min={1}
+          value={thresholdDraft}
+          onChange={(e) => setThresholdDraft(e.target.value)}
+          className="h-9 w-24 px-3 rounded-lg border border-border bg-background text-sm"
+        />
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => void saveGlobalThreshold()}
+          disabled={savingThreshold || thresholdDraft === String(globalThreshold)}
+        >
+          {savingThreshold && <Loader2 className="w-4 h-4 animate-spin" />}
+          Save
+        </Button>
+        <span className="text-xs text-muted-foreground">
+          Registrations needed before a source is flagged for review. Sources with
+          their own override are unaffected.
+        </span>
+      </div>
 
       {/* Create form */}
       {showForm && (
@@ -745,12 +852,50 @@ export function OutreachSourcesPanel() {
 
               {/* Demand */}
               <div>
-                <div className="flex justify-between text-xs text-muted-foreground mb-1.5">
+                <div className="flex flex-wrap justify-between gap-2 text-xs text-muted-foreground mb-1.5">
                   <span>
                     {source.signupCount} of {source.effectiveThreshold} registrations
                     {source.demandThreshold === null && " (global default)"}
                   </span>
-                  <span>{pct}%</span>
+                  <span className="flex items-center gap-1.5">
+                    <label htmlFor={`threshold-${source.id}`} className="sr-only">
+                      Threshold override for {source.sourceName}
+                    </label>
+                    <input
+                      id={`threshold-${source.id}`}
+                      type="number"
+                      min={1}
+                      placeholder={String(globalThreshold)}
+                      value={
+                        sourceThresholdDraft[source.id] ??
+                        (source.demandThreshold === null
+                          ? ""
+                          : String(source.demandThreshold))
+                      }
+                      onChange={(e) =>
+                        setSourceThresholdDraft((prev) => ({
+                          ...prev,
+                          [source.id]: e.target.value,
+                        }))
+                      }
+                      className="h-7 w-16 px-2 rounded-md border border-border bg-background text-xs"
+                    />
+                    {sourceThresholdDraft[source.id] !== undefined && (
+                      <button
+                        type="button"
+                        className="text-primary underline underline-offset-2"
+                        onClick={() =>
+                          void saveSourceThreshold(
+                            source.id,
+                            sourceThresholdDraft[source.id]
+                          )
+                        }
+                      >
+                        Save
+                      </button>
+                    )}
+                    <span>{pct}%</span>
+                  </span>
                 </div>
                 <Progress value={pct} className="h-2" />
               </div>
