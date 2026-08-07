@@ -54,15 +54,30 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </aside>
 
       <div className="flex-1 flex flex-col">
-        {/* Mobile top bar */}
-        <div className="md:hidden flex items-center justify-between px-4 py-3 border-b border-border bg-card">
-          <Link href="/" className="flex items-center gap-2 font-heading font-bold text-sm text-foreground">
-            <span className="w-6 h-6 rounded-full gradient-gold flex items-center justify-center">
-              <Phone className="w-3 h-3 text-primary-foreground" />
-            </span>
-            Admin
-          </Link>
-          <ThemeToggle />
+        {/* Mobile top bar. The sidebar is hidden below md, so these links are
+            the only navigation on a narrow screen. */}
+        <div className="md:hidden border-b border-border bg-card">
+          <div className="flex items-center justify-between px-4 py-3">
+            <Link href="/" className="flex items-center gap-2 font-heading font-bold text-sm text-foreground">
+              <span className="w-6 h-6 rounded-full gradient-gold flex items-center justify-center">
+                <Phone className="w-3 h-3 text-primary-foreground" />
+              </span>
+              Admin
+            </Link>
+            <ThemeToggle />
+          </div>
+          <nav className="flex gap-1 px-2 pb-2 overflow-x-auto">
+            {adminNav.map(({ href, icon: Icon, label }) => (
+              <Link
+                key={href}
+                href={href}
+                className="flex items-center gap-1.5 shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              >
+                <Icon className="w-3.5 h-3.5 shrink-0" />
+                {label}
+              </Link>
+            ))}
+          </nav>
         </div>
         <main className="flex-1 p-4 md:p-6 lg:p-8 overflow-auto">
           {children}

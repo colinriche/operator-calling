@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase";
-import { Phone, LayoutDashboard, User, Users, Bell, Settings, LogOut, Calendar, PhoneCall, Lock } from "lucide-react";
+import { Phone, LayoutDashboard, User, Users, Bell, Settings, LogOut, Calendar, PhoneCall, Lock, Megaphone, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
@@ -19,10 +19,18 @@ const navItems = [
   { href: "/dashboard/settings", icon: Settings, label: "Settings", gated: false },
 ];
 
+// Shown only to admins. Nothing else in the app links into /admin, so without
+// these the area is reachable only by typing a URL.
+const adminItems = [
+  { href: "/admin", icon: Shield, label: "Admin area" },
+  { href: "/admin/outreach", icon: Megaphone, label: "Outreach" },
+];
+
 export function DashboardNav() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, profile, loading, isLinked } = useAuth();
+  const isAdmin = profile?.role === "admin" || profile?.role === "super_admin";
 
   async function handleSignOut() {
     await signOut(auth);
@@ -96,6 +104,29 @@ export function DashboardNav() {
             </Link>
           );
         })}
+
+        {isAdmin && (
+          <div className="mt-4 pt-4 border-t border-border space-y-0.5">
+            <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+              Admin
+            </p>
+            {adminItems.map(({ href, icon: Icon, label }) => (
+              <Link
+                key={href}
+                href={href}
+                className={cn(
+                  "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors",
+                  pathname === href
+                    ? "bg-primary/10 text-primary"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                )}
+              >
+                <Icon className="w-4 h-4 shrink-0" />
+                {label}
+              </Link>
+            ))}
+          </div>
+        )}
       </nav>
 
       <div className="p-4 border-t border-border">
