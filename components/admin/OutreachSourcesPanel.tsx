@@ -11,6 +11,7 @@ import {
   Search,
   AlertTriangle,
   UsersRound,
+  GitBranch,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -54,6 +55,29 @@ const SORTS: Array<{ id: SortKey; label: string }> = [
   { id: "closest", label: "Closest to threshold" },
   { id: "name", label: "Source name" },
 ];
+
+interface SimilarGroup {
+  id: string;
+  name: string;
+  description: string;
+  memberCount: number;
+  score: number;
+  reason: string;
+}
+
+interface GroupOption {
+  id: string;
+  name: string;
+  memberCount: number;
+}
+
+interface ReviewState {
+  similar: SimilarGroup[];
+  groups: GroupOption[];
+  strongDuplicateScore: number;
+  groupProject: string;
+  suggestedName: string;
+}
 
 interface RegistrationRow {
   id: string;
@@ -102,6 +126,19 @@ export function OutreachSourcesPanel() {
   const [openRegistrations, setOpenRegistrations] = useState<string | null>(null);
   const [registrations, setRegistrations] = useState<RegistrationRow[]>([]);
   const [loadingRegistrations, setLoadingRegistrations] = useState(false);
+
+  // Demand review — creating or linking a group. Loaded per source on demand,
+  // since it scans the groups collection for possible duplicates.
+  const [openReview, setOpenReview] = useState<string | null>(null);
+  const [review, setReview] = useState<ReviewState | null>(null);
+  const [loadingReview, setLoadingReview] = useState(false);
+  const [reviewMode, setReviewMode] = useState<"create" | "link">("create");
+  const [groupName, setGroupName] = useState("");
+  const [groupDescription, setGroupDescription] = useState("");
+  const [groupPrivate, setGroupPrivate] = useState(true);
+  const [linkGroupId, setLinkGroupId] = useState("");
+  const [acknowledgeDuplicates, setAcknowledgeDuplicates] = useState(false);
+  const [savingGroup, setSavingGroup] = useState(false);
 
   const load = useCallback(async () => {
     if (!user) return;
@@ -231,6 +268,88 @@ export function OutreachSourcesPanel() {
       setOpenRegistrations(null);
     } finally {
       setLoadingRegistrations(false);
+    }
+  }
+
+  async function toggleReview(source: DemandSourceRow) {
+    if (openReview === source.id) {
+      setOpenReview(null);
+      return;
+    }
+    if (!user) return;
+
+    setOpenReview(source.id);
+    setReview(null);
+    setReviewMode("create");
+    setAcknowledgeDuplicates(false);
+    setLinkGroupId("");
+    setLoadingReview(true);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/admin/demand-sources/${source.id}/group`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to load review");
+      setReview(data);
+      setGroupName(data.suggestedName || source.sourceName);
+      setGroupDescription(
+        source.publicDescription ||
+          `Calling group for people interested in ${source.publicAudienceLabel || source.topicName || source.sourceName}.`
+      );
+    } catch (err) {
+      console.error(err);
+      toast.error(err instanceof Error ? err.message : "Failed to load review");
+      setOpenReview(null);
+    } finally {
+      setLoadingReview(false);
+    }
+  }
+
+  async function submitGroup(sourceId: string) {
+    if (!user) return;
+    setSavingGroup(true);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/admin/demand-sources/${sourceId}/group`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(
+          reviewMode === "link"
+            ? { action: "link", groupId: linkGroupId }
+            : {
+                action: "create",
+                name: groupName,
+                description: groupDescription,
+                isPrivate: groupPrivate,
+                acknowledgeDuplicates,
+              }
+        ),
+      });
+      const data = await res.json();
+
+      // The server repeats the duplicate check even though the UI shows it, so
+      // a 409 here means a strong match the reviewer has not acknowledged.
+      if (res.status === 409 && data.requiresAcknowledgement) {
+        setReview((prev) => (prev ? { ...prev, similar: data.similar } : prev));
+        toast.error("Possible duplicate group — review and confirm to continue");
+        return;
+      }
+      if (!res.ok) throw new Error(data.error ?? "Failed to save");
+
+      toast.success(
+        reviewMode === "link" ? "Linked to existing group" : "Group created"
+      );
+      setOpenReview(null);
+      await load();
+    } catch (err) {
+      console.error(err);
+      toast.error(err instanceof Error ? err.message : "Failed to save");
+    } finally {
+      setSavingGroup(false);
     }
   }
 
@@ -611,6 +730,16 @@ export function OutreachSourcesPanel() {
                     <UsersRound className="w-3.5 h-3.5" />
                     {openRegistrations === source.id ? "Hide" : "Registrations"}
                   </Button>
+                  {!source.groupId && (
+                    <Button
+                      variant={source.thresholdReachedAt ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => void toggleReview(source)}
+                    >
+                      <GitBranch className="w-3.5 h-3.5" />
+                      {openReview === source.id ? "Cancel" : "Review demand"}
+                    </Button>
+                  )}
                 </div>
               </div>
 
@@ -692,6 +821,185 @@ export function OutreachSourcesPanel() {
                   </div>
                 ))}
               </div>
+
+              {source.groupId && (
+                <p className="text-xs text-muted-foreground border-t border-border/60 pt-3 flex items-center gap-1.5">
+                  <GitBranch className="w-3.5 h-3.5 text-primary shrink-0" />
+                  Linked to group{" "}
+                  <code className="font-mono text-foreground">{source.groupId}</code>
+                  . Attribution and outreach history above are retained.
+                </p>
+              )}
+
+              {openReview === source.id && (
+                <div className="border-t border-border/60 pt-4 space-y-4">
+                  {loadingReview ? (
+                    <p className="text-xs text-muted-foreground flex items-center gap-2">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      Checking for similar groups…
+                    </p>
+                  ) : review ? (
+                    <>
+                      {review.similar.length > 0 && (
+                        <div className="rounded-lg border border-primary/40 bg-primary/10 p-3">
+                          <p className="text-xs font-semibold text-foreground mb-2 flex items-center gap-1.5">
+                            <AlertTriangle className="w-3.5 h-3.5 text-primary" />
+                            {review.similar.length} existing group
+                            {review.similar.length !== 1 ? "s" : ""} may already cover
+                            this audience
+                          </p>
+                          <ul className="space-y-1.5">
+                            {review.similar.map((s) => (
+                              <li
+                                key={s.id}
+                                className="text-xs text-muted-foreground flex flex-wrap gap-x-2"
+                              >
+                                <span className="text-foreground font-medium">
+                                  {s.name}
+                                </span>
+                                <span>
+                                  {s.memberCount} member
+                                  {s.memberCount !== 1 ? "s" : ""}
+                                </span>
+                                <span>· {s.reason}</span>
+                                <button
+                                  type="button"
+                                  className="text-primary underline underline-offset-2"
+                                  onClick={() => {
+                                    setReviewMode("link");
+                                    setLinkGroupId(s.id);
+                                  }}
+                                >
+                                  Link to this instead
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      <div className="flex gap-2">
+                        {(["create", "link"] as const).map((mode) => (
+                          <button
+                            key={mode}
+                            type="button"
+                            onClick={() => setReviewMode(mode)}
+                            className={cn(
+                              "px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors",
+                              reviewMode === mode
+                                ? "bg-primary text-primary-foreground border-primary"
+                                : "bg-background text-muted-foreground border-border hover:border-primary/40"
+                            )}
+                          >
+                            {mode === "create"
+                              ? "Create new group"
+                              : "Link existing group"}
+                          </button>
+                        ))}
+                      </div>
+
+                      {reviewMode === "create" ? (
+                        <div className="grid sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-xs font-medium text-foreground mb-1.5">
+                              Group name *
+                            </label>
+                            <input
+                              value={groupName}
+                              onChange={(e) => setGroupName(e.target.value)}
+                              className={inputClass}
+                            />
+                          </div>
+                          <div className="flex items-end pb-2">
+                            <label className="flex items-center gap-2 text-xs text-foreground">
+                              <input
+                                type="checkbox"
+                                checked={groupPrivate}
+                                onChange={(e) => setGroupPrivate(e.target.checked)}
+                                className="w-4 h-4 rounded border-border accent-primary"
+                              />
+                              Private group
+                            </label>
+                          </div>
+                          <div className="sm:col-span-2">
+                            <label className="block text-xs font-medium text-foreground mb-1.5">
+                              Description
+                            </label>
+                            <textarea
+                              value={groupDescription}
+                              onChange={(e) => setGroupDescription(e.target.value)}
+                              rows={2}
+                              className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/40"
+                            />
+                          </div>
+                        </div>
+                      ) : (
+                        <div>
+                          <label className="block text-xs font-medium text-foreground mb-1.5">
+                            Existing group
+                          </label>
+                          <select
+                            value={linkGroupId}
+                            onChange={(e) => setLinkGroupId(e.target.value)}
+                            className={inputClass}
+                          >
+                            <option value="">Select a group…</option>
+                            {review.groups.map((g) => (
+                              <option key={g.id} value={g.id}>
+                                {g.name} ({g.memberCount} member
+                                {g.memberCount !== 1 ? "s" : ""})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+
+                      {reviewMode === "create" &&
+                        review.similar.some(
+                          (s) => s.score >= review.strongDuplicateScore
+                        ) && (
+                          <label className="flex items-start gap-2 text-xs text-foreground">
+                            <input
+                              type="checkbox"
+                              checked={acknowledgeDuplicates}
+                              onChange={(e) =>
+                                setAcknowledgeDuplicates(e.target.checked)
+                              }
+                              className="mt-0.5 w-4 h-4 shrink-0 rounded border-border accent-primary"
+                            />
+                            I&apos;ve checked the groups above and this is genuinely a
+                            different audience.
+                          </label>
+                        )}
+
+                      <div className="flex items-center gap-3">
+                        <Button
+                          size="sm"
+                          disabled={
+                            savingGroup ||
+                            (reviewMode === "link"
+                              ? !linkGroupId
+                              : !groupName.trim())
+                          }
+                          onClick={() => void submitGroup(source.id)}
+                        >
+                          {savingGroup && (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          )}
+                          {reviewMode === "link"
+                            ? "Link this group"
+                            : "Create group"}
+                        </Button>
+                        <span className="text-xs text-muted-foreground">
+                          Group lands in the{" "}
+                          <code className="font-mono">{review.groupProject}</code>{" "}
+                          project
+                        </span>
+                      </div>
+                    </>
+                  ) : null}
+                </div>
+              )}
 
               {openRegistrations === source.id && (
                 <div className="border-t border-border/60 pt-3">
