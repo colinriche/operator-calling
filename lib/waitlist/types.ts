@@ -33,6 +33,11 @@ export interface DemandSourceRow {
   totalVisitCount: number;
   uniqueVisitCount: number;
   signupCount: number;
+  /**
+   * Registrations that actually exist, counted from documents rather than the
+   * incrementing counter. This is what the threshold is judged on.
+   */
+  uniqueRegistrationCount: number;
   organiserInterestCount: number;
   shareClickCount: number;
   /** Unique visits → signups, 0 when there are no visits yet. */

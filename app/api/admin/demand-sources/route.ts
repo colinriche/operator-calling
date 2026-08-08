@@ -99,6 +99,12 @@ export async function GET(req: NextRequest) {
           : null;
       const uniqueVisitCount = data.uniqueVisitCount ?? 0;
       const signupCount = data.signupCount ?? 0;
+      // Falls back to the counter for sources registered before unique counting
+      // existed; evaluateThreshold refreshes it on the next signup.
+      const uniqueRegistrationCount =
+        typeof data.uniqueRegistrationCount === "number"
+          ? data.uniqueRegistrationCount
+          : signupCount;
 
       return {
         id: doc.id,
@@ -121,6 +127,7 @@ export async function GET(req: NextRequest) {
         totalVisitCount: data.totalVisitCount ?? 0,
         uniqueVisitCount,
         signupCount,
+        uniqueRegistrationCount,
         organiserInterestCount: data.organiserInterestCount ?? 0,
         shareClickCount: data.shareClickCount ?? 0,
         conversionRate:

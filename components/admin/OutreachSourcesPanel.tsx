@@ -452,7 +452,7 @@ export function OutreachSourcesPanel() {
     sorted.sort((a, b) => {
       switch (sort) {
         case "signups":
-          return b.signupCount - a.signupCount;
+          return b.uniqueRegistrationCount - a.uniqueRegistrationCount;
         case "visits":
           return b.uniqueVisitCount - a.uniqueVisitCount;
         case "conversion":
@@ -460,7 +460,9 @@ export function OutreachSourcesPanel() {
         case "closest": {
           // Sources already over the line first, then by proportion complete.
           const ratio = (s: DemandSourceRow) =>
-            s.effectiveThreshold > 0 ? s.signupCount / s.effectiveThreshold : 0;
+            s.effectiveThreshold > 0
+              ? s.uniqueRegistrationCount / s.effectiveThreshold
+              : 0;
           return ratio(b) - ratio(a);
         }
         case "name":
@@ -758,11 +760,13 @@ export function OutreachSourcesPanel() {
 
       <div className="space-y-3">
         {visible.map((source) => {
+          // Progress tracks the count the threshold is actually judged on.
+          const registrationCount = source.uniqueRegistrationCount;
           const pct =
             source.effectiveThreshold > 0
               ? Math.min(
                   100,
-                  Math.round((source.signupCount / source.effectiveThreshold) * 100)
+                  Math.round((registrationCount / source.effectiveThreshold) * 100)
                 )
               : 0;
           const statusLabel =
@@ -859,7 +863,7 @@ export function OutreachSourcesPanel() {
               <div>
                 <div className="flex flex-wrap justify-between gap-2 text-xs text-muted-foreground mb-1.5">
                   <span>
-                    {source.signupCount} of {source.effectiveThreshold} registrations
+                    {registrationCount} of {source.effectiveThreshold} registrations
                     {source.demandThreshold === null && " (global default)"}
                   </span>
                   <span className="flex items-center gap-1.5">
@@ -909,7 +913,7 @@ export function OutreachSourcesPanel() {
                 {[
                   { label: "Visits", value: source.totalVisitCount },
                   { label: "Unique", value: source.uniqueVisitCount },
-                  { label: "Registrations", value: source.signupCount },
+                  { label: "Registrations", value: registrationCount },
                   { label: "Organisers", value: source.organiserInterestCount },
                   {
                     label: "Conversion",

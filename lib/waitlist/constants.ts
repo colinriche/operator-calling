@@ -128,8 +128,12 @@ export type ShareChannel = (typeof SHARE_CHANNELS)[number];
 
 // ─── Demand threshold ────────────────────────────────────────────────────────
 
-/** Used when no global override exists in settings/waitlistDemand. */
-export const DEFAULT_DEMAND_THRESHOLD = 25;
+/**
+ * Unique registrations a tracked community needs before its group is created.
+ * Used when no global override exists in settings/waitlistDemand, and
+ * overridable per source from the admin panel.
+ */
+export const DEFAULT_DEMAND_THRESHOLD = 20;
 
 // ─── Public audience label ───────────────────────────────────────────────────
 

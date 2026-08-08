@@ -99,7 +99,5 @@ export function visitorHashFrom(headers: Headers): string {
   return shortHash(clientIpFrom(headers));
 }
 
-/** Lowercased, trimmed email used for duplicate detection. */
-export function normaliseEmail(email: string): string {
-  return email.trim().toLowerCase();
-}
+// Email normalisation lives in ./email — it needs provider-specific rules that
+// have nothing to do with source codes or hashing.

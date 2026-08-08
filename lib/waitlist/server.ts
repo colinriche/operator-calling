@@ -14,9 +14,9 @@ import {
   type ShareChannel,
 } from "./constants";
 import { resolveAudienceLabel, resolveDisclaimer } from "./copy";
+import { canonicalEmail, normaliseEmail } from "./email";
 import {
   generateSourceCode,
-  normaliseEmail,
   normaliseSourceCode,
   stableHash,
 } from "./source-code";
@@ -301,6 +301,7 @@ export async function registerWaitlistEntry(
 ): Promise<RegistrationResult> {
   const db = waitlistDb();
   const normalisedEmail = normaliseEmail(input.email);
+  const canonical = canonicalEmail(input.email);
 
   const code = normaliseSourceCode(input.sourceCode);
   const resolved = code ? await resolveSource(db, code) : null;
@@ -309,10 +310,10 @@ export async function registerWaitlistEntry(
   const sourceData = resolved?.sourceData ?? {};
   const audienceLabel = resolveAudienceLabel(sourceData.publicAudienceLabel);
 
-  const entryId = `${demandSourceId}__${stableHash(normalisedEmail)}`;
+  // Identity is the canonical address, not the stored one, so a Gmail user
+  // cannot register the same mailbox repeatedly with dots and +tags.
+  const entryId = `${demandSourceId}__${stableHash(canonical)}`;
   const entryRef = db.collection(COLLECTIONS.waitlistEntries).doc(entryId);
-
-  const threshold = resolved ? await getGlobalThreshold(db) : 0;
 
   const outcome = await db.runTransaction(async (tx: Transaction) => {
     const existing = await tx.get(entryRef);
@@ -367,6 +368,7 @@ export async function registerWaitlistEntry(
     tx.set(entryRef, {
       email: input.email.trim(),
       normalisedEmail,
+      canonicalEmail: canonical,
       displayName: input.displayName,
       interestedInOrganising: input.interestedInOrganising,
       country: input.country,
@@ -390,30 +392,15 @@ export async function registerWaitlistEntry(
     });
 
     if (resolved && sourceRef && sourceSnap) {
-      const current = sourceSnap.data() ?? {};
-      const newSignupCount = (current.signupCount ?? 0) + 1;
-      const effectiveThreshold =
-        typeof current.demandThreshold === "number" && current.demandThreshold > 0
-          ? current.demandThreshold
-          : threshold;
-
-      const crossesThreshold =
-        effectiveThreshold > 0 &&
-        newSignupCount >= effectiveThreshold &&
-        !current.thresholdReachedAt;
-
+      // Threshold is NOT decided here. It is evaluated after the transaction
+      // against a real count of entry documents, so it can never be driven by a
+      // counter that has drifted — see evaluateThreshold below.
       tx.set(
         sourceRef,
         {
           signupCount: FieldValue.increment(1),
           ...(input.interestedInOrganising
             ? { organiserInterestCount: FieldValue.increment(1) }
-            : {}),
-          ...(crossesThreshold
-            ? {
-                status: "threshold_reached",
-                thresholdReachedAt: FieldValue.serverTimestamp(),
-              }
             : {}),
           updatedAt: FieldValue.serverTimestamp(),
         },
@@ -435,11 +422,116 @@ export async function registerWaitlistEntry(
     return { created: true, organiserUpgraded: false };
   });
 
+  // Only a genuinely new registration can move a source towards its threshold.
+  if (outcome.created && resolved) {
+    try {
+      await evaluateThreshold(db, resolved.sourceId);
+    } catch (err) {
+      // The person is registered either way; a failed threshold check must not
+      // turn into a failed signup. The next registration re-evaluates, and the
+      // admin panel recomputes on load.
+      console.error("[waitlist] threshold evaluation failed:", err);
+    }
+  }
+
   return {
     ...outcome,
     audienceLabel,
     interestedInOrganising: input.interestedInOrganising,
   };
+}
+
+// ─── Threshold evaluation ────────────────────────────────────────────────────
+
+/**
+ * Count the registrations that actually exist for a source.
+ *
+ * One document per (source, canonical email), so this is a count of unique
+ * normalised registrations by construction — dots and +tags on a Gmail address
+ * all collapse onto the same document and are counted once.
+ *
+ * Uses an aggregate count rather than reading the documents: cheap, exact, and
+ * unaffected by how many entries there are.
+ */
+export async function countUniqueRegistrations(
+  db: Firestore,
+  demandSourceId: string
+): Promise<number> {
+  const snap = await db
+    .collection(COLLECTIONS.waitlistEntries)
+    .where("demandSourceId", "==", demandSourceId)
+    .count()
+    .get();
+  return snap.data().count;
+}
+
+export interface ThresholdOutcome {
+  uniqueRegistrations: number;
+  effectiveThreshold: number;
+  /** True only on the transition, so callers can act once. */
+  justReached: boolean;
+}
+
+/**
+ * Decide whether a source has met its threshold, counting real documents rather
+ * than trusting the incrementing counter.
+ *
+ * Deliberately separate from the registration transaction: the aggregate query
+ * cannot run inside one, and basing an automatic group creation on a cached
+ * number is exactly the kind of thing that silently creates a group for four
+ * people. The stamp is written conditionally so concurrent callers cannot both
+ * report `justReached`.
+ */
+export async function evaluateThreshold(
+  db: Firestore,
+  demandSourceId: string
+): Promise<ThresholdOutcome | null> {
+  const sourceRef = db.collection(COLLECTIONS.demandSources).doc(demandSourceId);
+  const sourceSnap = await sourceRef.get();
+  if (!sourceSnap.exists) return null;
+
+  const data = sourceSnap.data() ?? {};
+  const globalThreshold = await getGlobalThreshold(db);
+  const effectiveThreshold =
+    typeof data.demandThreshold === "number" && data.demandThreshold > 0
+      ? data.demandThreshold
+      : globalThreshold;
+
+  const uniqueRegistrations = await countUniqueRegistrations(db, demandSourceId);
+  const met = effectiveThreshold > 0 && uniqueRegistrations >= effectiveThreshold;
+
+  // Keep the cached counter honest so the dashboard cannot disagree with the
+  // number the threshold decision was actually made on.
+  const updates: Record<string, unknown> = {
+    uniqueRegistrationCount: uniqueRegistrations,
+  };
+
+  const justReached = await db.runTransaction(async (tx) => {
+    const fresh = await tx.get(sourceRef);
+    const current = fresh.data() ?? {};
+    const alreadyStamped = !!current.thresholdReachedAt;
+
+    if (met && !alreadyStamped && !current.groupId) {
+      tx.set(
+        sourceRef,
+        {
+          ...updates,
+          status:
+            current.status === "active_waitlist" || current.status === "researching"
+              ? "threshold_reached"
+              : current.status,
+          thresholdReachedAt: FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+      return true;
+    }
+
+    tx.set(sourceRef, updates, { merge: true });
+    return false;
+  });
+
+  return { uniqueRegistrations, effectiveThreshold, justReached };
 }
 
 // ─── Source code allocation ──────────────────────────────────────────────────
