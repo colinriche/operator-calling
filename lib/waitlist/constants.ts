@@ -147,6 +147,48 @@ export type TesterStatus = (typeof TESTER_STATUSES)[number];
  */
 export const TESTER_CONSENT_VERSION = "2026-08-08";
 
+// ─── Community interest vs community membership ──────────────────────────────
+//
+// Three distinct things, deliberately not collapsed:
+//
+//   communityInterest        the historical fact that they registered, and the
+//                            attribution that came with it. Never deleted.
+//   communityInterestStatus  whether they still want to hear about this
+//                            community.
+//   groupMembership          their participation in the group, once one exists.
+//
+// Leaving a group is not withdrawing interest, and withdrawing interest does
+// not erase the demand record their registration contributed to.
+
+export const COMMUNITY_INTEREST_STATUSES = [
+  "active",
+  "paused",
+  "withdrawn",
+] as const;
+export type CommunityInterestStatus =
+  (typeof COMMUNITY_INTEREST_STATUSES)[number];
+
+export const GROUP_MEMBERSHIP_STATUSES = [
+  /** No group exists for this community yet. */
+  "none",
+  /** Group exists; they have no account, so they are admitted on sign-up. */
+  "eligible",
+  "member",
+  /** Still a member, but not placed on calls. */
+  "paused",
+  /** Removed from the group. Attribution and demand record survive. */
+  "left",
+] as const;
+export type GroupMembershipStatus =
+  (typeof GROUP_MEMBERSHIP_STATUSES)[number];
+
+/** Memberships that should be admitted or kept when a group activates. */
+export const ADMITTABLE_MEMBERSHIPS: readonly string[] = [
+  "none",
+  "eligible",
+  "member",
+];
+
 // ─── Time zone provenance ────────────────────────────────────────────────────
 
 export const TIMEZONE_SOURCES = ["detected", "user_selected"] as const;

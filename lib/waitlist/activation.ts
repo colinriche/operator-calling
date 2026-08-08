@@ -2,7 +2,7 @@
 
 import { FieldValue } from "firebase-admin/firestore";
 import { getAdminServices } from "@/lib/firebase-admin";
-import { COLLECTIONS } from "./constants";
+import { ADMITTABLE_MEMBERSHIPS, COLLECTIONS } from "./constants";
 import { GROUP_TARGET_PROJECT, groupsDb } from "./group-linking";
 import { DEFAULT_WINDOW, serialiseWindow } from "./schedule";
 import { waitlistDb } from "./server";
@@ -91,7 +91,16 @@ export async function activateCommunityGroup(
   const withoutUid: FirebaseFirestore.DocumentReference[] = [];
 
   for (const doc of entriesSnap.docs) {
-    const uid = await resolveUid(doc.data());
+    const entry = doc.data();
+
+    // Someone who withdrew interest or already left is not swept back in by a
+    // later activation. Their registration still counted towards the demand
+    // that opened the group — the historical record is not what is being
+    // decided here.
+    if (entry.communityInterestStatus === "withdrawn") continue;
+    if (!ADMITTABLE_MEMBERSHIPS.includes(entry.groupMembership ?? "none")) continue;
+
+    const uid = await resolveUid(entry);
     if (uid) withUid.push({ ref: doc.ref, uid });
     else withoutUid.push(doc.ref);
   }
@@ -218,7 +227,12 @@ export async function claimGroupsForAccount(
 
   for (const doc of snap.docs) {
     const data = doc.data();
-    if (!data.groupId || data.groupMembership === "member") continue;
+    if (!data.groupId) continue;
+    // Only someone still waiting to be admitted. Never re-adds a person who
+    // left the group or withdrew interest — signing up is not a request to
+    // rejoin something they deliberately quit.
+    if (data.groupMembership !== "eligible") continue;
+    if (data.communityInterestStatus === "withdrawn") continue;
 
     try {
       await gDb
