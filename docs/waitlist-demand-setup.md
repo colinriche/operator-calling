@@ -1,5 +1,12 @@
 # Waitlist & demand tracking — setup
 
+> **Behaviour here is partly superseded.** See
+> [`waitlist-community-and-tester-spec.md`](./waitlist-community-and-tester-spec.md)
+> for the current model: community interest plus an early access tester
+> programme, auto-created community groups with review after the fact, time
+> zones, and manage links. This document remains accurate for implementation
+> detail — project routing, collections, thresholds, rules and indexes.
+
 Stage 1 of the outreach / group-demand system. Covers the tracked link →
 public waitlist page → registration → attribution → counters path, plus the
 admin panel for creating sources and copying links.
