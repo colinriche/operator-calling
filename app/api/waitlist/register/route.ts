@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { sendEmail } from "@/lib/email/send";
+import { registrationConfirmation } from "@/lib/email/templates";
 import { checkRateLimit, WAITLIST_LIMITS } from "@/lib/rate-limit";
 import { COLLECTIONS, type TimezoneSource } from "@/lib/waitlist/constants";
 import { SCHEDULE_ZONE, isValidTimezone } from "@/lib/waitlist/timezone";
@@ -102,6 +104,21 @@ export async function POST(req: NextRequest) {
       timezone,
       timezoneSource,
     });
+
+    // Only on a genuinely new registration — resubmitting a form should not
+    // generate another confirmation. Fire-and-forget: the person is registered
+    // whether or not the mail leaves, and waiting on SMTP would make the form
+    // feel slow for no benefit.
+    if (result.created) {
+      void sendEmail(
+        registrationConfirmation({
+          to: email,
+          audienceLabel: result.audienceLabel,
+          manageToken: result.manageToken,
+          isTester: result.testerStatus === "active",
+        })
+      );
+    }
 
     // A duplicate looks identical to a first-time signup from the outside —
     // the visitor gets a normal confirmation either way.

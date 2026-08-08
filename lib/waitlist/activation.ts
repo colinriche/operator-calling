@@ -2,10 +2,13 @@
 
 import { FieldValue } from "firebase-admin/firestore";
 import { getAdminServices } from "@/lib/firebase-admin";
+import { isEmailConfigured, sendEmail } from "@/lib/email/send";
+import { groupActivated } from "@/lib/email/templates";
 import { ADMITTABLE_MEMBERSHIPS, COLLECTIONS } from "./constants";
 import { GROUP_TARGET_PROJECT, groupsDb } from "./group-linking";
-import { DEFAULT_WINDOW, serialiseWindow } from "./schedule";
+import { DEFAULT_WINDOW, nextOccurrenceUtc, serialiseWindow } from "./schedule";
 import { waitlistDb } from "./server";
+import { formatInZone } from "./timezone";
 
 // ─── Activating a community group ────────────────────────────────────────────
 //
@@ -195,12 +198,110 @@ export async function activateCommunityGroup(
     { merge: true }
   );
 
+  // Tell everyone who asked to be told. Failures here must not undo the
+  // activation, so this is reported rather than thrown.
+  try {
+    await notifyGroupActivated(demandSourceId, audience || "this interest");
+  } catch (err) {
+    console.error("[activation] notification failed:", err);
+  }
+
   return {
     groupId: groupRef.id,
     interestedCount: entriesSnap.size,
     activeMemberCount,
     pendingCount: withoutUid.length,
   };
+}
+
+/**
+ * Email everyone still interested in a community that its group is live.
+ *
+ * Records notifiedGroupLiveAt per registration before sending, so a retry after
+ * a partial failure does not send twice to the people it already reached —
+ * duplicate mail about the same event is the kind of thing that gets a sending
+ * domain reported.
+ */
+export async function notifyGroupActivated(
+  demandSourceId: string,
+  audienceLabel: string
+): Promise<{ sent: number; failed: number; skipped: number }> {
+  if (!isEmailConfigured()) {
+    console.warn("[activation] email not configured — nobody notified");
+    return { sent: 0, failed: 0, skipped: 0 };
+  }
+
+  const wDb = waitlistDb();
+  const snap = await wDb
+    .collection(COLLECTIONS.waitlistEntries)
+    .where("demandSourceId", "==", demandSourceId)
+    .get();
+
+  const groupSnap = await groupsDb()
+    .collection("groups")
+    .doc((await wDb.collection(COLLECTIONS.demandSources).doc(demandSourceId).get())
+      .data()?.groupId ?? "__none__")
+    .get();
+  const group = groupSnap.data();
+
+  const window = group?.scheduleLocalTime
+    ? {
+        weekday: group.scheduleWeekday ?? DEFAULT_WINDOW.weekday,
+        localTime: group.scheduleLocalTime as string,
+        zone: (group.scheduleZone as string) ?? DEFAULT_WINDOW.zone,
+      }
+    : DEFAULT_WINDOW;
+  const firstCall = nextOccurrenceUtc(window);
+
+  let sent = 0;
+  let failed = 0;
+  let skipped = 0;
+
+  for (const doc of snap.docs) {
+    const entry = doc.data();
+
+    // Respect every way someone can have said "stop".
+    if (entry.communityInterestStatus === "withdrawn") { skipped++; continue; }
+    if (entry.communityInterestStatus === "paused") { skipped++; continue; }
+    if (entry.groupMembership === "left") { skipped++; continue; }
+    if (entry.notifiedGroupLiveAt) { skipped++; continue; }
+    if (!entry.email || !entry.manageToken) { skipped++; continue; }
+
+    const timezone = (entry.timezone as string) || DEFAULT_WINDOW.zone;
+
+    // Claimed before sending: a crash mid-run leaves someone un-emailed, which
+    // is recoverable. The reverse leaves them emailed twice, which is not.
+    await doc.ref.set(
+      { notifiedGroupLiveAt: FieldValue.serverTimestamp() },
+      { merge: true }
+    );
+
+    const result = await sendEmail(
+      groupActivated({
+        to: entry.email,
+        audienceLabel,
+        manageToken: entry.manageToken,
+        firstCallLocal: formatInZone(firstCall, timezone),
+        timezone: timezone.replace(/_/g, " "),
+        needsAccount: entry.groupMembership !== "member",
+      })
+    );
+
+    if (result.sent) sent++;
+    else {
+      failed++;
+      // Let a later run retry this one.
+      await doc.ref.set({ notifiedGroupLiveAt: null }, { merge: true });
+    }
+
+    // Workspace SMTP refuses bursts; pace it.
+    await new Promise((r) => setTimeout(r, 250));
+  }
+
+  console.log(
+    `[activation] notified ${sent} for ${demandSourceId} (${failed} failed, ${skipped} skipped)`
+  );
+  return { sent, failed, skipped };
 }
 
 /**
