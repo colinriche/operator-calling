@@ -11,11 +11,15 @@ import {
   GENERAL_DEMAND_SOURCE_ID,
   LIVE_DEMAND_STATUSES,
   SHARE_CHANNELS,
+  TESTER_CONSENT_VERSION,
+  TESTER_STATUSES,
   type ShareChannel,
+  type TesterStatus,
 } from "./constants";
 import { resolveAudienceLabel, resolveDisclaimer } from "./copy";
 import { canonicalEmail, normaliseEmail } from "./email";
 import {
+  generateManageToken,
   generateSourceCode,
   normaliseSourceCode,
   stableHash,
@@ -315,6 +319,11 @@ export async function registerWaitlistEntry(
   const entryId = `${demandSourceId}__${stableHash(canonical)}`;
   const entryRef = db.collection(COLLECTIONS.waitlistEntries).doc(entryId);
 
+  // Generated up front so the transaction stays deterministic; only actually
+  // written for a new entry, since an existing one keeps the token it already
+  // issued.
+  const manageToken = generateManageToken();
+
   const outcome = await db.runTransaction(async (tx: Transaction) => {
     const existing = await tx.get(entryRef);
 
@@ -330,6 +339,17 @@ export async function registerWaitlistEntry(
       const wasOrganiser = previous.interestedInOrganising === true;
       const upgrade = !wasOrganiser && input.interestedInOrganising;
 
+      // Tester status can be joined on a repeat submission, but a resubmission
+      // must never quietly reactivate someone who paused or left — that is a
+      // decision only they can reverse, from the manage page.
+      const previousTester: TesterStatus = TESTER_STATUSES.includes(
+        previous.testerStatus
+      )
+        ? previous.testerStatus
+        : "none";
+      const joinsTester =
+        input.joinTesterProgramme && previousTester === "none";
+
       tx.set(
         entryRef,
         {
@@ -338,12 +358,28 @@ export async function registerWaitlistEntry(
           country: input.country,
           englishFirstLanguage: input.englishFirstLanguage,
           firstLanguage: input.firstLanguage,
+          timezone: input.timezone,
+          timezoneSource: input.timezoneSource,
           ...(upgrade ? { interestedInOrganising: true } : {}),
+          ...(joinsTester
+            ? {
+                testerStatus: "active",
+                testerConsentAt: FieldValue.serverTimestamp(),
+                testerConsentVersion: TESTER_CONSENT_VERSION,
+                // Attribution is pinned at the moment of opting in, not
+                // overwritten later.
+                testerJoinedFromSourceCode: code,
+              }
+            : {}),
           updatedAt: FieldValue.serverTimestamp(),
           submissionCount: FieldValue.increment(1),
         },
         { merge: true }
       );
+
+      if (joinsTester && sourceRef) {
+        tx.set(sourceRef, { testerCount: FieldValue.increment(1) }, { merge: true });
+      }
 
       // Only the organiser counter can move — signupCount must not grow, or a
       // resubmitted form would push a source over its threshold on its own.
@@ -362,7 +398,14 @@ export async function registerWaitlistEntry(
         }
       }
 
-      return { created: false, organiserUpgraded: upgrade };
+      return {
+        created: false,
+        organiserUpgraded: upgrade,
+        // Reuse the existing token — regenerating would silently break a link
+        // they had already saved.
+        manageToken: (previous.manageToken as string) ?? manageToken,
+        testerStatus: (joinsTester ? "active" : previousTester) as TesterStatus,
+      };
     }
 
     tx.set(entryRef, {
@@ -374,6 +417,25 @@ export async function registerWaitlistEntry(
       country: input.country,
       englishFirstLanguage: input.englishFirstLanguage,
       firstLanguage: input.firstLanguage,
+
+      // Community interest and tester status are independent. A registration
+      // can carry either, both, or only the tester side (no tracked link).
+      communityInterest: !!resolved,
+      testerStatus: input.joinTesterProgramme ? "active" : "none",
+      testerConsentAt: input.joinTesterProgramme
+        ? FieldValue.serverTimestamp()
+        : null,
+      testerConsentVersion: input.joinTesterProgramme
+        ? TESTER_CONSENT_VERSION
+        : null,
+      testerJoinedFromSourceCode: input.joinTesterProgramme ? code : null,
+
+      timezone: input.timezone,
+      timezoneSource: input.timezoneSource,
+
+      manageToken,
+      manageTokenCreatedAt: FieldValue.serverTimestamp(),
+
       sourceCode: code,
       platformId: sourceData.platformId ?? null,
       demandSourceId,
@@ -402,6 +464,9 @@ export async function registerWaitlistEntry(
           ...(input.interestedInOrganising
             ? { organiserInterestCount: FieldValue.increment(1) }
             : {}),
+          ...(input.joinTesterProgramme
+            ? { testerCount: FieldValue.increment(1) }
+            : {}),
           updatedAt: FieldValue.serverTimestamp(),
         },
         { merge: true }
@@ -419,7 +484,14 @@ export async function registerWaitlistEntry(
       );
     }
 
-    return { created: true, organiserUpgraded: false };
+    return {
+      created: true,
+      organiserUpgraded: false,
+      manageToken,
+      testerStatus: (input.joinTesterProgramme
+        ? "active"
+        : "none") as TesterStatus,
+    };
   });
 
   // Only a genuinely new registration can move a source towards its threshold.
@@ -438,6 +510,8 @@ export async function registerWaitlistEntry(
     ...outcome,
     audienceLabel,
     interestedInOrganising: input.interestedInOrganising,
+    communityInterest: !!resolved,
+    timezone: input.timezone,
   };
 }
 

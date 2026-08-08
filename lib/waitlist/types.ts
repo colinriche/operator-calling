@@ -4,6 +4,8 @@ import type {
   RelationshipStatus,
   ShareChannel,
   SourceType,
+  TesterStatus,
+  TimezoneSource,
 } from "./constants";
 
 // ─── Wire shapes ─────────────────────────────────────────────────────────────
@@ -39,6 +41,8 @@ export interface DemandSourceRow {
    */
   uniqueRegistrationCount: number;
   organiserInterestCount: number;
+  /** Registrations from this source who also joined the tester programme. */
+  testerCount: number;
   shareClickCount: number;
   /** Unique visits → signups, 0 when there are no visits yet. */
   conversionRate: number;
@@ -108,6 +112,11 @@ export interface RegistrationInput {
   shareChannel: string | null;
   landingPage: string;
   referrer: string;
+  /** Opted into the early access tester programme. Independent of community. */
+  joinTesterProgramme: boolean;
+  /** IANA zone, browser-detected or chosen by the user. */
+  timezone: string;
+  timezoneSource: TimezoneSource;
 }
 
 export interface RegistrationResult {
@@ -117,4 +126,10 @@ export interface RegistrationResult {
   organiserUpgraded: boolean;
   audienceLabel: string;
   interestedInOrganising: boolean;
+  /** True when this registration carries interest in a specific community. */
+  communityInterest: boolean;
+  testerStatus: TesterStatus;
+  /** Secret URL token so they can manage this registration without an account. */
+  manageToken: string;
+  timezone: string;
 }

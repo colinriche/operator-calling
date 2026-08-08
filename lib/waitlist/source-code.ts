@@ -1,4 +1,4 @@
-import { randomInt, createHash } from "crypto";
+import { randomInt, randomBytes, createHash } from "crypto";
 
 // ─── Tracked source codes ────────────────────────────────────────────────────
 //
@@ -32,6 +32,18 @@ export function isValidSourceCodeFormat(code: unknown): code is string {
     if (!ALPHABET.includes(ch)) return false;
   }
   return true;
+}
+
+// ─── Manage tokens ───────────────────────────────────────────────────────────
+//
+// A bearer credential letting someone with no account manage their own
+// registration — pause, leave, change time zone. Anyone holding it can act as
+// that person, so it is long, random, and never placed in a URL we ask them to
+// share.
+
+/** 32 bytes of entropy, URL-safe. */
+export function generateManageToken(): string {
+  return randomBytes(32).toString("base64url");
 }
 
 /** Normalise a code from a URL: trim and uppercase before lookup. */

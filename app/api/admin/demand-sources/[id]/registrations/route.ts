@@ -37,6 +37,14 @@ export async function GET(
         email: data.email ?? "",
         displayName: data.displayName ?? "",
         interestedInOrganising: data.interestedInOrganising === true,
+        // Community interest and tester status are reported separately — one is
+        // never derived from the other.
+        communityInterest: data.communityInterest !== false,
+        testerStatus: data.testerStatus ?? "none",
+        testerConsentAt: toIso(data.testerConsentAt),
+        testerConsentVersion: data.testerConsentVersion ?? null,
+        testerJoinedFromSourceCode: data.testerJoinedFromSourceCode ?? null,
+        timezone: data.timezone ?? null,
         country: data.country ?? "",
         englishFirstLanguage: data.englishFirstLanguage !== false,
         firstLanguage: data.firstLanguage ?? null,

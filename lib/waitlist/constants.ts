@@ -126,6 +126,32 @@ export const SHARE_CHANNELS = [
 
 export type ShareChannel = (typeof SHARE_CHANNELS)[number];
 
+// ─── Early access tester programme ───────────────────────────────────────────
+//
+// Tracked entirely separately from community interest. Neither is inferred from
+// the other, and leaving one never touches the other.
+
+export const TESTER_STATUSES = [
+  "none",
+  "active",
+  "paused",
+  "left",
+] as const;
+
+export type TesterStatus = (typeof TESTER_STATUSES)[number];
+
+/**
+ * Bump whenever the tester consent wording changes materially. Stored with each
+ * consent so it stays possible to say which version somebody actually agreed
+ * to, rather than assuming it was the current one.
+ */
+export const TESTER_CONSENT_VERSION = "2026-08-08";
+
+// ─── Time zone provenance ────────────────────────────────────────────────────
+
+export const TIMEZONE_SOURCES = ["detected", "user_selected"] as const;
+export type TimezoneSource = (typeof TIMEZONE_SOURCES)[number];
+
 // ─── Demand threshold ────────────────────────────────────────────────────────
 
 /**

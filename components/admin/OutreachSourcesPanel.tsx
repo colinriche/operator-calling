@@ -84,6 +84,11 @@ interface RegistrationRow {
   email: string;
   displayName: string;
   interestedInOrganising: boolean;
+  communityInterest: boolean;
+  testerStatus: string;
+  testerConsentAt: string | null;
+  testerConsentVersion: string | null;
+  timezone: string | null;
   country: string;
   englishFirstLanguage: boolean;
   firstLanguage: string | null;
@@ -909,11 +914,12 @@ export function OutreachSourcesPanel() {
                 <Progress value={pct} className="h-2" />
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-sm">
+              <div className="grid grid-cols-2 sm:grid-cols-6 gap-3 text-sm">
                 {[
                   { label: "Visits", value: source.totalVisitCount },
                   { label: "Unique", value: source.uniqueVisitCount },
                   { label: "Registrations", value: registrationCount },
+                  { label: "Testers", value: source.testerCount },
                   { label: "Organisers", value: source.organiserInterestCount },
                   {
                     label: "Conversion",
@@ -1175,6 +1181,8 @@ export function OutreachSourcesPanel() {
                             <th className="pb-2 pr-3 font-medium">Name</th>
                             <th className="pb-2 pr-3 font-medium">Country</th>
                             <th className="pb-2 pr-3 font-medium">First language</th>
+                            <th className="pb-2 pr-3 font-medium">Tester</th>
+                            <th className="pb-2 pr-3 font-medium">Time zone</th>
                             <th className="pb-2 pr-3 font-medium">Organiser</th>
                             <th className="pb-2 pr-3 font-medium">Code</th>
                             <th className="pb-2 font-medium">Joined</th>
@@ -1196,6 +1204,30 @@ export function OutreachSourcesPanel() {
                                   : r.firstLanguage
                                     ? languageName(r.firstLanguage)
                                     : "—"}
+                              </td>
+                              <td className="py-2 pr-3">
+                                {r.testerStatus === "none" ? (
+                                  <span className="text-muted-foreground">—</span>
+                                ) : (
+                                  <span
+                                    title={
+                                      r.testerConsentAt
+                                        ? `Consented ${new Date(r.testerConsentAt).toLocaleString()} (${r.testerConsentVersion ?? "unknown version"})`
+                                        : undefined
+                                    }
+                                    className={cn(
+                                      "capitalize",
+                                      r.testerStatus === "active"
+                                        ? "text-primary font-medium"
+                                        : "text-muted-foreground"
+                                    )}
+                                  >
+                                    {r.testerStatus}
+                                  </span>
+                                )}
+                              </td>
+                              <td className="py-2 pr-3 text-muted-foreground">
+                                {r.timezone ?? "—"}
                               </td>
                               <td className="py-2 pr-3 text-muted-foreground">
                                 {r.interestedInOrganising ? "Yes" : "—"}

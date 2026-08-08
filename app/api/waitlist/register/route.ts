@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { checkRateLimit, WAITLIST_LIMITS } from "@/lib/rate-limit";
-import { COLLECTIONS } from "@/lib/waitlist/constants";
+import { COLLECTIONS, type TimezoneSource } from "@/lib/waitlist/constants";
+import { SCHEDULE_ZONE, isValidTimezone } from "@/lib/waitlist/timezone";
 import {
   isValidCountryCode,
   isValidLanguageCode,
@@ -64,6 +65,12 @@ export async function POST(req: NextRequest) {
     firstLanguage = body.firstLanguage;
   }
 
+  // Time zone affects display only, so an unrecognised one is not worth failing
+  // a signup over — fall back to the schedule zone and record that we chose it.
+  const timezone = isValidTimezone(body.timezone) ? body.timezone : SCHEDULE_ZONE;
+  const timezoneSource: TimezoneSource =
+    body.timezoneSource === "user_selected" ? "user_selected" : "detected";
+
   try {
     const db = waitlistDb();
     const limit = await checkRateLimit(db, COLLECTIONS.rateLimits, {
@@ -91,6 +98,9 @@ export async function POST(req: NextRequest) {
         typeof body.shareChannel === "string" ? body.shareChannel : null,
       landingPage: str(body.landingPage, 500),
       referrer: str(body.referrer, 500),
+      joinTesterProgramme: body.joinTesterProgramme === true,
+      timezone,
+      timezoneSource,
     });
 
     // A duplicate looks identical to a first-time signup from the outside —
@@ -100,6 +110,10 @@ export async function POST(req: NextRequest) {
       created: result.created,
       audienceLabel: result.audienceLabel,
       interestedInOrganising: result.interestedInOrganising,
+      communityInterest: result.communityInterest,
+      testerStatus: result.testerStatus,
+      manageToken: result.manageToken,
+      timezone: result.timezone,
     });
   } catch (err) {
     console.error("[waitlist/register]", err);

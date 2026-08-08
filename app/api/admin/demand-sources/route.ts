@@ -129,6 +129,7 @@ export async function GET(req: NextRequest) {
         signupCount,
         uniqueRegistrationCount,
         organiserInterestCount: data.organiserInterestCount ?? 0,
+        testerCount: data.testerCount ?? 0,
         shareClickCount: data.shareClickCount ?? 0,
         conversionRate:
           uniqueVisitCount > 0 ? signupCount / uniqueVisitCount : 0,
