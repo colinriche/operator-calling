@@ -130,6 +130,10 @@ export async function GET(req: NextRequest) {
         uniqueRegistrationCount,
         organiserInterestCount: data.organiserInterestCount ?? 0,
         testerCount: data.testerCount ?? 0,
+        activeMemberCount: data.activeMemberCount ?? 0,
+        pendingMemberCount: data.pendingMemberCount ?? 0,
+        reviewRequiredAfterCreate: data.reviewRequiredAfterCreate === true,
+        autoCreatedGroupAt: toIso(data.autoCreatedGroupAt),
         shareClickCount: data.shareClickCount ?? 0,
         conversionRate:
           uniqueVisitCount > 0 ? signupCount / uniqueVisitCount : 0,

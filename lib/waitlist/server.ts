@@ -497,11 +497,28 @@ export async function registerWaitlistEntry(
   // Only a genuinely new registration can move a source towards its threshold.
   if (outcome.created && resolved) {
     try {
-      await evaluateThreshold(db, resolved.sourceId);
+      const threshold = await evaluateThreshold(db, resolved.sourceId);
+
+      // Crossing the line opens the group immediately. Deferring to a human
+      // means a community that fills up on a Friday night waits until Monday,
+      // which is the moment its interest is highest. The safety net is the
+      // review flag set on the source, not a gate before creation.
+      if (threshold?.justReached) {
+        const { activateCommunityGroup } = await import("./activation");
+        const createdBy =
+          (resolved.sourceData.createdBy as string | undefined) ?? null;
+        if (createdBy) {
+          await activateCommunityGroup(resolved.sourceId, createdBy);
+        } else {
+          console.warn(
+            `[waitlist] source ${resolved.sourceId} reached threshold but has no createdBy to own the group`
+          );
+        }
+      }
     } catch (err) {
-      // The person is registered either way; a failed threshold check must not
-      // turn into a failed signup. The next registration re-evaluates, and the
-      // admin panel recomputes on load.
+      // The person is registered either way; a failed threshold check or group
+      // activation must not turn into a failed signup. The next registration
+      // re-evaluates, and the admin panel recomputes on load.
       console.error("[waitlist] threshold evaluation failed:", err);
     }
   }

@@ -18,6 +18,31 @@ interface AuthState {
   refreshProfile: () => Promise<void>;
 }
 
+/**
+ * Link this account into any community group it registered interest in before
+ * having an account.
+ *
+ * Fire-and-forget, once per tab: a community group activates on demonstrated
+ * demand, mostly from people without accounts, so signing up later is the
+ * moment they can actually be admitted. Failures are silent by design — this
+ * must never interfere with signing in.
+ */
+async function claimWaitlistGroups(u: User): Promise<void> {
+  try {
+    const key = `operator_waitlist_claimed_${u.uid}`;
+    if (window.sessionStorage.getItem(key)) return;
+    window.sessionStorage.setItem(key, "1");
+
+    const token = await u.getIdToken();
+    await fetch("/api/waitlist/claim", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  } catch {
+    /* best effort */
+  }
+}
+
 export function useAuth(): AuthState {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -129,6 +154,7 @@ export function useAuth(): AuthState {
       setUser(u);
       if (u) {
         await loadProfile(u);
+        void claimWaitlistGroups(u);
       } else {
         setProfile(null);
         setProfileDocId(null);

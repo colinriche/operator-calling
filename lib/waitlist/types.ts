@@ -43,6 +43,13 @@ export interface DemandSourceRow {
   organiserInterestCount: number;
   /** Registrations from this source who also joined the tester programme. */
   testerCount: number;
+  /** Registrants who have an account and are in the group. */
+  activeMemberCount: number;
+  /** Registrants with no account yet, admitted automatically when they sign up. */
+  pendingMemberCount: number;
+  /** Set when the group was created automatically and still wants a look. */
+  reviewRequiredAfterCreate: boolean;
+  autoCreatedGroupAt: string | null;
   shareClickCount: number;
   /** Unique visits → signups, 0 when there are no visits yet. */
   conversionRate: number;

@@ -983,12 +983,40 @@ export function OutreachSourcesPanel() {
               </div>
 
               {source.groupId && (
-                <p className="text-xs text-muted-foreground border-t border-border/60 pt-3 flex items-center gap-1.5">
-                  <GitBranch className="w-3.5 h-3.5 text-primary shrink-0" />
-                  Linked to group{" "}
-                  <code className="font-mono text-foreground">{source.groupId}</code>
-                  . Attribution and outreach history above are retained.
-                </p>
+                <div className="border-t border-border/60 pt-3 space-y-1.5">
+                  <p className="text-xs text-muted-foreground flex flex-wrap items-center gap-1.5">
+                    <GitBranch className="w-3.5 h-3.5 text-primary shrink-0" />
+                    {source.autoCreatedGroupAt
+                      ? "Group activated automatically"
+                      : "Linked to group"}{" "}
+                    <code className="font-mono text-foreground">
+                      {source.groupId}
+                    </code>
+                  </p>
+                  {/* Interest and membership are different things — a group can
+                      open on 20 expressions of interest while only 2 of those
+                      people have accounts yet. Showing one number would imply
+                      20 callable members. */}
+                  <p className="text-xs text-muted-foreground">
+                    <strong className="text-foreground">
+                      {registrationCount} interested
+                    </strong>{" "}
+                    ·{" "}
+                    <strong className="text-foreground">
+                      {source.activeMemberCount} active member
+                      {source.activeMemberCount !== 1 ? "s" : ""}
+                    </strong>{" "}
+                    · {source.pendingMemberCount} awaiting an account, joined
+                    automatically when they sign up
+                  </p>
+                  {source.reviewRequiredAfterCreate && (
+                    <p className="text-xs text-primary flex items-center gap-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                      Created without review — check the name and that it is not a
+                      duplicate.
+                    </p>
+                  )}
+                </div>
               )}
 
               {openReview === source.id && (
