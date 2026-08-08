@@ -1,9 +1,20 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { CheckCircle, Loader2 } from "lucide-react";
 import { ShareRow } from "@/components/waitlist/ShareRow";
-import { organiserCheckboxLabel } from "@/lib/waitlist/copy";
+import { ManageLink } from "@/components/waitlist/ManageLink";
+import { TimezoneField } from "@/components/waitlist/TimezoneField";
+import {
+  organiserCheckboxLabel,
+  TESTER_CAVEAT,
+  TESTER_EXPLANATION,
+  TESTER_HEADLINE,
+  TESTER_LOGIN_REASON,
+} from "@/lib/waitlist/copy";
+import { SCHEDULE_ZONE } from "@/lib/waitlist/timezone";
+import type { TimezoneSource } from "@/lib/waitlist/constants";
 import {
   LANGUAGES,
   OTHER_COUNTRIES,
@@ -27,11 +38,15 @@ export function WaitlistForm({ context, isPreview }: WaitlistFormProps) {
   const [firstLanguage, setFirstLanguage] = useState("");
   const [organising, setOrganising] = useState(false);
   const [honeypot, setHoneypot] = useState("");
+  const [timezone, setTimezone] = useState(SCHEDULE_ZONE);
+  const [timezoneSource, setTimezoneSource] =
+    useState<TimezoneSource>("detected");
 
   const [status, setStatus] = useState<"idle" | "submitting" | "success">("idle");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState("");
   const [confirmedOrganising, setConfirmedOrganising] = useState(false);
+  const [manageToken, setManageToken] = useState("");
 
   const visitRecorded = useRef(false);
 
@@ -95,13 +110,25 @@ export function WaitlistForm({ context, isPreview }: WaitlistFormProps) {
           landingPage: window.location.pathname + window.location.search,
           referrer: document.referrer,
           website: honeypot,
+          timezone,
+          timezoneSource,
         }),
       });
 
-      const data = (await res.json()) as { error?: string };
+      const data = (await res.json()) as { error?: string; manageToken?: string };
       if (!res.ok) throw new Error(data.error ?? "Request failed");
 
       setConfirmedOrganising(organising);
+      setManageToken(data.manageToken ?? "");
+      // Saved so the manage link survives a closed tab before email exists to
+      // deliver it. Best-effort — private browsing may refuse.
+      if (data.manageToken) {
+        try {
+          window.localStorage.setItem("operator_waitlist_token", data.manageToken);
+        } catch {
+          /* storage unavailable — the link is still on screen */
+        }
+      }
       setStatus("success");
     } catch (err) {
       console.error(err);
@@ -136,6 +163,51 @@ export function WaitlistForm({ context, isPreview }: WaitlistFormProps) {
             </p>
           )}
         </div>
+
+        {/* Tester offer. Deliberately after the confirmation: registering
+            interest is done and saved, so abandoning this costs nothing. */}
+        <div className="bg-card rounded-2xl border border-primary/40 p-6 sm:p-8">
+          <h2 className="font-heading font-bold text-xl text-foreground mb-2">
+            {TESTER_HEADLINE}
+          </h2>
+          <p className="text-muted-foreground leading-relaxed mb-3">
+            {TESTER_EXPLANATION}
+          </p>
+          <p className="text-sm text-muted-foreground leading-relaxed mb-5">
+            {TESTER_CAVEAT}
+          </p>
+
+          {manageToken ? (
+            <Link
+              href={`/waitlist/tester?t=${encodeURIComponent(manageToken)}`}
+              className="inline-flex items-center justify-center h-11 px-5 rounded-xl gradient-gold border-0 text-primary-foreground font-heading font-semibold text-sm hover:opacity-90 transition-opacity"
+            >
+              Join early access
+            </Link>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Early access sign-up is briefly unavailable — your interest above is
+              recorded either way.
+            </p>
+          )}
+
+          <p className="text-xs text-muted-foreground mt-3">
+            {TESTER_LOGIN_REASON}
+          </p>
+        </div>
+
+        {manageToken && (
+          <div className="rounded-2xl border border-border/60 bg-background/60 p-5">
+            <p className="text-sm text-foreground font-medium mb-1.5">
+              Save this link
+            </p>
+            <p className="text-xs text-muted-foreground leading-relaxed mb-3">
+              It lets you pause, leave or change your time zone later, without an
+              account. Keep it private — anyone with it can change your settings.
+            </p>
+            <ManageLink token={manageToken} />
+          </div>
+        )}
 
         <ShareRow
           sourceCode={context.sourceCode}
@@ -324,6 +396,15 @@ export function WaitlistForm({ context, isPreview }: WaitlistFormProps) {
             </div>
           )}
         </div>
+
+        <TimezoneField
+          value={timezone}
+          source={timezoneSource}
+          onChange={(zone, src) => {
+            setTimezone(zone);
+            setTimezoneSource(src);
+          }}
+        />
 
         <label className="flex items-start gap-3 cursor-pointer pt-1">
           <input

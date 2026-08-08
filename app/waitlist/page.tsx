@@ -78,9 +78,9 @@ export default async function WaitlistPage({
       </ul>
 
       <p className="text-sm text-muted-foreground leading-relaxed mb-8">
-        It is a separate service from the website, group or discussion where you
-        found this link. Calls take place through The Operator without anyone
-        sharing their phone number.
+        The Operator is independent and not affiliated with the website, group or
+        discussion where you found this link. Calls take place through The
+        Operator without anyone sharing their phone number.
       </p>
 
       <WaitlistForm context={context} isPreview={isPreview} />
