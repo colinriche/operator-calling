@@ -61,6 +61,95 @@ export async function GET(req: NextRequest, { params }: Params) {
   }
 }
 
+// ─── Keeping the dispatcher honest ───────────────────────────────────────────
+//
+// group.callsEnabled is the authoritative control, but the code that actually
+// places calls lives in another codebase and does not check it yet. Existing
+// dispatch queries filter on status == "scheduled", so flipping a group's
+// schedules to "paused" makes them invisible to a dispatcher that knows nothing
+// about callsEnabled.
+//
+// This is belt and braces, not a substitute: the guard still belongs in the
+// dispatch path. The schedule's day, time and zone are untouched either way —
+// only its dispatch status moves.
+
+/** Mark a group's schedules as not for dispatch. Definitions are preserved. */
+async function pauseSchedules(groupId: string): Promise<void> {
+  try {
+    const db = groupsDb();
+    const snap = await db
+      .collection("scheduledGroupCalls")
+      .where("groupId", "==", groupId)
+      .where("status", "==", "scheduled")
+      .get();
+
+    const batch = db.batch();
+    for (const doc of snap.docs) {
+      batch.set(
+        doc.ref,
+        { status: "paused", pausedAt: FieldValue.serverTimestamp() },
+        { merge: true }
+      );
+    }
+    await batch.commit();
+  } catch (err) {
+    console.error("[groups/calls] pausing schedules failed:", err);
+  }
+}
+
+/**
+ * Return a group's schedules to dispatch, moved forward to the next occurrence.
+ *
+ * Recomputing scheduledAt is what makes "do not replay missed calls" true: a
+ * paused schedule whose time passed would otherwise be instantly overdue and
+ * fire the moment it became visible again.
+ */
+async function resumeSchedules(
+  groupId: string,
+  group: FirebaseFirestore.DocumentData
+): Promise<string | null> {
+  const next = nextCallIso(group);
+  try {
+    const db = groupsDb();
+    const snap = await db
+      .collection("scheduledGroupCalls")
+      .where("groupId", "==", groupId)
+      .where("status", "==", "paused")
+      .get();
+
+    const batch = db.batch();
+    for (const doc of snap.docs) {
+      const data = doc.data();
+      // Prefer each schedule's own definition; fall back to the group's.
+      const window: WeeklyWindow = data.scheduleLocalTime
+        ? {
+            weekday: data.scheduleWeekday ?? 0,
+            localTime: data.scheduleLocalTime,
+            zone: data.scheduleZone ?? SCHEDULE_ZONE,
+          }
+        : {
+            weekday: group.scheduleWeekday ?? 0,
+            localTime: group.scheduleLocalTime ?? "19:00",
+            zone: group.scheduleZone ?? SCHEDULE_ZONE,
+          };
+
+      batch.set(
+        doc.ref,
+        {
+          status: "scheduled",
+          scheduledAt: nextOccurrenceUtc(window),
+          resumedAt: FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+    }
+    await batch.commit();
+  } catch (err) {
+    console.error("[groups/calls] resuming schedules failed:", err);
+  }
+  return next;
+}
+
 function nextCallIso(group: FirebaseFirestore.DocumentData): string | null {
   if (!group.scheduleLocalTime) return null;
   const window: WeeklyWindow = {
@@ -140,12 +229,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         { merge: true }
       );
 
-      // Resume from the next valid occurrence. Anything that fell due while
-      // paused is not replayed.
-      return NextResponse.json({
-        callsEnabled: true,
-        nextCall: nextCallIso(group),
-      });
+      // Resume from the next valid occurrence, and only that one. Rewriting
+      // scheduledAt forward is what stops anything that fell due while paused
+      // from firing the moment calls come back on.
+      const nextRun = await resumeSchedules(id, group);
+
+      return NextResponse.json({ callsEnabled: true, nextCall: nextRun });
     }
 
     await ref.set(
@@ -159,7 +248,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       { merge: true }
     );
 
-    // Schedules are deliberately left exactly as they are.
+    await pauseSchedules(id);
+
     return NextResponse.json({ callsEnabled: false });
   } catch (err) {
     console.error("[groups/calls PATCH]", err);

@@ -163,7 +163,13 @@ export async function activateCommunityGroup(
     scheduledAt: schedule.scheduleNextRunUtc,
     callType: "group",
     showUser: true,
-    status: "scheduled",
+    // "paused", not "scheduled" — defence in depth. group.callsEnabled is the
+    // authoritative control, but the dispatcher lives in another codebase and
+    // does not check it yet. Existing dispatch queries filter on
+    // status == "scheduled", so a paused schedule is skipped by code that knows
+    // nothing about callsEnabled. The schedule itself is fully preserved; only
+    // its dispatch status differs, and enabling calls restores it.
+    status: "paused",
     recurrence: "weekly",
     scheduleZone: window.zone,
     scheduleLocalTime: window.localTime,
