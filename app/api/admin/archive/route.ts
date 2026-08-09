@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAdmin } from "@/lib/admin-auth";
 import { getAdminServices } from "@/lib/firebase-admin";
 import { deleteArchivePermanently } from "@/lib/user-archive";
 
@@ -18,21 +19,19 @@ interface ArchiveRow {
   deletionType: string;
 }
 
-async function requireAdmin(req: NextRequest, superAdminOnly = false) {
-  const authHeader = req.headers.get("authorization") ?? "";
-  const token = authHeader.replace("Bearer ", "").trim();
-  if (!token) return null;
-
-  const { db, adminAuth } = getAdminServices();
-  const decoded = await adminAuth.verifyIdToken(token);
-  const callerSnap = await db.collection("user").doc(decoded.uid).get();
-  const role = callerSnap.data()?.role;
-  if (superAdminOnly) {
-    if (role !== "super_admin") return null;
-  } else if (role !== "admin" && role !== "super_admin") {
-    return null;
-  }
-  return { db };
+// Was a local copy that only looked at user/{auth.uid}. A Firestore `user`
+// document does not reliably live there — phone auth mints a fresh uid, so a
+// linked account's profile stays under its original document id. That made this
+// route 403 real admins whose browser showed them as admins, exactly as it did
+// on the outreach panel. lib/admin-auth.ts resolves a profile the same way
+// hooks/useAuth.ts does.
+async function requireArchiveAccess(
+  req: NextRequest,
+  superAdminOnly = false
+): Promise<{ db: FirebaseFirestore.Firestore } | null> {
+  const caller = await requireAdmin(req, { superAdminOnly });
+  if (!caller) return null;
+  return { db: getAdminServices().db };
 }
 
 function toIso(value: unknown): string | null {
@@ -44,7 +43,7 @@ function toIso(value: unknown): string | null {
 
 export async function GET(req: NextRequest) {
   try {
-    const services = await requireAdmin(req);
+    const services = await requireArchiveAccess(req);
     if (!services) {
       return NextResponse.json({ error: "Admin role required" }, { status: 403 });
     }
@@ -88,7 +87,7 @@ export async function GET(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    const services = await requireAdmin(req, true);
+    const services = await requireArchiveAccess(req, true);
     if (!services) {
       return NextResponse.json({ error: "Super admin role required" }, { status: 403 });
     }

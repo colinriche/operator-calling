@@ -349,7 +349,51 @@ Save this link to pause, leave or change your time zone later: [manage link]
 | Public copy | **Rewrite** per §8 |
 | Tester fields, time zone, manage token | **New** |
 | Auto-scheduling of the default window | **New** |
-| Notification on group creation | **Blocked** on an email provider |
+| Notification on group creation | Built — needs SMTP credentials to actually send |
+| Calls On/Off, group-admin appointment, organiser review | **New** — see 9b |
+
+## 9b. Who administers a community group
+
+One field is authoritative. The other two are supporting, and writing either
+without the other is what previously produced a group that had an admin by one
+definition and not another.
+
+| | Meaning |
+|---|---|
+| `groups.groupAdminId` | **Source of truth.** Who administers this group. |
+| `groups.createdBy` | Provenance — who created it. For an auto-created group, the staff member who set up the demand source. Not authority. |
+| `memberships` doc, `role: "admin"` | The index `GroupAdminDashboard` queries. Written alongside `groupAdminId`, never alone. |
+
+`POST /api/admin/groups/[id]/admin` is the only writer of both, and it also adds
+the person to `memberIds` because the Firestore rules gate group reads on that.
+It never touches `callsEnabled`.
+
+Activation and the account-claim path also write `memberships` documents with
+`role: "member"`, or a group created from demand appears empty to its own admin.
+
+### Organiser interest → appointment
+
+Ticking the organiser box on the waitlist form grants nothing. Four things are
+stored separately because they collapse into each other otherwise:
+
+```
+organiserStatus      new | reviewing | contacted | interested |
+                     verification_needed | verified | not_suitable |
+                     declined | approved
+claimsToRunSource    they SAY they run the external community
+claimVerified        somebody checked
+groups.groupAdminId  actual authority
+```
+
+`claimsToRunSource` is an unverified assertion by a stranger. The admin panel
+labels it as such, and **appointment is disabled until `claimVerified` is set**.
+
+Appointment additionally requires an Operator account on that email address —
+authority attaches to a uid, and a volunteer who has not signed up has none. The
+panel says which precondition is missing rather than showing a dead button.
+
+Review state lives on the waitlist entry, not a separate collection: the entry
+already holds the person, their community and their attribution.
 
 ## 10. Integration still required — calls must respect the flag
 
@@ -380,12 +424,10 @@ callsUpdatedBy     uid
 
 ## 11. Open items
 
-- **Email provider** — needed for notification and for delivering manage links.
-  Nothing reaches a registrant without it.
+- **SMTP credentials** — the sending layer is built (docs/email-setup.md);
+  nothing actually reaches a registrant until the Google Workspace variables are
+  set in Vercel.
 - **Default community threshold** — 20 was the figure discussed; currently set
   low for testing and editable per source in the dashboard.
-- **Handing a community group to a verified organiser** — organiser interest is
-  captured, but transferring group ownership (`createdBy`) is not built.
-- **Email normalisation** — `colin+x@` and Gmail dot variants still count as
-  separate registrations, so they inflate a threshold that now auto-creates a
-  group. More consequential under this plan than the last one.
+- **Outreach records and the AI comment generator** — the last untouched area of
+  the original spec.
