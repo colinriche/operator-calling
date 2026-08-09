@@ -339,16 +339,15 @@ export async function registerWaitlistEntry(
       const wasOrganiser = previous.interestedInOrganising === true;
       const upgrade = !wasOrganiser && input.interestedInOrganising;
 
-      // Tester status can be joined on a repeat submission, but a resubmission
-      // must never quietly reactivate someone who paused or left — that is a
-      // decision only they can reverse, from the manage page.
+      // Tester status is never touched here. Joining requires a verified
+      // account and happens only through the authenticated tester route, so an
+      // unauthenticated resubmission must not be able to activate, reactivate
+      // or alter it.
       const previousTester: TesterStatus = TESTER_STATUSES.includes(
         previous.testerStatus
       )
         ? previous.testerStatus
         : "none";
-      const joinsTester =
-        input.joinTesterProgramme && previousTester === "none";
 
       tx.set(
         entryRef,
@@ -361,25 +360,11 @@ export async function registerWaitlistEntry(
           timezone: input.timezone,
           timezoneSource: input.timezoneSource,
           ...(upgrade ? { interestedInOrganising: true } : {}),
-          ...(joinsTester
-            ? {
-                testerStatus: "active",
-                testerConsentAt: FieldValue.serverTimestamp(),
-                testerConsentVersion: TESTER_CONSENT_VERSION,
-                // Attribution is pinned at the moment of opting in, not
-                // overwritten later.
-                testerJoinedFromSourceCode: code,
-              }
-            : {}),
           updatedAt: FieldValue.serverTimestamp(),
           submissionCount: FieldValue.increment(1),
         },
         { merge: true }
       );
-
-      if (joinsTester && sourceRef) {
-        tx.set(sourceRef, { testerCount: FieldValue.increment(1) }, { merge: true });
-      }
 
       // Only the organiser counter can move — signupCount must not grow, or a
       // resubmitted form would push a source over its threshold on its own.
@@ -404,7 +389,7 @@ export async function registerWaitlistEntry(
         // Reuse the existing token — regenerating would silently break a link
         // they had already saved.
         manageToken: (previous.manageToken as string) ?? manageToken,
-        testerStatus: (joinsTester ? "active" : previousTester) as TesterStatus,
+        testerStatus: previousTester,
       };
     }
 
@@ -421,14 +406,11 @@ export async function registerWaitlistEntry(
       // Community interest and tester status are independent. A registration
       // can carry either, both, or only the tester side (no tracked link).
       communityInterest: !!resolved,
-      testerStatus: input.joinTesterProgramme ? "active" : "none",
-      testerConsentAt: input.joinTesterProgramme
-        ? FieldValue.serverTimestamp()
-        : null,
-      testerConsentVersion: input.joinTesterProgramme
-        ? TESTER_CONSENT_VERSION
-        : null,
-      testerJoinedFromSourceCode: input.joinTesterProgramme ? code : null,
+      // Always "none". Only the authenticated tester route can change this.
+      testerStatus: "none",
+      testerConsentAt: null,
+      testerConsentVersion: null,
+      testerJoinedFromSourceCode: null,
 
       timezone: input.timezone,
       timezoneSource: input.timezoneSource,
@@ -464,9 +446,6 @@ export async function registerWaitlistEntry(
           ...(input.interestedInOrganising
             ? { organiserInterestCount: FieldValue.increment(1) }
             : {}),
-          ...(input.joinTesterProgramme
-            ? { testerCount: FieldValue.increment(1) }
-            : {}),
           updatedAt: FieldValue.serverTimestamp(),
         },
         { merge: true }
@@ -488,9 +467,7 @@ export async function registerWaitlistEntry(
       created: true,
       organiserUpgraded: false,
       manageToken,
-      testerStatus: (input.joinTesterProgramme
-        ? "active"
-        : "none") as TesterStatus,
+      testerStatus: "none" as TesterStatus,
     };
   });
 

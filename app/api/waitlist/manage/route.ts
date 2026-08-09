@@ -58,6 +58,7 @@ export async function GET(req: NextRequest) {
     // than a cached instant, so it stays correct across a DST change.
     let nextCall: string | null = null;
     let scheduleLabel: string | null = null;
+    let groupCallsEnabled = false;
     if (data.groupId) {
       try {
         const groupSnap = await groupsDb()
@@ -65,7 +66,11 @@ export async function GET(req: NextRequest) {
           .doc(data.groupId)
           .get();
         const group = groupSnap.data();
-        if (group?.scheduleLocalTime) {
+        groupCallsEnabled = group?.callsEnabled === true;
+        // Only advertise a time when calls are actually running. Telling a
+        // member "next call Sunday 7pm" for a paused group is worse than saying
+        // nothing — they would turn up to silence.
+        if (group?.scheduleLocalTime && groupCallsEnabled) {
           const window: WeeklyWindow = {
             weekday: group.scheduleWeekday ?? 0,
             localTime: group.scheduleLocalTime,
@@ -104,6 +109,7 @@ export async function GET(req: NextRequest) {
       timezoneSource: data.timezoneSource ?? "detected",
       nextCall,
       scheduleLabel,
+      groupCallsEnabled,
     });
   } catch (err) {
     console.error("[waitlist/manage GET]", err);

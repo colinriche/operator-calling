@@ -37,6 +37,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { db } from "@/lib/firebase";
+import { GroupCallsToggle } from "@/components/admin/GroupCallsToggle";
 import { useAuth } from "@/hooks/useAuth";
 
 // ─── Interfaces ───────────────────────────────────────────────────────────────
@@ -633,6 +634,11 @@ export function GroupAdminDashboard({ defaultTab = "members" }: { defaultTab?: s
         <h1 className="font-heading font-bold text-3xl text-foreground mb-1">Group Admin</h1>
         <p className="text-muted-foreground">{groupName} — manage your group, members, and calls.</p>
       </div>
+
+      {/* Whether this group is calling at all — above the stats, because a
+          group created from waitlist demand arrives with calls off and nothing
+          else on this page explains why nobody is being called. */}
+      <GroupCallsToggle groupId={groupId} />
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">

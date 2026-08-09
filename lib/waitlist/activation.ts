@@ -29,11 +29,18 @@ export interface ActivationResult {
 }
 
 /**
- * Resolve the Firebase uid for a registration, if the person has an account.
+ * Resolve the Firebase uid for a registration — only from verified identity.
  *
- * Two routes: they joined the tester programme (which requires signing in and
- * records the uid), or they registered interest with an address that already
- * has an account.
+ * The single accepted route is `testerUid`, recorded by the authenticated
+ * tester flow after verifying an ID token.
+ *
+ * This used to also match the registration's email against the `user`
+ * collection. That treated an unverified address as proof of identity: anyone
+ * could register interest using a stranger's email and have that stranger
+ * silently added to a group. Nobody is worse off for the removal — an account
+ * holder who registered with their own address is admitted the moment they next
+ * sign in, by claimGroupsForAccount, which matches on the verified email in
+ * their ID token.
  */
 async function resolveUid(
   entry: FirebaseFirestore.DocumentData
@@ -41,22 +48,7 @@ async function resolveUid(
   if (typeof entry.testerUid === "string" && entry.testerUid) {
     return entry.testerUid;
   }
-
-  const email = entry.normalisedEmail as string | undefined;
-  if (!email) return null;
-
-  try {
-    const { db } = getAdminServices();
-    const snap = await db
-      .collection("user")
-      .where("email", "==", email)
-      .limit(1)
-      .get();
-    return snap.empty ? null : snap.docs[0].id;
-  } catch (err) {
-    console.error("[activation] uid lookup failed:", err);
-    return null;
-  }
+  return null;
 }
 
 /**
@@ -177,6 +169,26 @@ export async function activateCommunityGroup(
     createdFromDemand: true,
     createdAt: FieldValue.serverTimestamp(),
   });
+
+  // GroupAdminDashboard builds its member list from `memberships`, not from
+  // memberIds, so a group created without these appears empty to its admin.
+  const membershipBatch = gDb.batch();
+  for (const uid of memberIds) {
+    membershipBatch.set(
+      gDb.collection("memberships").doc(`${groupRef.id}__${uid}`),
+      {
+        groupId: groupRef.id,
+        userId: uid,
+        // Nobody administers this group yet — createdBy is the staff member who
+        // set up the demand source, not someone running the community.
+        role: "member",
+        status: "active",
+        joinedAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+  }
+  await membershipBatch.commit();
 
   // Mark registrations. Those with accounts are members; the rest stay attached
   // as eligible, to be linked in when they sign up.
@@ -360,6 +372,20 @@ export async function claimGroupsForAccount(
             memberIds: FieldValue.arrayUnion(uid),
             [`members.${uid}`]: { joinedAt: FieldValue.serverTimestamp() },
             updatedAt: FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
+
+      await gDb
+        .collection("memberships")
+        .doc(`${data.groupId}__${uid}`)
+        .set(
+          {
+            groupId: data.groupId,
+            userId: uid,
+            role: "member",
+            status: "active",
+            joinedAt: FieldValue.serverTimestamp(),
           },
           { merge: true }
         );

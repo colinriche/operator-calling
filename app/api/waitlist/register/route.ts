@@ -100,7 +100,6 @@ export async function POST(req: NextRequest) {
         typeof body.shareChannel === "string" ? body.shareChannel : null,
       landingPage: str(body.landingPage, 500),
       referrer: str(body.referrer, 500),
-      joinTesterProgramme: body.joinTesterProgramme === true,
       timezone,
       timezoneSource,
     });

@@ -21,6 +21,7 @@ interface ManageState {
   nextCall: string | null;
   scheduleLabel: string | null;
   nextTesterCall: string | null;
+  groupCallsEnabled: boolean;
 }
 
 const STATUS_TEXT: Record<string, string> = {
@@ -158,7 +159,22 @@ export function ManagePanel({ token }: { token: string }) {
         />
       </section>
 
-      {/* Upcoming call */}
+      {/* Upcoming call. Only shown when the group is actually calling — a time
+          for a paused group would send someone to silence. */}
+      {state.groupId && !state.groupCallsEnabled && isMember && (
+        <section className="bg-card rounded-2xl border border-border/60 p-6">
+          <h2 className="font-heading font-semibold text-base text-foreground mb-2 flex items-center gap-2">
+            <CalendarClock className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
+            Calls not running yet
+          </h2>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            This group has a weekly time set, but calls have not been switched on
+            yet. We&apos;ll let you know when they start — there&apos;s nothing you
+            need to do.
+          </p>
+        </section>
+      )}
+
       {state.nextCall && (
         <section className="bg-card rounded-2xl border border-primary/40 p-6">
           <h2 className="font-heading font-semibold text-base text-foreground mb-2 flex items-center gap-2">

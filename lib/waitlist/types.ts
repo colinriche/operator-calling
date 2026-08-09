@@ -123,12 +123,18 @@ export interface RegistrationInput {
   shareChannel: string | null;
   landingPage: string;
   referrer: string;
-  /** Opted into the early access tester programme. Independent of community. */
-  joinTesterProgramme: boolean;
   /** IANA zone, browser-detected or chosen by the user. */
   timezone: string;
   timezoneSource: TimezoneSource;
 }
+
+// Deliberately absent: any way to join the tester programme.
+//
+// Tester activation requires a verified account, so it cannot be expressed
+// through an unauthenticated registration. It happens only via
+// POST /api/waitlist/tester, which demands a Firebase ID token. Re-adding a
+// field here would reopen the bypass — a scripted POST minting "active testers"
+// who never authenticated and never consented.
 
 export interface RegistrationResult {
   /** False when the email had already registered for this source. */

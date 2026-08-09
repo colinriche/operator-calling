@@ -36,8 +36,9 @@ import type { DemandSourceRow } from "@/lib/waitlist/types";
 // the audience, the tracked links posted for it, and how much demand those
 // links have actually produced.
 //
-// Adding a source here creates no Operator group. A group is only created after
-// demand clears the threshold and a person reviews it.
+// Adding a source here creates no Operator group. One is created automatically
+// when demand clears the threshold, then flagged for review — with its calls
+// off until a group admin is appointed and turns them on.
 
 type SortKey =
   | "recent"
@@ -350,6 +351,35 @@ export function OutreachSourcesPanel() {
     } catch (err) {
       console.error(err);
       toast.error(err instanceof Error ? err.message : "Failed to save");
+    }
+  }
+
+  async function appointGroupAdmin(groupId: string) {
+    if (!user || !groupId) return;
+    const identifier = window.prompt(
+      "Appoint a group admin — username, email address or uid.\n\nThis does not switch calls on; they turn them on themselves when ready."
+    );
+    if (!identifier?.trim()) return;
+
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/admin/groups/${groupId}/admin`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ identifier: identifier.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to appoint");
+      toast.success(
+        `${data.displayName ?? "Group admin"} appointed — calls unchanged, they turn them on`
+      );
+      await load();
+    } catch (err) {
+      console.error(err);
+      toast.error(err instanceof Error ? err.message : "Failed to appoint");
     }
   }
 
@@ -1061,6 +1091,16 @@ export function OutreachSourcesPanel() {
                             ? "paused by an administrator"
                             : "paused by the group admin"}
                       </span>
+                    )}
+                    {source.callsPausedReason === "awaiting_group_admin" && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => void appointGroupAdmin(source.groupId!)}
+                      >
+                        <UsersRound className="w-3.5 h-3.5" />
+                        Appoint group admin
+                      </Button>
                     )}
                     <Button
                       variant="outline"
