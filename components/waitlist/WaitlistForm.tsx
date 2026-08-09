@@ -12,6 +12,8 @@ import {
   TESTER_EXPLANATION,
   TESTER_HEADLINE,
   TESTER_LOGIN_REASON,
+  TESTER_PREVIEW_BODY,
+  TESTER_PREVIEW_HEADLINE,
 } from "@/lib/waitlist/copy";
 import { SCHEDULE_ZONE } from "@/lib/waitlist/timezone";
 import type { TimezoneSource } from "@/lib/waitlist/constants";
@@ -418,6 +420,20 @@ export function WaitlistForm({ context, isPreview }: WaitlistFormProps) {
           </span>
         </label>
 
+        {/* A heads-up, not a field. Early Access is an optional second step
+            after joining — nothing here is part of this submission, which is
+            why there is no checkbox. */}
+        <div className="rounded-xl border border-primary/30 bg-primary/5 px-4 py-3.5">
+          <p className="font-heading font-semibold text-sm text-foreground mb-1">
+            {TESTER_PREVIEW_HEADLINE}
+          </p>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            {TESTER_PREVIEW_BODY}
+          </p>
+        </div>
+
+        {/* Kept directly above the button so an error is next to the action it
+            refers to. */}
         {formError && (
           <p
             role="alert"
