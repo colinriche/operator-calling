@@ -120,3 +120,45 @@ ${
     html,
   };
 }
+
+// ─── Early access calls scheduled ────────────────────────────────────────────
+
+export function testerCallsScheduled(opts: {
+  to: string;
+  manageToken: string;
+  /** Already rendered in the recipient's own time zone. */
+  firstCallLocal: string;
+  timezone: string;
+  recurrence: string;
+}): EmailMessage {
+  const link = manageUrl(opts.manageToken);
+
+  const text = `Early access calls now have a time.
+
+${opts.recurrence}
+Next one: ${opts.firstCallLocal} (${opts.timezone})
+
+Make yourself available around then and The Operator will connect you with someone. You don't need to find anyone or arrange anything.
+
+Change your time zone, pause or leave at any time:
+${link}
+
+The Operator is an independent service.`;
+
+  const html = wrap(
+    `<p><strong>Early access calls now have a time.</strong></p>
+<p style="background:#faf6ec;border:1px solid #e8dcbb;border-radius:8px;padding:12px 14px;margin:18px 0">
+  <strong>Next call:</strong> ${opts.firstCallLocal}<br>
+  <span style="font-size:13px;color:#767676">${opts.recurrence} · shown in ${opts.timezone}</span>
+</p>
+<p>Make yourself available around then and The Operator will connect you with someone. You don't need to find anyone or arrange anything.</p>`,
+    link
+  );
+
+  return {
+    to: opts.to,
+    subject: "Your early access calls have a time",
+    text,
+    html,
+  };
+}

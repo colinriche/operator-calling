@@ -146,6 +146,70 @@ autoCreatedGroupAt           timestamp
 reviewRequiredAfterCreate    bool
 ```
 
+### Scheduling: two different models
+
+These are deliberately not the same, and conflating them is the mistake to
+avoid.
+
+**Global Early Access = manually scheduled testing.** The tester pool gets **no
+automatic or default recurring schedule**. An admin creates a window when there
+is a test to run. Testers see it in their own time zone and are emailed when one
+is created. Windows can be paused, edited or deleted. The global pool is not a
+group and is not treated as one.
+
+**Community group = default schedule created automatically at activation.**
+Sunday 19:00 Europe/London, created the moment the group is, even if the group
+has no admin yet. Turning calls on later must never have to invent a schedule.
+
+### A schedule existing does not mean calls are enabled
+
+Every community group carries a **Calls On / Off** flag, separate from its
+schedule.
+
+| | Effect |
+|---|---|
+| **Calls On** | Scheduled calls operate normally |
+| **Calls Off** | Group stays active, members stay, people can still join, schedules stay stored **unchanged**. No calls start and no matches are created. |
+
+Turning calls off never deletes, cancels or alters a schedule. Turning them back
+on resumes from the **next valid occurrence** — nothing missed while paused is
+replayed.
+
+### A community group without a group admin starts with Calls OFF
+
+On automatic creation:
+
+1. Create the group.
+2. Create the default Sunday 19:00 Europe/London schedule.
+3. Set `callsEnabled: false`, `callsPausedReason: "awaiting_group_admin"`.
+4. Do not run calls.
+
+The group can exist, accumulate members and hold a ready schedule while calling
+has not begun, because nobody is yet responsible for it. `createdBy` is the
+Operator staff member who set up the demand source — that is not the same as
+somebody who has taken on running this community's calls.
+
+**Appointing a group admin does not switch calls on.** The admin turns them on
+explicitly when ready. Prefer explicit activation even where an admin already
+exists at creation.
+
+Sequence:
+
+```
+threshold reached → group created → default schedule created
+  → no group admin → Calls OFF
+  → group admin appointed → admin chooses Calls ON → calls begin
+```
+
+### Who can toggle Calls
+
+- Group admins, for their own group
+- Site admins
+- Super admins
+
+So site and super admins hold an operational kill switch for an individual group
+without deleting it or touching anyone's schedule.
+
 ### Schedules
 
 Stored in UTC. A community group's default window is **Sunday 19:00
@@ -287,7 +351,34 @@ Save this link to pause, leave or change your time zone later: [manage link]
 | Auto-scheduling of the default window | **New** |
 | Notification on group creation | **Blocked** on an email provider |
 
-## 10. Open items
+## 10. Integration still required — calls must respect the flag
+
+**The `callsEnabled` flag is stored and enforced everywhere this codebase
+controls, but this codebase does not place calls.**
+
+Whatever runs scheduled group calls — the mobile app, or a Cloud Function —
+must read `callsEnabled` on the group document and skip any group where it is
+`false`. Until it does, a group created automatically will have a stored
+schedule, `callsEnabled: false`, and calls that still run.
+
+The check is one condition:
+
+```
+if (group.callsEnabled !== true) return;   // skip: calls paused
+```
+
+Fields written on the group document:
+
+```
+callsEnabled       boolean   — false on automatic creation
+callsPausedReason  string    — awaiting_group_admin | admin_paused | group_admin_paused
+groupAdminId       string?   — null until an organiser is appointed
+callsEnabledAt     timestamp
+callsPausedAt      timestamp
+callsUpdatedBy     uid
+```
+
+## 11. Open items
 
 - **Email provider** — needed for notification and for delivering manage links.
   Nothing reaches a registrant without it.

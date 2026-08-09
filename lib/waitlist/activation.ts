@@ -139,12 +139,22 @@ export async function activateCommunityGroup(
     demandSourceId,
     createdFromDemand: true,
     ...schedule,
+
+    // The schedule exists from the moment the group does, but calling does not
+    // begin automatically. `createdBy` here is the Operator staff member who
+    // set up the demand source — not somebody who has taken responsibility for
+    // running this community's calls. Until such a person exists and says so,
+    // calls stay off.
+    callsEnabled: false,
+    callsPausedReason: "awaiting_group_admin",
+    groupAdminId: null,
+
     createdAt: FieldValue.serverTimestamp(),
     updatedAt: FieldValue.serverTimestamp(),
   });
 
-  // A concrete first call, so the group is something to turn up to rather than
-  // an empty room.
+  // The schedule is created immediately even though calls are off — turning
+  // calls on later must not have to invent one.
   await gDb.collection("scheduledGroupCalls").add({
     groupId: groupRef.id,
     groupName: name,

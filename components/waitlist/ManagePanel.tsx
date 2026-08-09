@@ -20,6 +20,7 @@ interface ManageState {
   timezoneSource: TimezoneSource;
   nextCall: string | null;
   scheduleLabel: string | null;
+  nextTesterCall: string | null;
 }
 
 const STATUS_TEXT: Record<string, string> = {
@@ -284,6 +285,23 @@ export function ManagePanel({ token }: { token: string }) {
           Calls with people from across The Operator, separate from any community
           group.
         </p>
+
+        {state.testerStatus === "active" && (
+          <p className="text-sm text-foreground mb-4 rounded-lg border border-border bg-background/60 px-3 py-2.5">
+            {state.nextTesterCall ? (
+              <>
+                <span className="text-muted-foreground">Next early access call: </span>
+                {formatInZone(new Date(state.nextTesterCall), state.timezone)}
+              </>
+            ) : (
+              // Better to say so than to leave a tester wondering when to expect
+              // a call that has no time yet.
+              <span className="text-muted-foreground">
+                No call times set yet — we&apos;ll email you as soon as they are.
+              </span>
+            )}
+          </p>
+        )}
         <div className="flex flex-wrap gap-2">
           {state.testerStatus === "active" && (
             <>

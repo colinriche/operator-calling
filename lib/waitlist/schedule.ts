@@ -10,6 +10,17 @@ import { SCHEDULE_ZONE } from "./timezone";
 // October. Storing only local time loses the instant needed to actually fire
 // anything. Both are kept, and each occurrence is resolved fresh.
 
+/** Indexed by weekday number, 0 = Sunday. Safe to import from the browser. */
+export const WEEKDAY_NAMES = [
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+];
+
 /** Sunday. Matches JS `getUTCDay()` numbering. */
 export const DEFAULT_SCHEDULE_WEEKDAY = 0;
 export const DEFAULT_SCHEDULE_LOCAL_TIME = "19:00";

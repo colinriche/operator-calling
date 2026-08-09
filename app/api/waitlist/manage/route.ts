@@ -3,6 +3,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { checkRateLimit, WAITLIST_LIMITS } from "@/lib/rate-limit";
 import { COLLECTIONS } from "@/lib/waitlist/constants";
 import { groupsDb } from "@/lib/waitlist/group-linking";
+import { nextGlobalCall } from "@/lib/waitlist/global-schedule";
 import { nextOccurrenceUtc, type WeeklyWindow } from "@/lib/waitlist/schedule";
 import { waitlistDb } from "@/lib/waitlist/server";
 import { visitorHashFrom } from "@/lib/waitlist/source-code";
@@ -78,7 +79,20 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // Early access runs on the global pool's own windows, which are unrelated
+    // to any community group's schedule.
+    let nextTesterCall: string | null = null;
+    if (data.testerStatus === "active") {
+      try {
+        const next = await nextGlobalCall();
+        nextTesterCall = next ? next.instant.toISOString() : null;
+      } catch (err) {
+        console.error("[waitlist/manage] global schedule lookup failed:", err);
+      }
+    }
+
     return NextResponse.json({
+      nextTesterCall,
       maskedEmail: maskEmail((data.email as string) ?? ""),
       audienceLabel: data.publicAudienceLabel ?? null,
       communityInterest: data.communityInterest !== false,

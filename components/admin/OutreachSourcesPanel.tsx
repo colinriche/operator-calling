@@ -148,6 +148,7 @@ export function OutreachSourcesPanel() {
   // Threshold editing — global default, and per-source overrides.
   const [thresholdDraft, setThresholdDraft] = useState("");
   const [savingThreshold, setSavingThreshold] = useState(false);
+  const [togglingCalls, setTogglingCalls] = useState<string | null>(null);
   const [sourceThresholdDraft, setSourceThresholdDraft] = useState<
     Record<string, string>
   >({});
@@ -349,6 +350,35 @@ export function OutreachSourcesPanel() {
     } catch (err) {
       console.error(err);
       toast.error(err instanceof Error ? err.message : "Failed to save");
+    }
+  }
+
+  async function toggleCalls(groupId: string, enable: boolean) {
+    if (!user || !groupId) return;
+    setTogglingCalls(groupId);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/groups/${groupId}/calls`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ callsEnabled: enable }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to change calls");
+      toast.success(
+        enable
+          ? "Calls on — resuming from the next scheduled occurrence"
+          : "Calls paused — the schedule is unchanged"
+      );
+      await load();
+    } catch (err) {
+      console.error(err);
+      toast.error(err instanceof Error ? err.message : "Failed to change calls");
+    } finally {
+      setTogglingCalls(null);
     }
   }
 
@@ -1009,6 +1039,43 @@ export function OutreachSourcesPanel() {
                     · {source.pendingMemberCount} awaiting an account, joined
                     automatically when they sign up
                   </p>
+                  {/* Whether the group is actually calling is a different
+                      question from whether it exists, and needs to be obvious
+                      at a glance. */}
+                  <div className="flex flex-wrap items-center gap-2 pt-1">
+                    <span
+                      className={cn(
+                        "text-xs px-2 py-0.5 rounded-full border font-medium",
+                        source.callsEnabled
+                          ? "border-primary/40 bg-primary/10 text-foreground"
+                          : "border-border bg-muted/60 text-muted-foreground"
+                      )}
+                    >
+                      {source.callsEnabled ? "Calls on" : "Calls paused"}
+                    </span>
+                    {!source.callsEnabled && source.callsPausedReason && (
+                      <span className="text-xs text-muted-foreground">
+                        {source.callsPausedReason === "awaiting_group_admin"
+                          ? "awaiting group admin"
+                          : source.callsPausedReason === "admin_paused"
+                            ? "paused by an administrator"
+                            : "paused by the group admin"}
+                      </span>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={togglingCalls === source.groupId}
+                      onClick={() =>
+                        void toggleCalls(source.groupId!, !source.callsEnabled)
+                      }
+                    >
+                      {togglingCalls === source.groupId && (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      )}
+                      {source.callsEnabled ? "Turn calls off" : "Turn calls on"}
+                    </Button>
+                  </div>
                   {source.reviewRequiredAfterCreate && (
                     <p className="text-xs text-primary flex items-center gap-1.5">
                       <AlertTriangle className="w-3.5 h-3.5 shrink-0" />

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { GlobalSchedulePanel } from "@/components/admin/GlobalSchedulePanel";
 import { OutreachSourcesPanel } from "@/components/admin/OutreachSourcesPanel";
 
 // Standalone route for the outreach panel.
@@ -21,6 +22,10 @@ export default function AdminOutreachPage() {
           Track where waitlist links are posted and how much demand each one
           produces. Adding a source here does not create a group.
         </p>
+      </div>
+
+      <div className="mb-8">
+        <GlobalSchedulePanel />
       </div>
 
       <OutreachSourcesPanel />

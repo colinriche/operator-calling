@@ -50,6 +50,10 @@ export interface DemandSourceRow {
   /** Set when the group was created automatically and still wants a look. */
   reviewRequiredAfterCreate: boolean;
   autoCreatedGroupAt: string | null;
+  /** Whether the linked group is currently running its scheduled calls. */
+  callsEnabled: boolean;
+  /** Why calls are off, when they are. */
+  callsPausedReason: string | null;
   shareClickCount: number;
   /** Unique visits → signups, 0 when there are no visits yet. */
   conversionRate: number;

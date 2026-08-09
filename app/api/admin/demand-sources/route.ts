@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { requireAdmin } from "@/lib/admin-auth";
+import { groupsDb } from "@/lib/waitlist/group-linking";
 import {
   COLLECTIONS,
   DEFAULT_RELATIONSHIP_STATUS,
@@ -83,6 +84,31 @@ export async function GET(req: NextRequest) {
       db.collection(COLLECTIONS.sourceLinks).get(),
     ]);
 
+    // Calls state for any source that has a group, so the panel can show
+    // whether a group is actually calling without a second round trip.
+    const callsState = new Map<
+      string,
+      { callsEnabled: boolean; callsPausedReason: string | null }
+    >();
+    const groupIds = sourceSnap.docs
+      .map((d) => d.data().groupId as string | undefined)
+      .filter((v): v is string => !!v);
+
+    if (groupIds.length > 0) {
+      const gDb = groupsDb();
+      const groupDocs = await Promise.all(
+        groupIds.map((gid) => gDb.collection("groups").doc(gid).get())
+      );
+      for (const gd of groupDocs) {
+        if (!gd.exists) continue;
+        const g = gd.data() ?? {};
+        callsState.set(gd.id, {
+          callsEnabled: g.callsEnabled === true,
+          callsPausedReason: g.callsPausedReason ?? null,
+        });
+      }
+    }
+
     const linksBySource = new Map<string, SourceLinkRow[]>();
     for (const doc of linkSnap.docs) {
       const row = buildLinkRow(doc.id, doc.data(), origin);
@@ -134,6 +160,12 @@ export async function GET(req: NextRequest) {
         pendingMemberCount: data.pendingMemberCount ?? 0,
         reviewRequiredAfterCreate: data.reviewRequiredAfterCreate === true,
         autoCreatedGroupAt: toIso(data.autoCreatedGroupAt),
+        callsEnabled: data.groupId
+          ? (callsState.get(data.groupId)?.callsEnabled ?? false)
+          : false,
+        callsPausedReason: data.groupId
+          ? (callsState.get(data.groupId)?.callsPausedReason ?? null)
+          : null,
         shareClickCount: data.shareClickCount ?? 0,
         conversionRate:
           uniqueVisitCount > 0 ? signupCount / uniqueVisitCount : 0,
