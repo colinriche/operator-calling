@@ -54,6 +54,9 @@ export interface DemandSourceRow {
   callsEnabled: boolean;
   /** Why calls are off, when they are. */
   callsPausedReason: string | null;
+  /** Drives the "posted here recently" warning in the composer. */
+  lastPostedAt: string | null;
+  outreachCount: number;
   shareClickCount: number;
   /** Unique visits → signups, 0 when there are no visits yet. */
   conversionRate: number;

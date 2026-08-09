@@ -351,6 +351,7 @@ Save this link to pause, leave or change your time zone later: [manage link]
 | Auto-scheduling of the default window | **New** |
 | Notification on group creation | Built — needs SMTP credentials to actually send |
 | Calls On/Off, group-admin appointment, organiser review | **New** — see 9b |
+| Outreach records, history, duplicate + do-not-contact warnings | **New** — hand-written copy; AI generation deferred |
 
 ## 9b. Who administers a community group
 
@@ -429,5 +430,9 @@ callsUpdatedBy     uid
   set in Vercel.
 - **Default community threshold** — 20 was the figure discussed; currently set
   low for testing and editable per source in the dashboard.
-- **Outreach records and the AI comment generator** — the last untouched area of
-  the original spec.
+- **AI comment generation — deferred, not launch-blocking.** Outreach records,
+  history, duplicate-destination and do-not-contact enforcement, templates and
+  mark-as-posted are all built and usable by hand. A generator would only ever
+  populate the existing `generatedText` field on an outreach record, behind the
+  same UI and the same route, so adding one later changes no data model and no
+  downstream code. There is no AI SDK or provider dependency in the project.

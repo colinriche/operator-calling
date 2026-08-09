@@ -166,6 +166,8 @@ export async function GET(req: NextRequest) {
         callsPausedReason: data.groupId
           ? (callsState.get(data.groupId)?.callsPausedReason ?? null)
           : null,
+        lastPostedAt: toIso(data.lastPostedAt),
+        outreachCount: data.outreachCount ?? 0,
         shareClickCount: data.shareClickCount ?? 0,
         conversionRate:
           uniqueVisitCount > 0 ? signupCount / uniqueVisitCount : 0,

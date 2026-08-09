@@ -12,6 +12,7 @@ import {
   AlertTriangle,
   UsersRound,
   GitBranch,
+  MessageSquare,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -28,6 +29,7 @@ import {
   platformLabel,
 } from "@/lib/waitlist/constants";
 import { countryName, languageName } from "@/lib/waitlist/locales";
+import { OutreachComposer } from "@/components/admin/OutreachComposer";
 import type { DemandSourceRow } from "@/lib/waitlist/types";
 
 // ─── Outreach sources ────────────────────────────────────────────────────────
@@ -150,6 +152,7 @@ export function OutreachSourcesPanel() {
   const [thresholdDraft, setThresholdDraft] = useState("");
   const [savingThreshold, setSavingThreshold] = useState(false);
   const [togglingCalls, setTogglingCalls] = useState<string | null>(null);
+  const [openOutreach, setOpenOutreach] = useState<string | null>(null);
   const [sourceThresholdDraft, setSourceThresholdDraft] = useState<
     Record<string, string>
   >({});
@@ -911,6 +914,20 @@ export function OutreachSourcesPanel() {
                     <UsersRound className="w-3.5 h-3.5" />
                     {openRegistrations === source.id ? "Hide" : "Registrations"}
                   </Button>
+                  <Button
+                    variant={
+                      source.status === "do_not_contact" ? "outline" : "outline"
+                    }
+                    size="sm"
+                    onClick={() =>
+                      setOpenOutreach((cur) =>
+                        cur === source.id ? null : source.id
+                      )
+                    }
+                  >
+                    <MessageSquare className="w-3.5 h-3.5" />
+                    {openOutreach === source.id ? "Hide" : "Outreach"}
+                  </Button>
                   {!source.groupId && (
                     <Button
                       variant={source.thresholdReachedAt ? "default" : "outline"}
@@ -1293,6 +1310,20 @@ export function OutreachSourcesPanel() {
                       </div>
                     </>
                   ) : null}
+                </div>
+              )}
+
+              {openOutreach === source.id && (
+                <div className="border-t border-border/60 pt-4">
+                  <OutreachComposer
+                    sourceId={source.id}
+                    sourceName={source.sourceName}
+                    doNotContact={source.status === "do_not_contact"}
+                    postingRules={source.postingRules}
+                    trackedUrl={source.links[0]?.trackedUrl ?? ""}
+                    sourceCode={source.links[0]?.sourceCode ?? null}
+                    lastPostedAt={source.lastPostedAt}
+                  />
                 </div>
               )}
 
