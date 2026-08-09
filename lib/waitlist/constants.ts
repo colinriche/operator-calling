@@ -189,6 +189,45 @@ export const ADMITTABLE_MEMBERSHIPS: readonly string[] = [
   "member",
 ];
 
+// ─── Organiser interest ──────────────────────────────────────────────────────
+//
+// Ticking the organiser box grants nothing. It records that somebody offered,
+// and starts a review that a person carries out.
+//
+// Four different things get conflated here if you let them, so they are stored
+// separately:
+//
+//   1. Willing to help organise Operator calls  → organiserStatus
+//   2. Claims to run the external community      → claimsToRunSource
+//   3. Verified as running it                    → claimVerified
+//   4. Authorised within Operator                → groups.groupAdminId
+//
+// (2) is a self-declared assertion by a stranger. (3) is a judgement someone
+// made after checking. (4) is real authority. Nothing promotes itself.
+
+export const ORGANISER_STATUSES = [
+  "new",
+  "reviewing",
+  "contacted",
+  "interested",
+  "verification_needed",
+  "verified",
+  "not_suitable",
+  "declined",
+  "approved",
+] as const;
+
+export type OrganiserStatus = (typeof ORGANISER_STATUSES)[number];
+
+/** Statuses that still want someone to do something. */
+export const ORGANISER_OPEN_STATUSES: readonly string[] = [
+  "new",
+  "reviewing",
+  "contacted",
+  "interested",
+  "verification_needed",
+];
+
 // ─── Time zone provenance ────────────────────────────────────────────────────
 
 export const TIMEZONE_SOURCES = ["detected", "user_selected"] as const;

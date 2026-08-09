@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { GlobalSchedulePanel } from "@/components/admin/GlobalSchedulePanel";
+import { OrganiserInterestPanel } from "@/components/admin/OrganiserInterestPanel";
 import { OutreachSourcesPanel } from "@/components/admin/OutreachSourcesPanel";
 
 // Standalone route for the outreach panel.
@@ -26,6 +27,10 @@ export default function AdminOutreachPage() {
 
       <div className="mb-8">
         <GlobalSchedulePanel />
+      </div>
+
+      <div className="mb-8">
+        <OrganiserInterestPanel />
       </div>
 
       <OutreachSourcesPanel />
