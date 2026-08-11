@@ -1,30 +1,38 @@
 # Firestore rules — waitlist collections
 
-## No change is required
+> **The data moved.** These collections now live in **`operator-calling`**
+> (the "staging" project), not `webrtc-clone-dc88c`. The analysis below was
+> carried out against the **dev** ruleset and its conclusion has **not** been
+> re-verified against operator-calling. The reasoning transfers; the fact does
+> not, because it depends on what that ruleset actually contains.
 
-Checked against the live dev-project rules. **The waitlist collections need no
-rules change at all.**
+## One question decides it
 
-Two reasons, and both hold:
+**Does the `operator-calling` ruleset contain a `match /{document=**}` that
+grants read?**
+
+- **No** → nothing to do. Skip to the end of this section.
+- **Yes** → `waitlistEntries` is client-readable and holds email addresses.
+  That wildcard has to narrow; adding the block below will not help (see why).
+
+The reasoning, which holds in either project:
 
 1. **Nothing reads them from a client.** Every read and write in this feature
    goes through the Admin SDK in server routes, which bypasses security rules
    entirely.
-2. **The rules have no recursive wildcard.** There is no
-   `match /{document=**}` anywhere; every collection is matched by name.
-   Firestore denies by default, so a collection with no `match` block is
-   already unreachable from any client.
+2. **A collection with no `match` block is already closed.** Firestore denies
+   by default. So as long as there is no recursive wildcard, `groupDemandSources`,
+   `sourceLinks`, `waitlistEntries`, `sourceVisits`, `shareEvents`, `rateLimits`
+   and `globalSchedules` are unreachable from any client without a single line
+   being written.
 
-`groupDemandSources`, `sourceLinks`, `waitlistEntries`, `sourceVisits`,
-`shareEvents` and `rateLimits` have no match block, so they are closed to
-clients today. Adding rules for them would not change behaviour.
+That was true of the dev ruleset, checked directly. Whether it is true of
+operator-calling is the open item.
 
-## Only if the rules ever gain a wildcard
+## The block, if one is ever needed
 
-If a `match /{document=**}` granting access is ever introduced, these
-collections become client-readable — and `waitlistEntries` holds email
-addresses. In that case add the block below **and** confirm it actually helps,
-because it may not:
+Add this **only** if the wildcard question above comes back yes — and note it
+may not achieve anything on its own:
 
 ```
     // ── Waitlist & demand tracking (website) ──────────────────────────────
@@ -36,6 +44,7 @@ because it may not:
     match /sourceVisits/{doc}              { allow read, write: if false; }
     match /shareEvents/{doc}               { allow read, write: if false; }
     match /rateLimits/{doc}                { allow read, write: if false; }
+    match /globalSchedules/{doc}           { allow read, write: if false; }
 ```
 
 Firestore evaluates **every** matching block and grants if **any** `allow`

@@ -80,9 +80,11 @@ export function GlobalSchedulePanel() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to create");
       toast.success(
-        notify
-          ? `Window added — ${data.notified?.sent ?? 0} tester(s) emailed`
-          : "Window added"
+        !notify
+          ? "Window added"
+          : data.notified?.skipped === "email_disabled"
+            ? "Window added — email sending is off, so nobody was notified"
+            : `Window added — ${data.notified?.sent ?? 0} tester(s) emailed`
       );
       setLabel("");
       await load();

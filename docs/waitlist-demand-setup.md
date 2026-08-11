@@ -16,17 +16,45 @@ behind it, including registration emails.
 
 ## Where the data lives
 
-Everything is in the **dev** Firebase project (`webrtc-clone-dc88c`), reached
-through `getProjectDb("dev")` — the same project as web sign-in and the `user`
-role documents, so the role check and the data it guards sit together and the
-whole flow can be exercised without touching the live-data project.
+Everything is in the **staging** Firebase project (`operator-calling`), reached
+through `getProjectDb("staging")` — the project the mobile app reads, so demand
+sources and registrations sit alongside the groups they eventually become.
 
 `waitlistDb()` in `lib/waitlist/server.ts` is the single line that decides this.
-Moving to staging later means changing it there and nowhere else — but note the
-role check in `lib/admin-auth.ts` would then read a different project from the
-data.
 
-Collections created (all in dev):
+> **Moved from dev.** This started in `webrtc-clone-dc88c` so the flow could be
+> exercised without touching the live-data project, and moved once it had been.
+> Nothing was migrated — the dev collections held test data only, so the dev
+> copies are stale and should be ignored rather than consulted.
+
+Group creation moved with it. `GROUP_TARGET_PROJECT` in
+`lib/waitlist/group-linking.ts` is now `"staging"` too, so a source reaching its
+threshold creates its group in `operator-calling`, where the mobile app can
+actually see it — a demand source and the group it becomes stay in one project.
+Each source records `groupProject` alongside `groupId`, so sources linked either
+side of the switch remain unambiguous.
+
+Auto-created groups are still written `callsEnabled: false` with their schedules
+`paused`. Visible to the app is not the same as calling anybody — see
+[`calls-enabled-dispatch-guard.md`](./calls-enabled-dispatch-guard.md).
+
+One thing did **not** move: the admin role check in `lib/admin-auth.ts` uses the
+`"dev"` project key, because that is where web sign-in and the `user` role
+documents live. Routes needing both a role check and waitlist data ask for each
+project explicitly.
+
+> **Confirmed: they are different projects in production.** The `"dev"` key
+> resolves from `NEXT_PUBLIC_FIREBASE_PROJECT_ID`, and the deployed bundle at
+> `operatorcalling.com/login` inlines `webrtc-clone-dc88c` — so production auth,
+> sign-in and role lookup run on the dev project while waitlist data and groups
+> run on `operator-calling`. Ignore `.env-production`, which claims otherwise and
+> is not loaded by Next.js at all.
+>
+> Closing that split is a single env-var switch plus real prerequisites (rules,
+> role documents, 19 users / 51 groups left behind). See
+> [`single-project-migration.md`](./single-project-migration.md).
+
+Collections created (all in `operator-calling`):
 
 | Collection | Holds |
 |---|---|
@@ -45,22 +73,32 @@ stage 2.
 
 ## Firestore security rules
 
-**None needed.** Checked against the live dev-project rules: every read and
-write goes through the Admin SDK, which bypasses rules, and the ruleset has no
-recursive `match /{document=**}` — so these collections, having no match block,
-are already denied to every client by default.
+**Probably none needed — but the check was done against the wrong project and
+has not been redone.** Every read and write goes through the Admin SDK, which
+bypasses rules entirely, so the only thing rules decide here is whether a
+*client* could reach these collections directly. In the dev ruleset the answer
+was no, because there is no recursive `match /{document=**}` and an unmatched
+collection is denied by default.
+
+That still needs confirming for `operator-calling`, where the data now lives.
+One question decides it: **does the operator-calling ruleset contain a
+`match /{document=**}` that grants read?** If not, nothing to do. If so,
+`waitlistEntries` — which holds email addresses — becomes client-readable and
+the wildcard itself has to narrow.
 
 [`firestore-rules-waitlist-additions.md`](./firestore-rules-waitlist-additions.md)
-records the check, the block to add if a permissive wildcard is ever
-introduced, and two unrelated findings from the same review: the super-admin
-dashboard is broken by these rules, and the `user` collection is world-readable.
+records the reasoning, the block to hand over if one is needed, and two
+unrelated findings from the same review: the super-admin dashboard is broken by
+the dev rules, and the `user` collection is world-readable.
 
 ## Indexes
 
-None — nothing to transport to the main project. Every query is either a
-document lookup or a single-field equality (`sourceCode`, `demandSourceId`), all
-of which Firestore indexes automatically. The registrations view sorts in memory
-rather than adding an `orderBy` that would require a composite index.
+None — nothing to transport to the main project, and nothing that had to be
+recreated when the data moved projects. Every query is either a document lookup
+or a single-field equality (`sourceCode`, `demandSourceId`, `manageToken`,
+`normalisedEmail`, `testerStatus`, `interestedInOrganising`), all of which
+Firestore indexes automatically. The registrations view sorts in memory rather
+than adding an `orderBy` that would require a composite index.
 
 This was a deliberate constraint, and worth preserving: because index changes
 have to travel through the main project's Development branch, a query needing a
@@ -69,9 +107,24 @@ equalities plus in-memory sorting for anything added later.
 
 ## Environment variables
 
-None new. This uses the dev project's existing credentials
-(`NEXT_PUBLIC_FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`,
-`FIREBASE_PRIVATE_KEY`), which are already set everywhere the site runs.
+**Required, wherever the site runs:**
+
+```
+FIREBASE_PROJECT_ID_STAGING       operator-calling
+FIREBASE_CLIENT_EMAIL_STAGING     service account for operator-calling
+FIREBASE_PRIVATE_KEY_STAGING      its private key
+```
+
+These already existed for QR invites, but they were optional then — an invite
+route simply skipped the staging project when they were absent. They are not
+optional now. Without them `getProjectDb("staging")` throws by name and the
+public waitlist page, every `/api/waitlist/*` route and the outreach admin panel
+fail outright. There is deliberately no fallback to dev: a silent fallback would
+scatter registrations across two projects, which is worse than an outage.
+
+The dev credentials (`NEXT_PUBLIC_FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`,
+`FIREBASE_PRIVATE_KEY`) are still required — admin role checks, group creation
+and web sign-in all read dev.
 
 Optional: `WAITLIST_HASH_SALT`. Visitor IPs are hashed before storage, never
 kept raw. Without this variable the salt derives from the dev private key, which
@@ -80,9 +133,20 @@ service account. Rotating it resets unique-visit dedupe but is safe for
 duplicate-signup detection, which uses an unsalted hash precisely so that the
 entry id for an email never changes.
 
+## Email
+
+**Collection-only.** Addresses are gathered and stored; nothing is delivered.
+`EMAIL_SENDING_ENABLED` is the master switch and defaults off — sending needs it
+set to `true` *and* SMTP credentials, so configuring SMTP alone cannot start
+mail flowing. Every suppressed message is logged with its subject and recipient.
+
+Nothing else changes when it is off: registration succeeds, the manage link is
+returned to the page rather than only emailed, and the schedule window that
+would have notified testers records that it still owes them one.
+
 ## Threshold
 
-Defaults to **25 registrations** (`DEFAULT_DEMAND_THRESHOLD` in
+Defaults to **20 registrations** (`DEFAULT_DEMAND_THRESHOLD` in
 `lib/waitlist/constants.ts`). To change it globally without a deploy, create:
 
 ```

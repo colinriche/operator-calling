@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { requireAdmin } from "@/lib/admin-auth";
-import { sendEmail } from "@/lib/email/send";
+import { isEmailConfigured, sendEmail } from "@/lib/email/send";
 import { testerCallsScheduled } from "@/lib/email/templates";
 import {
   GLOBAL_SCHEDULES_COLLECTION,
@@ -148,7 +148,16 @@ export async function PATCH(req: NextRequest) {
 async function notifyTesters(
   scheduleId: string,
   window: WeeklyWindow
-): Promise<{ sent: number; failed: number }> {
+): Promise<{ sent: number; failed: number; skipped?: string }> {
+  // While the site is collecting addresses without sending to them, walking the
+  // tester list would report every one as a failure and — worse — stamp the
+  // schedule as notified. Leave notifiedAt unset so these testers are still
+  // owed a mail whenever sending is turned on.
+  if (!isEmailConfigured()) {
+    console.log(`[global-schedule] ${scheduleId} created — testers not notified (email off)`);
+    return { sent: 0, failed: 0, skipped: "email_disabled" };
+  }
+
   const db = waitlistDb();
   const testers = await listActiveTesters(db);
   const instant = nextOccurrenceUtc(window);

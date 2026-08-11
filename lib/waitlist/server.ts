@@ -32,18 +32,26 @@ import type {
 
 // ─── Project routing ─────────────────────────────────────────────────────────
 //
-// All waitlist and demand data lives in the "dev" project (webrtc-clone-dc88c)
-// — the same project as web sign-in and the `user` role documents, so the admin
-// role check and the data it guards are in one place, and the whole flow can be
-// exercised without touching the live-data project.
+// All waitlist and demand data lives in the "staging" project
+// (operator-calling) — the project the mobile app reads, so demand sources and
+// registrations sit alongside the groups they eventually become.
 //
-// If this later moves to "staging" so that demand sources sit alongside the
-// groups the mobile app reads, this is the only line that changes — but note
-// the role check in lib/admin-auth.ts would then be reading a different project
-// from the data.
+// This moved from "dev" (webrtc-clone-dc88c) once the flow had been exercised.
+// Nothing was migrated: the dev collections held test data only.
+//
+// Two consequences worth knowing, both deliberate:
+//
+//   • The admin role check in lib/admin-auth.ts still reads the "dev" project's
+//     `user` collection, because that is where web sign-in and the role
+//     documents live. So the gate and the data it guards are now in different
+//     projects. Routes that need both already ask for each explicitly.
+//   • Every route below requires FIREBASE_PROJECT_ID_STAGING,
+//     FIREBASE_CLIENT_EMAIL_STAGING and FIREBASE_PRIVATE_KEY_STAGING. Without
+//     them getProjectDb throws by name rather than falling back — a silent
+//     fallback to dev would scatter registrations across two projects.
 
 export function waitlistDb(): Firestore {
-  return getProjectDb("dev");
+  return getProjectDb("staging");
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

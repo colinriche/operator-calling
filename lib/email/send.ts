@@ -36,9 +36,27 @@ function fromAddress(): string {
   );
 }
 
-/** True when enough is configured to attempt a send. */
+// ─── Collection-only mode ────────────────────────────────────────────────────
+//
+// Addresses are collected and stored as normal; nothing is delivered. This is
+// the current state deliberately — the waitlist is gathering people before
+// there is anything worth mailing them about, and the first mail this domain
+// ever sends should be one somebody wrote on purpose, not an automated
+// confirmation that went out while the product was still being built.
+//
+// Sending needs EMAIL_SENDING_ENABLED=true *and* SMTP credentials. Two
+// conditions rather than one so that configuring SMTP — for a test, or because
+// the vars were copied between environments — can never by itself start mail
+// flowing to real people.
+
+/** Master switch. Off unless explicitly enabled. */
+export function isEmailSendingEnabled(): boolean {
+  return process.env.EMAIL_SENDING_ENABLED === "true";
+}
+
+/** True when enough is configured, and permitted, to attempt a send. */
 export function isEmailConfigured(): boolean {
-  return !!(process.env.SMTP_USER && process.env.SMTP_PASS);
+  return isEmailSendingEnabled() && !!(process.env.SMTP_USER && process.env.SMTP_PASS);
 }
 
 function transporter(): Transporter | null {
@@ -67,10 +85,18 @@ function transporter(): Transporter | null {
  * failures are reported in the return value and logged, not raised.
  */
 export async function sendEmail(message: EmailMessage): Promise<SendResult> {
+  if (!isEmailSendingEnabled()) {
+    // Expected state, not a fault — logged at info so it does not read as one.
+    console.log(
+      `[email] sending disabled — would have sent "${message.subject}" to ${message.to}`
+    );
+    return { sent: false, error: "sending_disabled" };
+  }
+
   const transport = transporter();
   if (!transport) {
     console.warn(
-      `[email] not configured — would have sent "${message.subject}" to ${message.to}`
+      `[email] enabled but SMTP not configured — would have sent "${message.subject}" to ${message.to}`
     );
     return { sent: false, error: "not_configured" };
   }

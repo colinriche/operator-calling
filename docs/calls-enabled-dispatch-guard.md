@@ -1,7 +1,18 @@
 # Required: `callsEnabled` guard in the call-dispatch path
 
-**Status: outstanding. Community auto-activation is not safe for production
-until this lands.**
+**Status: outstanding, and deliberately deferred.** The guard lives in the app's
+dispatch path, which is not in this repository and is being written alongside
+the app itself — so it gets written by hand there rather than tracked as blocked
+work here.
+
+Deferring it is safe *only* because of the interim mitigation described below:
+auto-created schedules are written `status: "paused"`, so an unmodified
+dispatcher filtering on `status == "scheduled"` never sees them. That is an
+assumption about the dispatcher, not a contract — which is why this document
+stays open rather than being closed as handled.
+
+**Before the first community group goes live with calls, this guard has to
+exist.** Nothing on the website can substitute for it.
 
 This change cannot be made from the website repo. This document identifies
 exactly what owns dispatch, gives the patch, and gives the two tests.
@@ -26,7 +37,7 @@ What is known about the owner:
 
 | | |
 |---|---|
-| Firebase project | `webrtc-clone-dc88c` (the "dev" project) |
+| Firebase project | **`operator-calling`** — auto-created groups and their schedules now land here (`GROUP_TARGET_PROJECT = "staging"`). The dispatcher that matters is whichever one reads *this* project. A guard deployed only against `webrtc-clone-dc88c` protects nothing. |
 | Functions region | `us-central1` |
 | Confirmed deployed function | `sendFcmMessage` — referenced at `components/admin/SuperAdminDashboard.tsx:60` |
 | Collection dispatch reads | `scheduledGroupCalls` — `status == "scheduled"`, `scheduledAt <= now` |
@@ -37,7 +48,9 @@ Source of truth is the **main project's Development branch**.
 ### Locating it in about two minutes
 
 ```bash
-# List what is actually deployed
+# List what is actually deployed — check both, the guard belongs wherever
+# groups are read from, which is now operator-calling.
+firebase functions:list --project operator-calling
 firebase functions:list --project webrtc-clone-dc88c
 
 # In the main project checkout, on Development:
@@ -153,7 +166,7 @@ from a form value or a JSON import.
 ## Fields the website writes
 
 On the group document, in the project named by `GROUP_TARGET_PROJECT`
-(`lib/waitlist/group-linking.ts`, currently `dev`):
+(`lib/waitlist/group-linking.ts`, now `staging` — `operator-calling`):
 
 ```
 callsEnabled       boolean   — false on automatic creation
