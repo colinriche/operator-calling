@@ -1,69 +1,107 @@
 import type { NextRequest } from "next/server";
-import type { DocumentData, Firestore } from "firebase-admin/firestore";
-import { getAdminServices } from "@/lib/firebase-admin";
+import type { DocumentData } from "firebase-admin/firestore";
+import { getProjectDb, verifyIdTokenAnyProject, type ProjectKey } from "@/lib/firebase-admin";
+import {
+  canManageAdmins,
+  canManageUsers,
+  isAdminRole,
+  lookupAdmin,
+  type AdminRole,
+} from "@/lib/admins";
 
-// ─── Admin role gate ─────────────────────────────────────────────────────────
+// ─── Admin gate ──────────────────────────────────────────────────────────────
 //
-// Roles live in the "dev" project's `user` collection alongside web sign-in, so
-// this always verifies against dev — even for routes whose data lives in the
-// "staging" project.
+// Two steps, deliberately independent:
 //
-// The lookup deliberately mirrors hooks/useAuth.ts. A Firestore `user` document
-// does NOT reliably live at user/{auth.uid}: phone auth mints a fresh Firebase
-// UID, so a linked account's profile sits under its original document id and is
-// found via linkedWebUids / linkedWebUid / email instead. Checking only the
-// direct id makes the server disagree with the client about who someone is —
-// the browser shows them as an admin while every API call 403s.
+//   1. Authentication — who is this? The ID token is verified against every
+//      configured Firebase project, because the token may have been minted by
+//      either one and a token is only ever valid for its issuer. This is what
+//      lets admin access keep working while the site moves between projects.
+//
+//   2. Authorisation — what may they do? Answered solely by the `admins`
+//      collection (lib/admins.ts), keyed by email, in the production data
+//      project. Nothing a person can edit about their own profile grants
+//      access.
+//
+// Splitting them is the point. Authority used to live on the `user` document
+// as a `role` field, in whichever project happened to issue the token — so the
+// answer to "is this person an admin" depended on which project they signed in
+// against, and the field was reachable by sign-up and account-linking code.
 
-export type AdminRole = "admin" | "super_admin";
+export type { AdminRole };
 
 export interface AdminCaller {
   /** Firebase Auth UID of the caller. */
   uid: string;
-  /** Firestore `user` document id backing them — may differ from uid. */
-  profileDocId: string;
+  /** Lowercased email — the `admins` document id backing them. */
+  email: string;
+  name: string;
   role: AdminRole;
-}
-
-function roleOf(data: DocumentData | undefined): string | null {
-  const role = data?.role;
-  return typeof role === "string" && role ? role : null;
-}
-
-/**
- * Find the `user` document backing an authenticated caller, trying the same
- * routes as useAuth in the same order. Returns the first candidate carrying a
- * role, so email-only stubs are skipped rather than shadowing the real profile.
- */
-async function findProfile(
-  db: Firestore,
-  uid: string,
-  email: string | null
-): Promise<{ id: string; data: DocumentData } | null> {
-  const users = db.collection("user");
-
-  const aliasQ = await users.where("linkedWebUids", "array-contains", uid).limit(5).get();
-  const linkedQ = await users.where("linkedWebUid", "==", uid).limit(5).get();
-  const directSnap = await users.doc(uid).get();
-  const emailQ = email
-    ? await users.where("email", "==", email).limit(5).get()
-    : null;
-
-  const candidates: Array<{ id: string; data: DocumentData }> = [
-    ...aliasQ.docs.map((d) => ({ id: d.id, data: d.data() })),
-    ...linkedQ.docs.map((d) => ({ id: d.id, data: d.data() })),
-    ...(directSnap.exists ? [{ id: directSnap.id, data: directSnap.data() ?? {} }] : []),
-    ...(emailQ ? emailQ.docs.map((d) => ({ id: d.id, data: d.data() })) : []),
-  ];
-
-  return candidates.find((c) => roleOf(c.data) !== null) ?? candidates[0] ?? null;
+  /** Which project issued their token. */
+  project: ProjectKey;
+  /**
+   * Legacy `user` document id, when one was found. Retained because a couple of
+   * routes still record it; not used for any permission decision.
+   */
+  profileDocId: string | null;
+  /** How authority was established. "legacy" is the transitional path below. */
+  source: "admins" | "legacy";
 }
 
 /**
- * Returns the caller when they hold a sufficient role, otherwise null. Callers
- * should respond 403 on null — never leak whether the token was invalid or
- * merely under-privileged.
+ * The caller's email address.
+ *
+ * A custom-token session — which is what /api/admin/token mints — carries no
+ * `email` claim of its own, so this checks the standard claim, then a custom
+ * claim, then falls back to the legacy `user` document. Without this an
+ * email-keyed lookup could never match an admin-login session.
  */
+async function resolveEmail(
+  identity: NonNullable<Awaited<ReturnType<typeof verifyIdTokenAnyProject>>>
+): Promise<{ email: string | null; profileDocId: string | null; profile: DocumentData | null }> {
+  if (identity.email) {
+    return { email: identity.email, profileDocId: null, profile: null };
+  }
+
+  const claimed = identity.decoded.email ?? (identity.decoded as { email?: unknown }).email;
+  if (typeof claimed === "string" && claimed.includes("@")) {
+    return { email: claimed.toLowerCase(), profileDocId: null, profile: null };
+  }
+
+  // Custom-token sessions use the Firestore document id as the uid, so the
+  // document is a direct lookup in the project that issued the token.
+  try {
+    const snap = await getProjectDb(identity.project).collection("user").doc(identity.uid).get();
+    if (snap.exists) {
+      const data = snap.data() ?? {};
+      const email = typeof data.email === "string" ? data.email.toLowerCase() : null;
+      return { email, profileDocId: snap.id, profile: data };
+    }
+  } catch (err) {
+    console.warn("[admin-auth] email fallback lookup failed:", (err as Error).message);
+  }
+
+  return { email: null, profileDocId: null, profile: null };
+}
+
+/**
+ * Transitional fallback: honour a `role` on the legacy `user` document.
+ *
+ * Only consulted when the `admins` collection has nothing for this person, and
+ * every hit is logged with the email that needs adding. It exists so that
+ * deploying this change cannot lock every administrator out before the new
+ * collection has been populated.
+ *
+ * DELETE THIS once `admins` is populated and verified. Until it is gone, a
+ * `user` document with role: "admin" still grants access, which is exactly the
+ * weakness the `admins` collection was introduced to remove.
+ */
+function legacyRole(profile: DocumentData | null): AdminRole | null {
+  if (!profile) return null;
+  if (profile.archived === true) return null;
+  return isAdminRole(profile.role) ? profile.role : null;
+}
+
 export async function requireAdmin(
   req: NextRequest,
   { superAdminOnly = false }: { superAdminOnly?: boolean } = {}
@@ -73,46 +111,87 @@ export async function requireAdmin(
   if (!token) return null;
 
   try {
-    const { db, adminAuth } = getAdminServices();
-    const decoded = await adminAuth.verifyIdToken(token);
-
-    const profile = await findProfile(
-      db,
-      decoded.uid,
-      decoded.email?.toLowerCase() ?? null
-    );
-    if (!profile) {
-      console.warn(`[admin-auth] no user doc for uid=${decoded.uid}`);
+    const identity = await verifyIdTokenAnyProject(token);
+    if (!identity) {
+      console.warn("[admin-auth] token not valid for any configured project");
       return null;
     }
 
-    // An archived account keeps its role field; useAuth signs these out, so the
-    // server must not honour them either.
-    if (profile.data.archived === true) {
-      console.warn(`[admin-auth] archived account uid=${decoded.uid}`);
+    const { email, profileDocId, profile } = await resolveEmail(identity);
+    if (!email) {
+      console.warn(`[admin-auth] no email resolvable for uid=${identity.uid}`);
       return null;
     }
 
-    const role = roleOf(profile.data);
-    const sufficient = superAdminOnly
-      ? role === "super_admin"
-      : role === "admin" || role === "super_admin";
+    const record = await lookupAdmin(email);
 
-    if (!sufficient) {
-      console.warn(
-        `[admin-auth] insufficient role uid=${decoded.uid} doc=${profile.id} role=${role ?? "none"} superAdminOnly=${superAdminOnly}`
-      );
+    let role: AdminRole | null = record?.role ?? null;
+    let source: AdminCaller["source"] = "admins";
+    let name = record?.name ?? "";
+
+    if (!role) {
+      // Fall back to the legacy user document, loading it if resolveEmail did
+      // not already have to.
+      let legacyProfile = profile;
+      if (!legacyProfile) {
+        try {
+          const snap = await getProjectDb(identity.project)
+            .collection("user")
+            .doc(identity.uid)
+            .get();
+          legacyProfile = snap.exists ? (snap.data() ?? null) : null;
+        } catch {
+          legacyProfile = null;
+        }
+      }
+
+      role = legacyRole(legacyProfile);
+      if (role) {
+        source = "legacy";
+        name =
+          (typeof legacyProfile?.displayName === "string" && legacyProfile.displayName) ||
+          (typeof legacyProfile?.name === "string" && legacyProfile.name) ||
+          "";
+        console.warn(
+          `[admin-auth] LEGACY ROLE USED for ${email} (role=${role}) — add this ` +
+            `address to the "admins" collection, then remove the fallback`
+        );
+      }
+    }
+
+    if (!role) {
+      console.warn(`[admin-auth] ${email} is not an admin`);
+      return null;
+    }
+
+    if (superAdminOnly && role !== "super_admin") {
+      console.warn(`[admin-auth] ${email} has role=${role}, super_admin required`);
       return null;
     }
 
     return {
-      uid: decoded.uid,
-      profileDocId: profile.id,
-      role: role as AdminRole,
+      uid: identity.uid,
+      email,
+      name,
+      role,
+      project: identity.project,
+      profileDocId,
+      source,
     };
   } catch (err) {
-    // Usually a token issued by a different Firebase project, or an expired one.
-    console.warn("[admin-auth] token verification failed:", (err as Error).message);
+    console.warn("[admin-auth] verification failed:", (err as Error).message);
     return null;
   }
+}
+
+/** Caller who may create, edit and remove admin records. */
+export async function requireAdminManager(req: NextRequest): Promise<AdminCaller | null> {
+  const caller = await requireAdmin(req);
+  return caller && canManageAdmins(caller.role) ? caller : null;
+}
+
+/** Caller who may edit, archive and delete user accounts. */
+export async function requireUserManager(req: NextRequest): Promise<AdminCaller | null> {
+  const caller = await requireAdmin(req);
+  return caller && canManageUsers(caller.role) ? caller : null;
 }

@@ -153,20 +153,23 @@ export async function POST(
         }
       }
 
-      // The creator's display name comes from the dev project, where the `user`
-      // documents live, regardless of which project the group lands in.
-      let creatorName = "Unknown";
+      // The name on the admin record is the authoritative one. The legacy
+      // `user` document is only consulted for callers who arrived through the
+      // transitional path, and only to pick up a username.
+      let creatorName = caller.name || "Unknown";
       let creatorUsername = "";
-      try {
-        const { db: devDb } = getAdminServices();
-        const userSnap = await devDb.collection("user").doc(caller.profileDocId).get();
-        if (userSnap.exists) {
-          creatorName =
-            userSnap.data()?.displayName ?? userSnap.data()?.name ?? "Unknown";
-          creatorUsername = userSnap.data()?.username ?? "";
+      if (caller.profileDocId) {
+        try {
+          const { db: devDb } = getAdminServices();
+          const userSnap = await devDb.collection("user").doc(caller.profileDocId).get();
+          if (userSnap.exists) {
+            creatorName =
+              userSnap.data()?.displayName ?? userSnap.data()?.name ?? creatorName;
+            creatorUsername = userSnap.data()?.username ?? "";
+          }
+        } catch {
+          // Non-fatal — a missing display name should not block group creation.
         }
-      } catch {
-        // Non-fatal — a missing display name should not block group creation.
       }
 
       const type =

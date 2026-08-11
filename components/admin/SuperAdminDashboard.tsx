@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
+import { useAdminRole } from "@/hooks/useAdminRole";
 import { seedDashboardStarterData } from "@/lib/dashboardSeed";
 import { OutreachSourcesPanel } from "@/components/admin/OutreachSourcesPanel";
 import {
@@ -80,8 +81,11 @@ export function SuperAdminDashboard() {
   const [completedCalls30d, setCompletedCalls30d] = useState(0);
   const [failedCalls30d, setFailedCalls30d] = useState(0);
 
-  const canSeedDashboardData = profile?.role === "admin";
-  const canPermanentlyDeleteArchives = profile?.role === "super_admin";
+  // Authority comes from the `admins` collection, not from the `user` document
+  // — see hooks/useAdminRole.ts. Server routes re-check regardless.
+  const { isAdmin, isSuperAdmin } = useAdminRole();
+  const canSeedDashboardData = isAdmin;
+  const canPermanentlyDeleteArchives = isSuperAdmin;
 
   const filteredUsers = users.filter(
     (u) =>

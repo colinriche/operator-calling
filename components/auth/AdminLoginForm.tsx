@@ -24,7 +24,7 @@ export function AdminLoginForm() {
       const res = await fetch("/api/admin/token", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: username.trim() }),
+        body: JSON.stringify({ email: username.trim() }),
       });
 
       const data = await res.json();
@@ -53,19 +53,19 @@ export function AdminLoginForm() {
         </div>
         <div>
           <h1 className="font-heading font-bold text-xl text-foreground leading-tight">Admin access</h1>
-          <p className="text-xs text-muted-foreground">Enter your username to continue</p>
+          <p className="text-xs text-muted-foreground">Enter your email to continue</p>
         </div>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <Label htmlFor="username" className="text-sm font-medium mb-1.5 block">
-            Username
+            Email
           </Label>
           <Input
             id="username"
-            type="text"
-            placeholder="Your display name or email"
+            type="email"
+            placeholder="you@example.com"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             required

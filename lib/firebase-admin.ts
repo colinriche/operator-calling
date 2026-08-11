@@ -1,6 +1,6 @@
 import { initializeApp, getApp, cert, type App } from "firebase-admin/app";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
-import { getAuth, type Auth } from "firebase-admin/auth";
+import { getAuth, type Auth, type DecodedIdToken } from "firebase-admin/auth";
 
 // ─── Multi-project Firebase Admin ─────────────────────────────────────────────
 //
@@ -132,6 +132,12 @@ export async function verifyIdTokenAnyProject(idToken: string): Promise<{
   phone: string | null;
   email: string | null;
   project: ProjectKey;
+  /**
+   * The full decoded token, including custom claims. Sessions minted by
+   * /api/admin/token are custom-token sessions with no `email` claim of their
+   * own, so the admin gate reads the email out of here.
+   */
+  decoded: DecodedIdToken;
 } | null> {
   for (const key of getConfiguredProjectKeys()) {
     let auth: Auth;
@@ -148,6 +154,7 @@ export async function verifyIdTokenAnyProject(idToken: string): Promise<{
         phone: decoded.phone_number ?? null,
         email: decoded.email?.toLowerCase() ?? null,
         project: key,
+        decoded,
       };
     } catch {
       // Not issued by this project — try the next one.
