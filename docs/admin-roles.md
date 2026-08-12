@@ -136,21 +136,10 @@ collection or the capability model would need to change.
 which bypasses rules. No client ever reads it, and no client should be able to —
 it is the permission list.
 
-Provided `operator-calling`'s ruleset has no recursive `match /{document=**}`,
-a collection with no match block is already denied to every client by default
-and nothing needs adding. If it does have one, this is required, not optional:
-
-```
-    // ── Administrative authority (website) ────────────────────────────────
-    // Server-only. A client that can read this learns who to target; a client
-    // that can write it grants itself access.
-    match /admins/{email} { allow read, write: if false; }
-```
-
-Same caveat as elsewhere: `allow … if false` cannot take away access another
-rule grants. Against a permissive wildcard the wildcard itself has to narrow.
-Rules travel through the main project's Development branch — not the console,
-not this repo.
+The shared ruleset has no recursive `match /{document=**}`, so a collection with
+no match block is already denied to every client by default. **No rule change
+required — handled server-side.** See [`firestore-rules.md`](./firestore-rules.md),
+which is the single record of what the website needs from the app's ruleset.
 
 ## Seeding the first super_admin
 

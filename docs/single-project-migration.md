@@ -104,22 +104,16 @@ app no longer reads this project and the move becomes low-risk.
 
 ## Blockers, in the order they bite
 
-**1. Firestore rules in `operator-calling` — highest risk.**
+**1. Firestore rules — resolved, not a blocker.**
 
-The site's client SDK reads `user` directly, before it knows who anyone is:
+Both projects run the **same ruleset**, owned by the main app. So switching
+projects changes nothing about what a client may read. `match /user/{userId} {
+allow read: if true; }` applies in both, which is what `hooks/useAuth.ts` needs
+at sign-in before it knows who anyone is.
 
-- `hooks/useAuth.ts:79,88,123` — queries by `linkedWebUids`, `linkedWebUid`,
-  then `email`
-- `components/admin/SuperAdminDashboard.tsx:127` and
-  `components/admin/GroupAdminDashboard.tsx:431` — unconstrained
-  `getDocs(collection(db, "user"))`
-
-`webrtc-clone-dc88c` permits this with `match /user/{userId} { allow read: if
-true; }`. If `operator-calling`'s ruleset is stricter — likely, since it is the
-app's ruleset — **sign-in and both admin dashboards break immediately** on
-switching. This has to be confirmed, and any change handed over as an additive
-block through the main project's Development branch. Do not deploy rules from
-here.
+What the website requires from that ruleset is recorded in
+[`firestore-rules.md`](./firestore-rules.md), which is the only place to look.
+Rules are applied manually by Colin in Firebase; this repo does not modify them.
 
 **2. Admin role documents must exist in `operator-calling`.**
 
@@ -142,9 +136,9 @@ against `webrtc-clone-dc88c` has no account in `operator-calling`. Only the
 custom-token admin path survives without re-provisioning.
 
 **4. `admin_controls/platform` and `schedules`** must exist in
-`operator-calling`, or the super-admin dashboard reads fail — it already fails
-against the dev rules for a related reason
-(see `firestore-rules-waitlist-additions.md`).
+`operator-calling`, or the super-admin dashboard shows zeroes. It no longer
+*fails* — those reads moved to `/api/admin/overview` and the Admin SDK, which
+does not care what the rules say (see [`firestore-rules.md`](./firestore-rules.md)).
 
 ## Recommended order
 

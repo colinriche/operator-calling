@@ -82,14 +82,13 @@ collection is denied by default.
 
 That still needs confirming for `operator-calling`, where the data now lives.
 One question decides it: **does the operator-calling ruleset contain a
-`match /{document=**}` that grants read?** If not, nothing to do. If so,
-`waitlistEntries` — which holds email addresses — becomes client-readable and
-the wildcard itself has to narrow.
+`match /{document=**}` that grants read?** It does not — checked against the
+shared ruleset — so `waitlistEntries` and every other waitlist collection is
+already denied to clients by default. **No rule change required — handled
+server-side.**
 
-[`firestore-rules-waitlist-additions.md`](./firestore-rules-waitlist-additions.md)
-records the reasoning, the block to hand over if one is needed, and two
-unrelated findings from the same review: the super-admin dashboard is broken by
-the dev rules, and the `user` collection is world-readable.
+[`firestore-rules.md`](./firestore-rules.md) is the single place the website's
+Firestore-rules requirements are recorded.
 
 ## Indexes
 
