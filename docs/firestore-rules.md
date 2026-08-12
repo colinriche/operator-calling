@@ -152,10 +152,39 @@ site in `lib/admin-auth.ts` when you are ready; say the word.
 
 Copy into the shared ruleset, inside `match /databases/{database}/documents`.
 
-## Required — the website is broken without these
+## Rules required for `super_admin`
 
-Four collections have no `match` block, so every client read is denied. One
-helper, then four blocks.
+**None. No rule change required — handled server-side.**
+
+Every site-admin and super-admin operation runs through the Admin SDK behind
+`requireAdmin`, which bypasses rules. Authority is `admins/{email}`, read by a
+server route. The rules below exist for *other* website functionality and are
+not a precondition for `super_admin` working.
+
+## Rules required for other client-side website functionality
+
+Four collections have no `match` block, so every client read is denied. These
+serve the group-admin dashboard and the ordinary user dashboard. Read-only —
+every write stays server-side.
+
+**GroupAdminDashboard** needs `memberships` (its own, then group-wide) and
+`schedules` (by `groupId`). Its other reads — `groups`, `user`, `invites`,
+`reports`, `scheduledGroupCalls` — are already permitted.
+
+**Ordinary user dashboard** (`useDashboardData`) needs `schedules`, `callbacks`,
+`notifications` and `memberships`, all scoped to the signed-in uid.
+
+> **No client write on `memberships`.** An earlier draft here proposed
+> `allow update` for a group admin, guarded only by an unchanged `groupId`. That
+> is too broad: `memberships.role` is authority, and a browser-side rule cannot
+> constrain which fields or which values without becoming a second, divergent
+> copy of the permission model. `GroupAdminDashboard`'s two membership writes —
+> change role, ban member — belong on a server route that checks
+> `groups.groupAdminId` and validates the target role. `/api/groups/{id}/members/{uid}`
+> is the natural home but does not cover it yet: it authorises on `createdBy`,
+> not `groupAdminId`, and writes `groups.members.{uid}` rather than the
+> `memberships` collection. Until it is extended, those two buttons will fail —
+> deliberately, rather than by opening the collection.
 
 ```
     // ── Website: group-admin authority ───────────────────────────────────────
@@ -178,9 +207,7 @@ helper, then four blocks.
         resource.data.userId == request.auth.uid ||
         isGroupAdminOf(resource.data.groupId)
       );
-      allow update: if isGroupAdminOf(resource.data.groupId) &&
-                       request.resource.data.groupId == resource.data.groupId;
-      allow create, delete: if false;
+      allow write: if false;
     }
 
     // ── Schedules ────────────────────────────────────────────────────────────
