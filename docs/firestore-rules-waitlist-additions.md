@@ -55,28 +55,30 @@ wildcard this block does nothing; the wildcard itself has to narrow.
 Rules are owned by the **main project's Development branch** and promoted to
 Staging, so any such change travels that route — not the console, not this repo.
 
-## Separate finding: the admin dashboard is broken by these rules
+## Separate finding: the admin dashboard was broken by these rules — fixed
 
-Not a waitlist issue, but it surfaced while diagnosing one, and it is why
-`/admin/super` shows a permissions error.
+Not a waitlist issue, but it surfaced while diagnosing one, and it was why
+`/admin/super` showed a permissions error.
 
-`components/admin/SuperAdminDashboard.tsx:126` runs five client-SDK reads in a
-single `Promise.all`. Three are denied:
+`SuperAdminDashboard` ran five client-SDK reads in a single `Promise.all`.
+Three were denied:
 
-| Read | Why it fails |
+| Read | Why it failed |
 |---|---|
 | `getDocs(collection(db, "schedules"))` | No `schedules` match block exists — default deny |
-| `getDoc(doc(db, "admin_controls", "platform"))` | No `admin_controls` match block exists — default deny |
-| `getDocs(collection(db, "groups"))` | Rule is `uid in resource.data.memberIds \|\| isAdmin()`. Firestore rejects an unconstrained collection query it cannot prove is satisfiable for every document |
+| `getDoc(doc(db, "admin_controls", "platform"))` | No `admin_controls` match block exists — default deny (the write too) |
+| `getDocs(collection(db, "groups"))` | Rule is `uid in resource.data.memberIds \|\| isAdmin()`. Firestore rejects an unconstrained collection query it cannot prove is satisfiable for every document. `isAdmin()` also tests `role == 'admin'` **exactly**, so a `super_admin` failed it |
 
-One rejection fails the whole `Promise.all`, so the dashboard loads no data and
-toasts "Missing or insufficient permissions".
+One rejection failed the whole `Promise.all`, so the dashboard loaded no data
+and toasted "Missing or insufficient permissions".
 
-Fixing it means a choice per read: add rules for `schedules` and
-`admin_controls`, or move those reads server-side behind an Admin SDK route the
-way `/api/admin/archive` already does. The `groups` query additionally needs the
-caller to satisfy `isAdmin()`, which requires signing in through the admin
-custom-token flow so `auth.uid` equals their user document id.
+**Resolved by moving the reads server-side**, not by changing rules —
+`app/api/admin/overview/route.ts`, behind `requireAdmin`. The Admin SDK bypasses
+rules, and this is the better boundary anyway: the dashboard's data is admin-only,
+so it should be gated by the admin check rather than by whatever the shared app
+ruleset happens to permit. The platform-control write moved with it (super_admin
+only). Nothing here needs a rules change, which matters because that ruleset is
+the app's and travels through the main project's Development branch.
 
 `/admin/outreach` deliberately does not depend on any of this.
 

@@ -49,7 +49,7 @@ export function resolveDisclaimer(status: RelationshipStatus | string): string {
 export const TESTER_HEADLINE = "Want calls sooner?";
 
 export const TESTER_EXPLANATION =
-  "Join early access as a tester and you can start having calls now, with people from across The Operator rather than only this group.";
+  "Join Early Access to help test The Operator app. You can take part in test calls without waiting for this group to become active.";
 
 export const TESTER_CAVEAT =
   "It is an early version, so you may come across unfinished parts, and we may ask you for feedback. You can pause or leave at any time.";

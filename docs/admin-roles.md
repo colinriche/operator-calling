@@ -166,3 +166,16 @@ Document id: your.email@example.com      ← lowercase
 
 Use the address the account you sign in with actually carries, or the lookup
 will not match.
+
+**Done:** `admins/colinriche@gmail.com` — `role: super_admin`, seeded
+2026-08-12. That address is the one on the single `role: admin` user document
+in `webrtc-clone-dc88c`, so it matches whichever way the session is
+established.
+
+### If the collection is unreachable
+
+`requireAdmin` catches a failed `admins` lookup and falls through to the legacy
+`user.role` path rather than denying every administrator at once. A missing
+`FIREBASE_PROJECT_ID_STAGING` would otherwise lock out the whole admin area,
+including the route that would let you fix it. The failure is logged as
+`[admin-auth] admins lookup failed:`.

@@ -12,15 +12,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useAdminRole } from "@/hooks/useAdminRole";
 import { seedDashboardStarterData } from "@/lib/dashboardSeed";
 import { OutreachSourcesPanel } from "@/components/admin/OutreachSourcesPanel";
-import {
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  serverTimestamp,
-  setDoc,
-  updateDoc,
-} from "firebase/firestore";
+import { doc, serverTimestamp, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
 interface UserRow {
@@ -61,7 +53,7 @@ const USER_MANAGEMENT_FUNCTION_URL =
   "https://us-central1-webrtc-clone-dc88c.cloudfunctions.net/sendFcmMessage";
 
 export function SuperAdminDashboard() {
-  const { user, profile } = useAuth();
+  const { user, profile, loading: authLoading } = useAuth();
   const [userSearch, setUserSearch] = useState("");
   const [maintenanceMode, setMaintenanceMode] = useState(false);
   const [newUserSignups, setNewUserSignups] = useState(true);
@@ -121,92 +113,56 @@ export function SuperAdminDashboard() {
     [completedCalls30d, failedCalls30d, openReportsCount, users]
   );
 
+  // Loaded through /api/admin/overview rather than the client SDK. Three of
+  // these five reads are denied by the shared Firestore ruleset, and one denial
+  // failed the whole batch — see the route for which and why.
   useEffect(() => {
     let cancelled = false;
 
     async function loadData() {
+      if (authLoading) return;
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+
       setLoading(true);
       try {
-        const [usersSnap, groupsSnap, reportsSnap, schedulesSnap, controlsSnap] = await Promise.all([
-          getDocs(collection(db, "user")),
-          getDocs(collection(db, "groups")),
-          getDocs(collection(db, "reports")),
-          getDocs(collection(db, "schedules")),
-          getDoc(doc(db, "admin_controls", "platform")),
-        ]);
-
+        const token = await user.getIdToken();
+        const res = await fetch("/api/admin/overview", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? "Failed to load admin data");
         if (cancelled) return;
 
-        const loadedUsers: UserRow[] = usersSnap.docs.map((docSnap) => {
-          const data = docSnap.data() as Record<string, unknown>;
-          return {
-            id: docSnap.id,
-            name: toStringOrFallback(data.displayName, "Unnamed user"),
-            email: toStringOrFallback(data.email, `${docSnap.id}@unknown`),
-            role: toStringOrFallback(data.role, "user"),
-            status: data.banned === true ? "banned" : "active",
-            joinedAt: toDate(data.createdAt),
-          };
-        });
-
-        const loadedReports: ReportRow[] = reportsSnap.docs
-          .map((docSnap) => {
-            const data = docSnap.data() as Record<string, unknown>;
-            const status = toStringOrFallback(data.status, "open");
-            if (status === "resolved" || status === "dismissed") return null;
-            return {
-              id: docSnap.id,
-              reporter: toStringOrFallback(data.reporterName, toStringOrFallback(data.reporterId, "Unknown reporter")),
-              reported: toStringOrFallback(data.reportedName, toStringOrFallback(data.reportedId, "Unknown user")),
-              reason: toStringOrFallback(data.reason, "No reason provided"),
-              createdAt: toDate(data.createdAt),
-              targetUserId: asOptionalString(data.reportedId),
-            } satisfies ReportRow;
-          })
-          .filter((value): value is ReportRow => value !== null)
-          .sort((a, b) => (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0));
-
-        const now = new Date();
-        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-
-        let todayCount = 0;
-        let completed30d = 0;
-        let failed30d = 0;
-        for (const scheduleDoc of schedulesSnap.docs) {
-          const data = scheduleDoc.data() as Record<string, unknown>;
-          const scheduledAt = toDate(data.scheduledAt);
-          if (!scheduledAt) continue;
-          if (scheduledAt >= startOfToday) todayCount += 1;
-          if (scheduledAt < thirtyDaysAgo) continue;
-          const status = toStringOrFallback(data.status, "pending");
-          if (status === "completed" || status === "confirmed") completed30d += 1;
-          if (status === "missed" || status === "cancelled") failed30d += 1;
-        }
-
-        const controls = controlsSnap.exists()
-          ? (controlsSnap.data() as Record<string, unknown>)
-          : {};
-
         setUsers(
-          loadedUsers.sort(
-            (a, b) => (b.joinedAt?.getTime() ?? 0) - (a.joinedAt?.getTime() ?? 0)
-          )
+          (data.users ?? []).map((row: Record<string, unknown>) => ({
+            ...row,
+            joinedAt: row.joinedAt ? new Date(row.joinedAt as string) : null,
+          })) as UserRow[]
         );
-        setReports(loadedReports);
-        setGroupsCount(groupsSnap.size);
-        setCallsToday(todayCount);
-        setCompletedCalls30d(completed30d);
-        setFailedCalls30d(failed30d);
-        setNewUserSignups(Boolean(controls.allowNewUserSignups ?? true));
-        setStrangerCalls(Boolean(controls.enableStrangerCalls ?? true));
-        setMaintenanceMode(Boolean(controls.maintenanceMode ?? false));
+        setReports(
+          (data.reports ?? []).map((row: Record<string, unknown>) => ({
+            ...row,
+            createdAt: row.createdAt ? new Date(row.createdAt as string) : null,
+          })) as ReportRow[]
+        );
+        setGroupsCount(data.groupsCount ?? 0);
+        setCallsToday(data.callsToday ?? 0);
+        setCompletedCalls30d(data.completedCalls30d ?? 0);
+        setFailedCalls30d(data.failedCalls30d ?? 0);
+        setNewUserSignups(data.controls?.allowNewUserSignups !== false);
+        setStrangerCalls(data.controls?.enableStrangerCalls !== false);
+        setMaintenanceMode(data.controls?.maintenanceMode === true);
       } catch (error) {
-        toast.error(
-          `Failed loading admin data: ${
-            error instanceof Error ? error.message : "Unknown error"
-          }`
-        );
+        if (!cancelled) {
+          toast.error(
+            `Failed loading admin data: ${
+              error instanceof Error ? error.message : "Unknown error"
+            }`
+          );
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -216,7 +172,7 @@ export function SuperAdminDashboard() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [user, authLoading]);
 
   async function loadArchives() {
     if (!user) return;
@@ -455,22 +411,30 @@ export function SuperAdminDashboard() {
     ]);
   }
 
+  // Server-side: `admin_controls` has no rules block, so a client write is
+  // denied. The route also restricts these platform-wide switches to super_admin.
   async function savePlatformControls(next: {
     allowNewUserSignups?: boolean;
     enableStrangerCalls?: boolean;
     maintenanceMode?: boolean;
   }) {
+    if (!user) {
+      toast.error("Please sign in first.");
+      return;
+    }
     try {
       setIsSavingControls(true);
-      await setDoc(
-        doc(db, "admin_controls", "platform"),
-        {
-          ...next,
-          updatedBy: user?.uid ?? null,
-          updatedAt: serverTimestamp(),
+      const token = await user.getIdToken();
+      const res = await fetch("/api/admin/overview", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
-        { merge: true }
-      );
+        body: JSON.stringify(next),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to save");
     } catch (error) {
       toast.error(
         `Failed saving platform control: ${
@@ -844,27 +808,6 @@ export function SuperAdminDashboard() {
       </Tabs>
     </div>
   );
-}
-
-function toDate(value: unknown): Date | null {
-  if (value instanceof Date) return value;
-  if (
-    value &&
-    typeof value === "object" &&
-    "toDate" in value &&
-    typeof (value as { toDate?: unknown }).toDate === "function"
-  ) {
-    return (value as { toDate: () => Date }).toDate();
-  }
-  return null;
-}
-
-function asOptionalString(value: unknown): string | null {
-  return typeof value === "string" && value.length > 0 ? value : null;
-}
-
-function toStringOrFallback(value: unknown, fallback: string): string {
-  return typeof value === "string" && value.trim() ? value.trim() : fallback;
 }
 
 function percentage(numerator: number, denominator: number): string {

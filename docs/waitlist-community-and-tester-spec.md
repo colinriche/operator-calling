@@ -288,8 +288,8 @@ When enough people register, a calling group may be created for this interest.
 ```
 Want calls sooner?
 
-Join early access as a tester and you can start having calls now, with people
-from across Operator rather than only this group.
+Join Early Access to help test The Operator app. You can take part in test
+calls without waiting for this group to become active.
 
 It is an early version, so you may come across unfinished parts, and we may
 ask you for feedback. You can pause or leave at any time.

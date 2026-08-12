@@ -123,7 +123,15 @@ export async function requireAdmin(
       return null;
     }
 
-    const record = await lookupAdmin(email);
+    // If the `admins` collection is unreachable — its project unconfigured, or
+    // Firestore down — that must not deny every administrator at once. Fall
+    // through to the legacy path below, which exists for exactly this.
+    let record = null;
+    try {
+      record = await lookupAdmin(email);
+    } catch (err) {
+      console.error("[admin-auth] admins lookup failed:", (err as Error).message);
+    }
 
     let role: AdminRole | null = record?.role ?? null;
     let source: AdminCaller["source"] = "admins";
