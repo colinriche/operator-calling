@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import type { DocumentData } from "firebase-admin/firestore";
-import { getProjectDb, verifyIdTokenAnyProject, type ProjectKey } from "@/lib/firebase-admin";
+import { getAdminDb, verifyIdToken } from "@/lib/firebase-admin";
 import {
   canManageAdmins,
   canManageUsers,
@@ -13,20 +13,15 @@ import {
 //
 // Two steps, deliberately independent:
 //
-//   1. Authentication — who is this? The ID token is verified against every
-//      configured Firebase project, because the token may have been minted by
-//      either one and a token is only ever valid for its issuer. This is what
-//      lets admin access keep working while the site moves between projects.
+//   1. Authentication — who is this? The ID token is verified against
+//      `operator-calling`, the one project the website signs into.
 //
 //   2. Authorisation — what may they do? Answered solely by the `admins`
-//      collection (lib/admins.ts), keyed by email, in the production data
-//      project. Nothing a person can edit about their own profile grants
-//      access.
+//      collection (lib/admins.ts), keyed by email, in that same project.
+//      Nothing a person can edit about their own profile grants access.
 //
 // Splitting them is the point. Authority used to live on the `user` document
-// as a `role` field, in whichever project happened to issue the token — so the
-// answer to "is this person an admin" depended on which project they signed in
-// against, and the field was reachable by sign-up and account-linking code.
+// as a `role` field, reachable by sign-up and account-linking code.
 
 export type { AdminRole };
 
@@ -37,8 +32,6 @@ export interface AdminCaller {
   email: string;
   name: string;
   role: AdminRole;
-  /** Which project issued their token. */
-  project: ProjectKey;
   /**
    * Legacy `user` document id, when one was found. Retained because a couple of
    * routes still record it; not used for any permission decision.
@@ -57,7 +50,7 @@ export interface AdminCaller {
  * email-keyed lookup could never match an admin-login session.
  */
 async function resolveEmail(
-  identity: NonNullable<Awaited<ReturnType<typeof verifyIdTokenAnyProject>>>
+  identity: NonNullable<Awaited<ReturnType<typeof verifyIdToken>>>
 ): Promise<{ email: string | null; profileDocId: string | null; profile: DocumentData | null }> {
   if (identity.email) {
     return { email: identity.email, profileDocId: null, profile: null };
@@ -69,9 +62,9 @@ async function resolveEmail(
   }
 
   // Custom-token sessions use the Firestore document id as the uid, so the
-  // document is a direct lookup in the project that issued the token.
+  // document is a direct lookup.
   try {
-    const snap = await getProjectDb(identity.project).collection("user").doc(identity.uid).get();
+    const snap = await getAdminDb().collection("user").doc(identity.uid).get();
     if (snap.exists) {
       const data = snap.data() ?? {};
       const email = typeof data.email === "string" ? data.email.toLowerCase() : null;
@@ -111,9 +104,9 @@ export async function requireAdmin(
   if (!token) return null;
 
   try {
-    const identity = await verifyIdTokenAnyProject(token);
+    const identity = await verifyIdToken(token);
     if (!identity) {
-      console.warn("[admin-auth] token not valid for any configured project");
+      console.warn("[admin-auth] token not valid for this Firebase project");
       return null;
     }
 
@@ -123,7 +116,7 @@ export async function requireAdmin(
       return null;
     }
 
-    // If the `admins` collection is unreachable — its project unconfigured, or
+    // If the `admins` collection is unreachable — misconfigured credentials, or
     // Firestore down — that must not deny every administrator at once. Fall
     // through to the legacy path below, which exists for exactly this.
     let record = null;
@@ -143,10 +136,7 @@ export async function requireAdmin(
       let legacyProfile = profile;
       if (!legacyProfile) {
         try {
-          const snap = await getProjectDb(identity.project)
-            .collection("user")
-            .doc(identity.uid)
-            .get();
+          const snap = await getAdminDb().collection("user").doc(identity.uid).get();
           legacyProfile = snap.exists ? (snap.data() ?? null) : null;
         } catch {
           legacyProfile = null;
@@ -182,7 +172,6 @@ export async function requireAdmin(
       email,
       name,
       role,
-      project: identity.project,
       profileDocId,
       source,
     };

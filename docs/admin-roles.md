@@ -17,8 +17,9 @@ admins/{email}
 Only `name` and `role` are required. A record hand-created in the console with
 just those two fields works.
 
-Lives in **`operator-calling`** — the production data project — reached through
-`getProjectDb("staging")` in `lib/admins.ts`.
+Lives in **`operator-calling`** — the only project the website uses, and the
+same one that issues the caller's token — reached through `getAdminDb()` in
+`lib/admins.ts`.
 
 ### Roles
 
@@ -87,7 +88,9 @@ claim, then a custom claim, then the legacy `user` document at `user/{uid}`.
 It exists so deploying this change cannot lock every administrator out before
 the collection is populated. **Until it is removed, a `user` document with
 `role: "admin"` still grants access — which is the exact weakness `admins` was
-introduced to close.** There are 8 such documents in `webrtc-clone-dc88c`.
+introduced to close.** The legacy documents were in `webrtc-clone-dc88c`, which
+the website no longer reads; whatever `user` documents exist in
+`operator-calling` now decide this.
 
 To remove it: populate `admins`, confirm nothing logs the warning, then delete
 `legacyRole` and its call site in `lib/admin-auth.ts`.
@@ -157,14 +160,14 @@ Use the address the account you sign in with actually carries, or the lookup
 will not match.
 
 **Done:** `admins/colinriche@gmail.com` — `role: super_admin`, seeded
-2026-08-12. That address is the one on the single `role: admin` user document
-in `webrtc-clone-dc88c`, so it matches whichever way the session is
+2026-08-12. Authority is keyed by email, so it matches however the session is
 established.
 
 ### If the collection is unreachable
 
 `requireAdmin` catches a failed `admins` lookup and falls through to the legacy
-`user.role` path rather than denying every administrator at once. A missing
-`FIREBASE_PROJECT_ID_STAGING` would otherwise lock out the whole admin area,
+`user.role` path rather than denying every administrator at once. Missing or wrong
+`FIREBASE_CLIENT_EMAIL` / `FIREBASE_PRIVATE_KEY` would otherwise lock out the
+whole admin area,
 including the route that would let you fix it. The failure is logged as
 `[admin-auth] admins lookup failed:`.

@@ -91,12 +91,11 @@ export async function GET(req: NextRequest) {
         })
     );
 
-    // Accounts live in the dev project alongside sign-in.
-    const { db: devDb } = getAdminServices();
+    const { db: userDb } = getAdminServices();
     const accounts = new Map<string, string>();
     await Promise.all(
       [...emails].map(async (email) => {
-        const u = await devDb
+        const u = await userDb
           .collection("user")
           .where("email", "==", email)
           .limit(1)

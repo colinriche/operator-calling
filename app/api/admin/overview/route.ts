@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { DocumentData } from "firebase-admin/firestore";
 import { requireAdmin } from "@/lib/admin-auth";
-import { getProjectDb } from "@/lib/firebase-admin";
+import { getAdminDb } from "@/lib/firebase-admin";
 
 // ─── /api/admin/overview ─────────────────────────────────────────────────────
 //
@@ -64,7 +64,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const db = getProjectDb("dev");
+    const db = getAdminDb();
     const [usersSnap, groupsSnap, reportsSnap, schedulesSnap, controlsSnap] = await Promise.all([
       db.collection("user").get(),
       db.collection("groups").get(),
@@ -174,7 +174,7 @@ export async function PUT(req: NextRequest) {
   }
 
   try {
-    await getProjectDb("dev")
+    await getAdminDb()
       .collection("admin_controls")
       .doc("platform")
       .set(

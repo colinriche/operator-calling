@@ -160,8 +160,8 @@ export async function POST(
       let creatorUsername = "";
       if (caller.profileDocId) {
         try {
-          const { db: devDb } = getAdminServices();
-          const userSnap = await devDb.collection("user").doc(caller.profileDocId).get();
+          const { db: userDb } = getAdminServices();
+          const userSnap = await userDb.collection("user").doc(caller.profileDocId).get();
           if (userSnap.exists) {
             creatorName =
               userSnap.data()?.displayName ?? userSnap.data()?.name ?? creatorName;

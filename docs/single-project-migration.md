@@ -1,162 +1,107 @@
-# Moving the production website onto one Firebase project
+# One Firebase project for the website
 
-**Goal:** production uses `operator-calling` for users, permissions, waitlist
-data and groups — one coherent project, no split.
+**Goal:** the website uses `operator-calling` for everything — Auth, admin
+authority, users, groups, memberships, schedules, waitlist/outreach data and
+every API route.
 
-**Status:** not done. Waitlist data and group creation already point at
-`operator-calling`. Auth and role lookup do not, and moving them is not a code
-change — see below.
+**Status of the code: done.** The multi-project machinery is gone. There is one
+client config (`lib/firebase.ts`) and one Admin SDK app (`lib/firebase-admin.ts`),
+and the server takes its project id from the *same* variable the browser reads,
+so the two can no longer drift apart.
 
-## What production actually runs today
+**Status of production: pending a Vercel change.** The project is chosen by
+environment variables, and Vercel production still holds the
+`webrtc-clone-dc88c` values. Until they are changed the site keeps running on
+the old project — the code change alone does not move it.
 
-Established from the deployed bundle at `operatorcalling.com/login`, which
-inlines `NEXT_PUBLIC_FIREBASE_*` at build time:
+## What has to change in Vercel
 
-| | |
-|---|---|
-| Client SDK / auth token issuer | **`webrtc-clone-dc88c`** |
-| Admin role lookup (`user` collection) | **`webrtc-clone-dc88c`** |
-| Waitlist & demand data | `operator-calling` (as of this change) |
-| Auto-created groups | `operator-calling` (as of this change) |
-
-> `.env-production` in this repo says `operator-calling`. **It is not what
-> production serves, and Next.js never loads it** — the loaded names are
-> `.env`, `.env.local`, `.env.development`, `.env.production` (dots). A file
-> called `.env-production` is inert. Treat it as a stale note, not as config.
-
-So `"dev"` in `lib/firebase-admin.ts` genuinely means `webrtc-clone-dc88c` in
-production. It is not an alias that happens to resolve to `operator-calling`.
-
-## Why admin auth cannot move on its own
-
-A Firebase ID token is only valid for the project that issued it —
-`verifyIdToken` rejects everything else, and `createCustomToken` is scoped the
-same way. The issuer is the client SDK in `lib/firebase.ts`, which has one
-global config for the whole site.
-
-So the verifier cannot move unless the issuer moves, and the issuer is shared by
-every signed-in user. And `getAdminServices()` — the same `"dev"` key — backs
-roughly twenty routes covering groups, memberships, schedules, invites, the
-dashboard and account link/delete.
-
-**There is therefore no "move admin auth" change.** There is one atomic move of
-the website's entire identity and data plane, or nothing.
-
-The move itself is env-only. `PROJECTS.dev` reads its project id and credentials
-from environment variables, so pointing production at `operator-calling` means
-changing five values in Vercel and redeploying — no code edit:
+Production, Preview and Development, then redeploy:
 
 ```
-NEXT_PUBLIC_FIREBASE_API_KEY              operator-calling web API key
+NEXT_PUBLIC_FIREBASE_API_KEY              AIzaSyC_R2854WYyC5pYG7kvi_V6fN4qBemaiFI
 NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN          operator-calling.firebaseapp.com
 NEXT_PUBLIC_FIREBASE_PROJECT_ID           operator-calling
 NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET       operator-calling.firebasestorage.app
 NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID  858295006183
 NEXT_PUBLIC_FIREBASE_APP_ID               1:858295006183:web:48c3cd6b3e63525b394342
-FIREBASE_CLIENT_EMAIL                     operator-calling service account
+FIREBASE_CLIENT_EMAIL                     the operator-calling service account
 FIREBASE_PRIVATE_KEY                      its private key
 ```
 
-`"dev"` and `"staging"` then resolve to the same project. That is harmless —
-`verifyIdTokenAnyProject` would try one project twice — and the code can be
-tidied afterwards rather than as a prerequisite.
+`FIREBASE_CLIENT_EMAIL` / `FIREBASE_PRIVATE_KEY` currently hold the
+`webrtc-clone-dc88c` service account. The `operator-calling` service account is
+already in Vercel under `FIREBASE_CLIENT_EMAIL_STAGING` /
+`FIREBASE_PRIVATE_KEY_STAGING` — copy those two values across.
 
-## What the move would cost
+Then delete `FIREBASE_PROJECT_ID_STAGING`, `FIREBASE_CLIENT_EMAIL_STAGING` and
+`FIREBASE_PRIVATE_KEY_STAGING`. Nothing reads them any more.
 
-What currently lives in `webrtc-clone-dc88c` and would stop being visible to
-the website. Counted directly, no personal data read:
+The service account must belong to the same project as
+`NEXT_PUBLIC_FIREBASE_PROJECT_ID`. A mismatch is the failure mode that produced
+the original mess — valid sign-ins that fail to verify, admin lookups that find
+nothing — so `lib/firebase-admin.ts` now logs a named warning when it sees one.
 
-| Collection | Docs | Written by | Notes |
-|---|---|---|---|
-| `user` | 19 | both | 8 `role: admin`, 10 `role: user`, 1 none |
-| `groups` | 51 | mostly the app | 49 have ≥1 member; 0 have `callsEnabled: true`; only **1** is waitlist auto-created (Aug 2026). Created Dec 2025 → Aug 2026 |
-| `memberships` | 31 | | |
-| `scheduledGroupCalls` | 75 | | through 2026-08-09 |
-| `invites` | 372 | **370 the app, 2 the website** | see below |
-| `admin_controls` | 1 | website | `platform` doc the super-admin dashboard reads |
-| `schedules` | 3 | | |
+One side effect worth knowing: `WAITLIST_HASH_SALT` defaults to
+`FIREBASE_PRIVATE_KEY`, so changing the key changes the visitor-IP hashes.
+That resets unique-visit dedupe and rate-limit buckets. Duplicate-signup
+detection is unaffected — it uses an unsalted hash, deliberately. Set
+`WAITLIST_HASH_SALT` explicitly if you want to keep the old buckets.
 
-**Almost none of this is website data.** Checked by document shape:
+## Why it had to be one atomic switch
 
-- **370 of the 372 invites came from the mobile app**, not from here. The
-  website's only phone-invite writer (`app/api/invite/process/route.ts:136`)
-  always stamps `method: "web_signup"` and `via: "sms_link"`. No document in the
-  collection has `via` at all, and none has `method: "web_signup"`. What is
-  actually there is `bulk_sms` ×310, `sms` ×38, `whatsapp` ×12, `manual` ×10 —
-  from 8 senders, 332 of them in **February 2026 alone**, nothing after April.
-  That is the app's own bulk contact-invite feature, one big run.
-- The **2** website-written invites are from the `GroupAdminDashboard` email
-  form (`invitedEmail` + `expiresAt`).
-- Of 51 groups, exactly **1** carries waitlist provenance
-  (`autoCreatedGroupAt`). The rest predate this feature or came from the app and
-  the dashboard seeder.
+A Firebase ID token is only valid for the project that issued it —
+`verifyIdToken` rejects everything else, and `createCustomToken` is scoped the
+same way. The issuer is the client SDK, which has one config for the whole site.
+So the verifier could never move unless the issuer moved, and the same
+credentials back every route covering groups, memberships, schedules, invites,
+the dashboard and account link/delete. There was no "move admin auth" change —
+only one move of the whole identity and data plane.
 
-So "no users, no groups, only test stuff" is right *about the website* — this
-repo has written almost nothing here. But `webrtc-clone-dc88c` is not an empty
-scratch project either: it is where the **mobile app** kept its invites, groups
-and members through early 2026.
+## What is left behind in `webrtc-clone-dc88c`
 
-That reframes the migration. The website has essentially no data to lose. The
-real question is whether anything still reads `webrtc-clone-dc88c` — the app
-appears to have moved to `operator-calling` (QR invites are written there), and
-its invite writes here stop in April, which is consistent with that. Confirm the
-app no longer reads this project and the move becomes low-risk.
+Counted directly, no personal data read:
 
-## Blockers, in the order they bite
+| Collection | Docs | Notes |
+|---|---|---|
+| `user` | 19 | 8 `role: admin`, 10 `role: user`, 1 none |
+| `groups` | 51 | 49 have ≥1 member; 0 have `callsEnabled: true`; only 1 waitlist auto-created |
+| `memberships` | 31 | |
+| `scheduledGroupCalls` | 75 | through 2026-08-09 |
+| `invites` | 372 | **370 written by the mobile app, 2 by the website** |
+| `admin_controls` | 1 | the `platform` doc the super-admin dashboard reads |
+| `schedules` | 3 | |
 
-**1. Firestore rules — resolved, not a blocker.**
+**Almost none of it is website data.** The website's entire footprint here is
+2 invites and 1 group. The rest is the mobile app's own bulk contact-invite
+feature, mostly a single run in February 2026, with nothing after April — which
+is consistent with the app having moved to `operator-calling` itself.
 
-Both projects run the **same ruleset**, owned by the main app. So switching
-projects changes nothing about what a client may read. `match /user/{userId} {
-allow read: if true; }` applies in both, which is what `hooks/useAuth.ts` needs
-at sign-in before it knows who anyone is.
+Consequences of the switch, in the order they bite:
 
-What the website requires from that ruleset is recorded in
-[`firestore-rules.md`](./firestore-rules.md), which is the only place to look.
-Rules are applied manually by Colin in Firebase; this repo does not modify them.
+1. **Ordinary user accounts do not transfer.** Firebase Auth users are
+   per-project. Anyone with an email/password account in `webrtc-clone-dc88c`
+   has no account in `operator-calling` and must sign up again.
+2. **`admin_controls/platform` and `schedules`** must exist in
+   `operator-calling` or the super-admin dashboard shows zeroes. It no longer
+   *fails* — those reads go through the Admin SDK, which ignores rules.
+3. **Admin access already survives**, because authority is keyed by email in
+   `admins/{lowercase-email}` in `operator-calling`, not by uid and not by
+   whichever project issued the token. `admins/colinriche@gmail.com` was seeded
+   2026-08-12. See [`admin-roles.md`](./admin-roles.md).
 
-**2. Admin role documents must exist in `operator-calling`.**
+## Verify after the switch
 
-Admin login (`app/api/admin/token/route.ts`) looks up a `user` doc by
-`username`, then `name`, then `email`, and mints a custom token for that
-document's id. The lookup is server-side via the Admin SDK, so rules do not
-apply to it, and `createCustomToken` does not require a Firebase Auth user to
-exist — **only the Firestore `user` document is needed.** That makes admin
-access the cheapest thing to recreate.
+In this order, because each depends on the last:
 
-Since fixed: authority moved to the `admins` collection, keyed by email, in
-`operator-calling`. Because that lookup no longer depends on which project
-issued the token, **admin access already survives the move** — the record can be
-created before the switch. See [`admin-roles.md`](./admin-roles.md).
+1. Admin sign-in → the session is issued by `operator-calling`.
+2. `/admin/outreach` → waitlist and demand data load.
+3. `/admin/super` → overview loads (Admin SDK, so rules are not involved).
+4. `/dashboard` → client-side Firestore reads succeed; this is the one that
+   exercises the rules, and where `Missing or insufficient permissions` would
+   reappear if anything is missing from the ruleset.
+5. Public waitlist registration.
 
-**3. Ordinary user accounts do not transfer.**
-
-Firebase Auth users are per-project. Anyone signing in with email/password
-against `webrtc-clone-dc88c` has no account in `operator-calling`. Only the
-custom-token admin path survives without re-provisioning.
-
-**4. `admin_controls/platform` and `schedules`** must exist in
-`operator-calling`, or the super-admin dashboard shows zeroes. It no longer
-*fails* — those reads moved to `/api/admin/overview` and the Admin SDK, which
-does not care what the rules say (see [`firestore-rules.md`](./firestore-rules.md)).
-
-## Recommended order
-
-1. Confirm nothing still reads `webrtc-clone-dc88c` — chiefly the mobile app,
-   which owns 370 of the 372 invites and most of the 51 groups there. The
-   website's own footprint is 2 invites and 1 group, so it has nothing to lose.
-2. Read `operator-calling`'s ruleset; answer the `user`-read question above.
-3. Create the first `admins/{your.email}` record in `operator-calling` with
-   `role: "super_admin"` — see [`admin-roles.md`](./admin-roles.md). Authority is
-   now keyed by email in the production project, so it no longer depends on
-   which project issued the token, and this step can be done before the switch.
-4. Hand over any rules addition; wait for it to reach Staging.
-5. Switch the eight Vercel production variables; redeploy.
-6. Verify in this order: admin username login → `/admin/outreach` →
-   `/admin/super` → public waitlist registration → dashboard sign-in.
-7. Tidy the now-redundant `"dev"` / `"staging"` split in
-   `lib/firebase-admin.ts`, and delete or correct `.env-production`.
-
-Steps 1–3 are the real work. Step 5 is a five-minute change that is
-irreversible only in the sense that anything written to the wrong project
-afterwards has to be found and moved.
+What the website needs from the ruleset is recorded in
+[`firestore-rules.md`](./firestore-rules.md). Rules are applied by Colin through
+the main project's Development branch; this repo never modifies them.

@@ -49,8 +49,17 @@ interface ArchiveRow {
   deletionType: string;
 }
 
-const USER_MANAGEMENT_FUNCTION_URL =
-  "https://us-central1-webrtc-clone-dc88c.cloudfunctions.net/sendFcmMessage";
+// The app's user-management Cloud Function, in whichever project the site is
+// configured for. It was hardcoded to `webrtc-clone-dc88c`, which would reject
+// an `operator-calling` ID token outright — the function verifies the token
+// with its own project's Admin SDK, and a token is only valid for its issuer.
+//
+// Derived rather than hardcoded so it can never again name a project the rest
+// of the site has left. It does require the function to be deployed in
+// `operator-calling`; that lives in the app repo, not this one.
+const USER_MANAGEMENT_FUNCTION_URL = `https://us-central1-${
+  process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ?? ""
+}.cloudfunctions.net/sendFcmMessage`;
 
 export function SuperAdminDashboard() {
   const { user, profile, loading: authLoading } = useAuth();

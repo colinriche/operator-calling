@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import type { CompleteResponse } from "@/lib/qrinvite";
-import { verifyIdTokenAnyProject } from "@/lib/firebase-admin";
+import { verifyIdToken } from "@/lib/firebase-admin";
 import { resolveTokenProject } from "@/lib/qrinvite-admin";
 
 // ─── POST /api/qrinvite/complete ─────────────────────────────────────────────
@@ -38,7 +38,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<CompleteRespo
   try {
     // Verify the caller against whichever project issued their ID token
     // (web users authenticate against dev; the staging app against staging).
-    const identity = await verifyIdTokenAnyProject(idToken);
+    const identity = await verifyIdToken(idToken);
     if (!identity) {
       return NextResponse.json({ success: false, error: "Unauthenticated" }, { status: 401 });
     }

@@ -2,11 +2,9 @@
 
 ## Ownership
 
-The **main Operator app project owns the shared Firestore ruleset.** Both
-Firebase projects — `webrtc-clone-dc88c` (dev) and `operator-calling`
-(production/staging) — currently run the **same rules**, and are intended to
-stay aligned. There is no "dev ruleset" and "staging ruleset" to reason about
-separately; earlier notes in this repo that implied otherwise were wrong.
+The **main Operator app project owns the shared Firestore ruleset.** The website
+uses one Firebase project, `operator-calling`, so there is exactly one ruleset
+to reason about — the one applied there.
 
 **This repo never modifies those rules.** It does not deploy them, does not hold
 them in version control, and does not reach into the app codebase. Its job is to
@@ -141,8 +139,8 @@ has no record for that email. `admins/colinriche@gmail.com` now exists with
 `role: super_admin`, so the fallback is no longer load-bearing.
 
 **It can be removed** once you have signed in and confirmed nothing logs
-`[admin-auth] LEGACY ROLE USED`. Leaving it in means the 8 `role: admin` user
-documents in `webrtc-clone-dc88c` still grant website admin access — which is the
+`[admin-auth] LEGACY ROLE USED`. Leaving it in means any `role: admin` user
+document in `operator-calling` still grants website admin access — which is the
 exact weakness `admins` was introduced to close. Delete `legacyRole` and its call
 site in `lib/admin-auth.ts` when you are ready; say the word.
 

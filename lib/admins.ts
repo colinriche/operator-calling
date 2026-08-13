@@ -1,7 +1,7 @@
 // Server-only: the `admins` collection. Never import from a Client Component.
 
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
-import { getProjectDb } from "@/lib/firebase-admin";
+import { getAdminDb } from "@/lib/firebase-admin";
 
 // ─── Where administrative authority is defined ───────────────────────────────
 //
@@ -22,10 +22,9 @@ import { getProjectDb } from "@/lib/firebase-admin";
 // the thing that stays put across all of it — and it is what someone typing an
 // address into the admin panel actually knows.
 //
-// Lives in the "staging" project (operator-calling), which is the production
-// data project. Authorisation therefore does not depend on which project minted
-// the caller's token, which is what lets admin access survive the move off the
-// dev project.
+// Lives in `operator-calling`, the one project the website uses — the same
+// project that issues the caller's token, so authentication and authorisation
+// now read from the same place.
 
 export const ADMINS_COLLECTION = "admins";
 
@@ -45,7 +44,7 @@ export interface AdminRecord {
 }
 
 export function adminsDb(): Firestore {
-  return getProjectDb("staging");
+  return getAdminDb();
 }
 
 /**

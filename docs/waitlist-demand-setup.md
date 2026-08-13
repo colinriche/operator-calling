@@ -16,43 +16,26 @@ behind it, including registration emails.
 
 ## Where the data lives
 
-Everything is in the **staging** Firebase project (`operator-calling`), reached
-through `getProjectDb("staging")` — the project the mobile app reads, so demand
-sources and registrations sit alongside the groups they eventually become.
+Everything is in `operator-calling`, which is now the **only** Firebase project
+the website uses — sign-in, the `admins` collection, users, groups, demand
+sources and registrations all live there, so a demand source sits alongside the
+group it eventually becomes and alongside the person who administers it.
 
-`waitlistDb()` in `lib/waitlist/server.ts` is the single line that decides this.
+`waitlistDb()` in `lib/waitlist/server.ts` returns the same single handle as
+everything else; it is no longer a choice.
 
-> **Moved from dev.** This started in `webrtc-clone-dc88c` so the flow could be
-> exercised without touching the live-data project, and moved once it had been.
-> Nothing was migrated — the dev collections held test data only, so the dev
-> copies are stale and should be ignored rather than consulted.
-
-Group creation moved with it. `GROUP_TARGET_PROJECT` in
-`lib/waitlist/group-linking.ts` is now `"staging"` too, so a source reaching its
-threshold creates its group in `operator-calling`, where the mobile app can
-actually see it — a demand source and the group it becomes stay in one project.
-Each source records `groupProject` alongside `groupId`, so sources linked either
-side of the switch remain unambiguous.
+Group creation lands in the same place. Each source still records `groupProject`
+alongside `groupId`, so sources linked before the consolidation remain
+unambiguous.
 
 Auto-created groups are still written `callsEnabled: false` with their schedules
 `paused`. Visible to the app is not the same as calling anybody — see
 [`calls-enabled-dispatch-guard.md`](./calls-enabled-dispatch-guard.md).
 
-One thing did **not** move: the admin role check in `lib/admin-auth.ts` uses the
-`"dev"` project key, because that is where web sign-in and the `user` role
-documents live. Routes needing both a role check and waitlist data ask for each
-project explicitly.
-
-> **Confirmed: they are different projects in production.** The `"dev"` key
-> resolves from `NEXT_PUBLIC_FIREBASE_PROJECT_ID`, and the deployed bundle at
-> `operatorcalling.com/login` inlines `webrtc-clone-dc88c` — so production auth,
-> sign-in and role lookup run on the dev project while waitlist data and groups
-> run on `operator-calling`. Ignore `.env-production`, which claims otherwise and
-> is not loaded by Next.js at all.
->
-> Closing that split is a single env-var switch plus real prerequisites (rules,
-> role documents, 19 users / 51 groups left behind). See
-> [`single-project-migration.md`](./single-project-migration.md).
+> **The admin role check reads the same project.** `lib/admin-auth.ts` verifies
+> the ID token against `operator-calling` and resolves authority from
+> `admins/{lowercase-email}` there. Nothing depends on a second project any
+> more — see [`single-project-migration.md`](./single-project-migration.md).
 
 Collections created (all in `operator-calling`):
 
@@ -109,24 +92,22 @@ equalities plus in-memory sorting for anything added later.
 **Required, wherever the site runs:**
 
 ```
-FIREBASE_PROJECT_ID_STAGING       operator-calling
-FIREBASE_CLIENT_EMAIL_STAGING     service account for operator-calling
-FIREBASE_PRIVATE_KEY_STAGING      its private key
+NEXT_PUBLIC_FIREBASE_PROJECT_ID   operator-calling
+FIREBASE_CLIENT_EMAIL             service account for operator-calling
+FIREBASE_PRIVATE_KEY              its private key
 ```
 
-These already existed for QR invites, but they were optional then — an invite
-route simply skipped the staging project when they were absent. They are not
-optional now. Without them `getProjectDb("staging")` throws by name and the
-public waitlist page, every `/api/waitlist/*` route and the outreach admin panel
-fail outright. There is deliberately no fallback to dev: a silent fallback would
-scatter registrations across two projects, which is worse than an outage.
+One project, one set of credentials — the same ones sign-in, groups and the
+admin gate use. Without them `getAdminDb()` throws by name and the public
+waitlist page, every `/api/waitlist/*` route and the outreach admin panel fail
+outright. There is deliberately no fallback anywhere: a silent fallback would
+scatter registrations across projects, which is worse than an outage.
 
-The dev credentials (`NEXT_PUBLIC_FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`,
-`FIREBASE_PRIVATE_KEY`) are still required — admin role checks, group creation
-and web sign-in all read dev.
+The former `FIREBASE_*_STAGING` trio is gone. Nothing reads it.
 
 Optional: `WAITLIST_HASH_SALT`. Visitor IPs are hashed before storage, never
-kept raw. Without this variable the salt derives from the dev private key, which
+kept raw. Without this variable the salt derives from `FIREBASE_PRIVATE_KEY`,
+which
 is fine — set it only if you want the salt rotatable independently of the
 service account. Rotating it resets unique-visit dedupe but is safe for
 duplicate-signup detection, which uses an unsalted hash precisely so that the

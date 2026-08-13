@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
-import { verifyIdTokenAnyProject } from "@/lib/firebase-admin";
+import { firebaseProjectId, verifyIdToken } from "@/lib/firebase-admin";
 import {
   COLLECTIONS,
   TESTER_CONSENT_VERSION,
@@ -96,7 +96,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const identity = await verifyIdTokenAnyProject(idToken);
+    const identity = await verifyIdToken(idToken);
     if (!identity) {
       return NextResponse.json({ error: "Sign in again to continue." }, { status: 401 });
     }
@@ -113,7 +113,7 @@ export async function POST(req: NextRequest) {
     const update: Record<string, unknown> = {
       testerStatus: "active",
       testerUid: identity.uid,
-      testerUidProject: identity.project,
+      testerUidProject: firebaseProjectId(),
       testerConsentAt: FieldValue.serverTimestamp(),
       testerConsentVersion: TESTER_CONSENT_VERSION,
       updatedAt: FieldValue.serverTimestamp(),

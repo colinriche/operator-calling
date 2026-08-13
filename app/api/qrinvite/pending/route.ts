@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import type { PendingResponse, Platform } from "@/lib/qrinvite";
 import { resolveTokenProject } from "@/lib/qrinvite-admin";
+import { firebaseProjectId } from "@/lib/firebase-admin";
 
 const ALLOWED_PLATFORMS: Platform[] = ["ios", "android", "web"];
 
@@ -28,13 +29,11 @@ export async function POST(req: NextRequest): Promise<NextResponse<PendingRespon
     : null;
 
   try {
-    // Resolve which project holds the token; the pending record is written to
-    // that same project so pending/claim can complete it there later.
     const resolved = await resolveTokenProject(token);
     if (!resolved) {
       return NextResponse.json({ success: false }, { status: 404 });
     }
-    const { db, docId, project, snap: tokenSnap } = resolved;
+    const { db, docId, snap: tokenSnap } = resolved;
 
     const tokenData = tokenSnap.data()!;
     const expiresAt: Date =
@@ -51,7 +50,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<PendingRespon
     await pendingRef.set({
       token,
       tokenDocId: docId,
-      project,
+      project: firebaseProjectId(),
       targetUserId: tokenData.targetUserId,
       type: tokenData.type ?? "personal",
       groupId: tokenData.groupId ?? null,

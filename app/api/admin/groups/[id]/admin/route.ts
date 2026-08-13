@@ -93,9 +93,9 @@ export async function POST(req: NextRequest, { params }: Params) {
       return NextResponse.json({ success: true, groupAdminId: null });
     }
 
-    // Resolve the person. Roles live in the dev project's `user` collection.
-    const { db: devDb } = getAdminServices();
-    const users = devDb.collection("user");
+    // Resolve the person from the `user` collection.
+    const { db: userDb } = getAdminServices();
+    const users = userDb.collection("user");
 
     let userDoc = (await users.doc(identifier).get()).exists
       ? await users.doc(identifier).get()

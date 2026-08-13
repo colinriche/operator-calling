@@ -1,30 +1,25 @@
 // Server-only: reads and writes groups via the Admin SDK.
 
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
-import { getProjectDb, type ProjectKey } from "@/lib/firebase-admin";
+import { firebaseProjectId, getAdminDb } from "@/lib/firebase-admin";
 
 // ─── Where a created group lands ─────────────────────────────────────────────
 //
-// "staging" (operator-calling) — the project the mobile app reads. A group
-// created in "dev" would never appear in the app, which was acceptable while
-// the flow was being tested and is not the end state.
+// `operator-calling` — the one project the website uses, and the project the
+// mobile app reads, so a group created here is visible to both.
 //
-// Flipped alongside waitlistDb() in lib/waitlist/server.ts so that a demand
-// source and the group it becomes live in the same project. Nothing was
-// migrated: the dev groups were test data.
-//
-// The chosen project is recorded on the demand source as `groupProject`
-// alongside `groupId`, so a source linked before the switch still says which
-// project its group actually lives in rather than being silently wrong.
+// The project is still recorded on the demand source as `groupProject`
+// alongside `groupId`, so a source linked before the consolidation still says
+// which project its group actually lives in rather than being silently wrong.
 //
 // Groups created here are still written `callsEnabled: false` with their
 // schedules `paused`. Being visible to the app is not the same as calling
 // anybody — see docs/calls-enabled-dispatch-guard.md.
 
-export const GROUP_TARGET_PROJECT: ProjectKey = "staging";
+export const GROUP_TARGET_PROJECT: string = firebaseProjectId();
 
 export function groupsDb(): Firestore {
-  return getProjectDb(GROUP_TARGET_PROJECT);
+  return getAdminDb();
 }
 
 // ─── Duplicate detection ─────────────────────────────────────────────────────

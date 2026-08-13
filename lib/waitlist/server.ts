@@ -2,7 +2,7 @@
 // this from a Client Component — use lib/waitlist/constants.ts or copy.ts there.
 
 import { FieldValue, type Firestore, type Transaction } from "firebase-admin/firestore";
-import { getProjectDb } from "@/lib/firebase-admin";
+import { getAdminDb } from "@/lib/firebase-admin";
 import {
   COLLECTIONS,
   DEFAULT_DEMAND_THRESHOLD,
@@ -36,22 +36,17 @@ import type {
 // (operator-calling) — the project the mobile app reads, so demand sources and
 // registrations sit alongside the groups they eventually become.
 //
-// This moved from "dev" (webrtc-clone-dc88c) once the flow had been exercised.
+// This moved off the old dev project once the flow had been exercised.
 // Nothing was migrated: the dev collections held test data only.
 //
 // Two consequences worth knowing, both deliberate:
 //
-//   • The admin role check in lib/admin-auth.ts still reads the "dev" project's
-//     `user` collection, because that is where web sign-in and the role
-//     documents live. So the gate and the data it guards are now in different
-//     projects. Routes that need both already ask for each explicitly.
-//   • Every route below requires FIREBASE_PROJECT_ID_STAGING,
-//     FIREBASE_CLIENT_EMAIL_STAGING and FIREBASE_PRIVATE_KEY_STAGING. Without
-//     them getProjectDb throws by name rather than falling back — a silent
-//     fallback to dev would scatter registrations across two projects.
+// The website now uses one project for everything, so this is the same handle
+// the admin gate, groups and sign-in use. Without FIREBASE_CLIENT_EMAIL /
+// FIREBASE_PRIVATE_KEY it throws by name rather than falling back anywhere.
 
 export function waitlistDb(): Firestore {
-  return getProjectDb("staging");
+  return getAdminDb();
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

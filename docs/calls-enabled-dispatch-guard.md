@@ -37,7 +37,7 @@ What is known about the owner:
 
 | | |
 |---|---|
-| Firebase project | **`operator-calling`** — auto-created groups and their schedules now land here (`GROUP_TARGET_PROJECT = "staging"`). The dispatcher that matters is whichever one reads *this* project. A guard deployed only against `webrtc-clone-dc88c` protects nothing. |
+| Firebase project | **`operator-calling`** — the website's only project; auto-created groups and their schedules land here. The dispatcher that matters is whichever one reads *this* project. |
 | Functions region | `us-central1` |
 | Confirmed deployed function | `sendFcmMessage` — referenced at `components/admin/SuperAdminDashboard.tsx:60` |
 | Collection dispatch reads | `scheduledGroupCalls` — `status == "scheduled"`, `scheduledAt <= now` |
@@ -165,8 +165,8 @@ from a form value or a JSON import.
 
 ## Fields the website writes
 
-On the group document, in the project named by `GROUP_TARGET_PROJECT`
-(`lib/waitlist/group-linking.ts`, now `staging` — `operator-calling`):
+On the group document, in `operator-calling` (`GROUP_TARGET_PROJECT` in
+`lib/waitlist/group-linking.ts`):
 
 ```
 callsEnabled       boolean   — false on automatic creation

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { requireAdmin } from "@/lib/admin-auth";
-import { verifyIdTokenAnyProject } from "@/lib/firebase-admin";
+import { verifyIdToken } from "@/lib/firebase-admin";
 import { groupsDb } from "@/lib/waitlist/group-linking";
 import { nextOccurrenceUtc, type WeeklyWindow } from "@/lib/waitlist/schedule";
 import { SCHEDULE_ZONE } from "@/lib/waitlist/timezone";
@@ -37,7 +37,7 @@ export async function GET(req: NextRequest, { params }: Params) {
   }
 
   try {
-    const identity = await verifyIdTokenAnyProject(idToken);
+    const identity = await verifyIdToken(idToken);
     if (!identity) {
       return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
     }
@@ -182,7 +182,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   }
 
   try {
-    const identity = await verifyIdTokenAnyProject(idToken);
+    const identity = await verifyIdToken(idToken);
     if (!identity) {
       return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
     }

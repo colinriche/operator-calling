@@ -1,10 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
-import {
-  getConfiguredProjectKeys,
-  getProjectDb,
-  verifyIdTokenAnyProject,
-} from "@/lib/firebase-admin";
+import { getAdminDb, verifyIdToken } from "@/lib/firebase-admin";
 import { resolveTokenProject } from "@/lib/qrinvite-admin";
 
 // ─── POST /api/qrinvite/pending/claim ─────────────────────────────────────────
@@ -31,8 +27,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    // The caller may be authenticated against either project's app.
-    const identity = await verifyIdTokenAnyProject(idToken);
+    const identity = await verifyIdToken(idToken);
     if (!identity) {
       return NextResponse.json({ success: false, error: "Unauthenticated" }, { status: 401 });
     }
@@ -51,17 +46,8 @@ export async function POST(req: NextRequest) {
     const value = userPhone ?? userEmail!;
     const results: ClaimResult[] = [];
 
-    // Pending records live in the same project as their token, so scan every
-    // configured project's pending_connections and complete each within the
-    // project it was found in.
-    for (const projectKey of getConfiguredProjectKeys()) {
-      let db: FirebaseFirestore.Firestore;
-      try {
-        db = getProjectDb(projectKey);
-      } catch (err) {
-        console.error(`[pending/claim] skipping "${projectKey}" project:`, (err as Error).message);
-        continue;
-      }
+    {
+      const db = getAdminDb();
 
       const pendingSnap = await db
         .collection("pending_connections")
@@ -113,8 +99,6 @@ async function _completeInvite(
   token: string,
   currentUserId: string
 ): Promise<Omit<ClaimResult, "pendingId">> {
-  // Re-resolve which project holds the token; all reads/writes below use that
-  // project's db so the completion lands in the correct Firebase project.
   const resolved = await resolveTokenProject(token);
   if (!resolved) return { success: false, error: "Token not found" };
 

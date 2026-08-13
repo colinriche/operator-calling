@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyIdTokenAnyProject } from "@/lib/firebase-admin";
+import { verifyIdToken } from "@/lib/firebase-admin";
 import { claimGroupsForAccount } from "@/lib/waitlist/activation";
 
 // POST /api/waitlist/claim
@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const identity = await verifyIdTokenAnyProject(idToken);
+    const identity = await verifyIdToken(idToken);
     if (!identity) {
       return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
     }

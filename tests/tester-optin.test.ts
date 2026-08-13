@@ -61,7 +61,7 @@ describe("the authenticated tester route is the only way in", () => {
   });
 
   it("verifies the token rather than trusting a claimed identity", () => {
-    expect(route).toMatch(/verifyIdTokenAnyProject/);
+    expect(route).toMatch(/verifyIdToken/);
   });
 
   it("records the verified uid alongside the active status", () => {

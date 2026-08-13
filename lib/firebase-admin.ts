@@ -2,182 +2,127 @@ import { initializeApp, getApp, cert, type App } from "firebase-admin/app";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
 import { getAuth, type Auth, type DecodedIdToken } from "firebase-admin/auth";
 
-// ─── Multi-project Firebase Admin ─────────────────────────────────────────────
+// ─── One Firebase project ────────────────────────────────────────────────────
 //
-// One deployment serves two mobile apps that write to two different Firebase
-// projects:
-//   • "dev"     → the primary project (webrtc-clone-dc88c) — the site's own
-//                 Firebase project, used for web auth and every non-invite route.
-//   • "staging" → the secondary project (operator-calling) — where the
-//                 staging/main app writes its QR invites, groups and contacts.
+// The website talks to exactly one Firebase project: `operator-calling`. Auth,
+// the `admins` collection, users, groups, memberships, schedules, waitlist and
+// outreach data all live there, and every server route reaches them through the
+// single Admin SDK app below.
 //
-// The "dev" credentials come from the existing NEXT_PUBLIC_FIREBASE_PROJECT_ID /
-// FIREBASE_CLIENT_EMAIL / FIREBASE_PRIVATE_KEY vars and back the DEFAULT admin
-// app, so existing routes are unaffected. The "staging" credentials come from
-// FIREBASE_PROJECT_ID_STAGING / FIREBASE_CLIENT_EMAIL_STAGING /
-// FIREBASE_PRIVATE_KEY_STAGING and back a named admin app.
+// The project id deliberately comes from NEXT_PUBLIC_FIREBASE_PROJECT_ID — the
+// same variable the browser client reads in lib/firebase.ts. Server and client
+// therefore cannot drift apart: whatever project the browser signs in against
+// is the project whose tokens this file verifies and whose data it reads. That
+// split is what previously made a valid sign-in produce "insufficient
+// permissions" and admin lookups that found nothing.
+//
+// Credentials must be a service account belonging to that same project:
+//
+//   NEXT_PUBLIC_FIREBASE_PROJECT_ID   operator-calling
+//   FIREBASE_CLIENT_EMAIL             firebase-adminsdk-…@operator-calling.iam.gserviceaccount.com
+//   FIREBASE_PRIVATE_KEY              its private key
 
-export type ProjectKey = "dev" | "staging";
+const PROJECT_ID = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+const CLIENT_EMAIL = process.env.FIREBASE_CLIENT_EMAIL;
+const PRIVATE_KEY = process.env.FIREBASE_PRIVATE_KEY;
 
-interface ProjectCredentials {
-  key: ProjectKey;
-  /** Named admin app to use; "dev" uses the DEFAULT app for backwards-compat. */
-  appName?: string;
-  projectIdVar: string;
-  clientEmailVar: string;
-  privateKeyVar: string;
-  projectId?: string;
-  clientEmail?: string;
-  privateKey?: string;
-}
-
-const PROJECTS: Record<ProjectKey, ProjectCredentials> = {
-  dev: {
-    key: "dev",
-    // appName omitted → DEFAULT app (preserves prior behaviour exactly)
-    projectIdVar: "NEXT_PUBLIC_FIREBASE_PROJECT_ID",
-    clientEmailVar: "FIREBASE_CLIENT_EMAIL",
-    privateKeyVar: "FIREBASE_PRIVATE_KEY",
-    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-    privateKey: process.env.FIREBASE_PRIVATE_KEY,
-  },
-  staging: {
-    key: "staging",
-    appName: "staging",
-    projectIdVar: "FIREBASE_PROJECT_ID_STAGING",
-    clientEmailVar: "FIREBASE_CLIENT_EMAIL_STAGING",
-    privateKeyVar: "FIREBASE_PRIVATE_KEY_STAGING",
-    projectId: process.env.FIREBASE_PROJECT_ID_STAGING,
-    clientEmail: process.env.FIREBASE_CLIENT_EMAIL_STAGING,
-    privateKey: process.env.FIREBASE_PRIVATE_KEY_STAGING,
-  },
-};
-
-/** True when a project has all three credential vars present. */
-function isConfigured(cfg: ProjectCredentials): boolean {
-  return !!(cfg.projectId && cfg.clientEmail && cfg.privateKey);
-}
-
-/** Whether the secondary (staging / operator-calling) project is configured. */
-export function hasStagingProject(): boolean {
-  return isConfigured(PROJECTS.staging);
+/** The project this deployment reads and writes. */
+export function firebaseProjectId(): string {
+  return PROJECT_ID ?? "";
 }
 
 /**
- * Configured project keys, in lookup order. "dev" (primary) is always included;
- * "staging" only when its credentials are present.
+ * Initialize (or reuse) the one firebase-admin App. Throws an error naming the
+ * missing variable(s) rather than falling back to anything.
  */
-export function getConfiguredProjectKeys(): ProjectKey[] {
-  const keys: ProjectKey[] = ["dev"];
-  if (hasStagingProject()) keys.push("staging");
-  return keys;
-}
-
-/**
- * Initialize (or reuse) the firebase-admin App for a project. Guarded against
- * re-init. Throws a clear error naming the missing env var(s) if unconfigured.
- */
-function getProjectApp(key: ProjectKey): App {
-  const cfg = PROJECTS[key];
-
-  // Reuse an already-initialized app (default or named).
+export function getAdminApp(): App {
   try {
-    return cfg.appName ? getApp(cfg.appName) : getApp();
+    return getApp();
   } catch {
     // not yet initialized — fall through
   }
 
   const missing: string[] = [];
-  if (!cfg.projectId) missing.push(cfg.projectIdVar);
-  if (!cfg.clientEmail) missing.push(cfg.clientEmailVar);
-  if (!cfg.privateKey) missing.push(cfg.privateKeyVar);
+  if (!PROJECT_ID) missing.push("NEXT_PUBLIC_FIREBASE_PROJECT_ID");
+  if (!CLIENT_EMAIL) missing.push("FIREBASE_CLIENT_EMAIL");
+  if (!PRIVATE_KEY) missing.push("FIREBASE_PRIVATE_KEY");
   if (missing.length) {
     throw new Error(
-      `[firebase-admin] Cannot initialize "${key}" Firebase project — missing environment variable(s): ${missing.join(
-        ", "
-      )}. Set them in the Vercel project settings.`
+      `[firebase-admin] Cannot initialize Firebase — missing environment ` +
+        `variable(s): ${missing.join(", ")}. Set them in the Vercel project settings.`
     );
   }
 
-  const credential = cert({
-    projectId: cfg.projectId,
-    clientEmail: cfg.clientEmail,
-    privateKey: cfg.privateKey!.replace(/\\n/g, "\n"),
-  });
-
-  return cfg.appName
-    ? initializeApp({ credential }, cfg.appName)
-    : initializeApp({ credential });
-}
-
-/** Firestore handle for a specific project. */
-export function getProjectDb(key: ProjectKey): Firestore {
-  return getFirestore(getProjectApp(key));
-}
-
-/** Auth handle for a specific project. */
-export function getProjectAuth(key: ProjectKey): Auth {
-  return getAuth(getProjectApp(key));
-}
-
-/**
- * Verify a Firebase ID token against each configured project, returning the
- * decoded identity plus the project that accepted it. A given ID token is only
- * valid for the project that issued it, so this lets one endpoint serve callers
- * authenticated against either app. Returns null if no project accepts it.
- */
-export async function verifyIdTokenAnyProject(idToken: string): Promise<{
-  uid: string;
-  phone: string | null;
-  email: string | null;
-  project: ProjectKey;
-  /**
-   * The full decoded token, including custom claims. Sessions minted by
-   * /api/admin/token are custom-token sessions with no `email` claim of their
-   * own, so the admin gate reads the email out of here.
-   */
-  decoded: DecodedIdToken;
-} | null> {
-  for (const key of getConfiguredProjectKeys()) {
-    let auth: Auth;
-    try {
-      auth = getProjectAuth(key);
-    } catch (err) {
-      console.error(`[firebase-admin] "${key}" auth unavailable:`, (err as Error).message);
-      continue;
-    }
-    try {
-      const decoded = await auth.verifyIdToken(idToken);
-      return {
-        uid: decoded.uid,
-        phone: decoded.phone_number ?? null,
-        email: decoded.email?.toLowerCase() ?? null,
-        project: key,
-        decoded,
-      };
-    } catch {
-      // Not issued by this project — try the next one.
-    }
+  // A service account from a different project is the one misconfiguration that
+  // produces confusing, apparently unrelated failures — token verification
+  // rejecting valid sign-ins, admin lookups finding nothing. Say so plainly.
+  if (!CLIENT_EMAIL!.endsWith(`@${PROJECT_ID}.iam.gserviceaccount.com`)) {
+    console.warn(
+      `[firebase-admin] FIREBASE_CLIENT_EMAIL (${CLIENT_EMAIL}) does not belong ` +
+        `to ${PROJECT_ID}. The service account must be from the same project as ` +
+        `NEXT_PUBLIC_FIREBASE_PROJECT_ID.`
+    );
   }
-  return null;
+
+  return initializeApp({
+    credential: cert({
+      projectId: PROJECT_ID,
+      clientEmail: CLIENT_EMAIL,
+      privateKey: PRIVATE_KEY!.replace(/\\n/g, "\n"),
+    }),
+  });
 }
 
-// ─── Backwards-compatible default (primary / dev project) helpers ─────────────
+export function getAdminDb(): Firestore {
+  return getFirestore(getAdminApp());
+}
+
+export function getAdminAuth(): Auth {
+  return getAuth(getAdminApp());
+}
 
 export function getAdminServices(): { db: Firestore; adminAuth: Auth } {
-  const app = getProjectApp("dev");
+  const app = getAdminApp();
   return { db: getFirestore(app), adminAuth: getAuth(app) };
 }
 
-export async function verifyAuth(authHeader: string): Promise<string | null> {
-  const { adminAuth } = getAdminServices();
-  const token = authHeader.replace("Bearer ", "").trim();
-  if (!token) return null;
+/**
+ * Verify a Firebase ID token and return the caller's identity, or null.
+ *
+ * `decoded` carries the full claim set. Sessions minted by /api/admin/token are
+ * custom-token sessions with no `email` claim of their own, which is why the
+ * admin gate reads the email out of there.
+ */
+export async function verifyIdToken(idToken: string): Promise<{
+  uid: string;
+  phone: string | null;
+  email: string | null;
+  decoded: DecodedIdToken;
+} | null> {
+  let auth: Auth;
   try {
-    const decoded = await adminAuth.verifyIdToken(token);
-    return decoded.uid;
+    auth = getAdminAuth();
+  } catch (err) {
+    console.error("[firebase-admin] auth unavailable:", (err as Error).message);
+    return null;
+  }
+
+  try {
+    const decoded = await auth.verifyIdToken(idToken);
+    return {
+      uid: decoded.uid,
+      phone: decoded.phone_number ?? null,
+      email: decoded.email?.toLowerCase() ?? null,
+      decoded,
+    };
   } catch {
     return null;
   }
+}
+
+export async function verifyAuth(authHeader: string): Promise<string | null> {
+  const token = authHeader.replace("Bearer ", "").trim();
+  if (!token) return null;
+  const identity = await verifyIdToken(token);
+  return identity?.uid ?? null;
 }
