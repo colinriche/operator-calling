@@ -1,5 +1,27 @@
 # Firestore rules — what the website needs
 
+> **Status: applied.** Everything in the "Manual Firestore rules changes"
+> section below has been written into the app repo's `firestore.rules` and
+> deployed to **both** `operator-calling` and `webrtc-clone-dc88c`, along with a
+> `groups(isPrivate, name)` composite index the public listing also needed. Live
+> rules in both projects were byte-identical to the repo file beforehand, so no
+> manual change was overwritten. Verified by running every website query against
+> both live projects, signed out and signed in.
+>
+> Two deviations from the draft below, both deliberate:
+>
+> - Field reads use `.get(field, default)` throughout. A missing field otherwise
+>   raises an error, and an error fails the **entire** list query rather than
+>   skipping one document. Live data has 12 groups with no `isPrivate` and 2 with
+>   no `memberIds`.
+> - The optional public-`groups` change was **included**, because `/groups` is a
+>   public marketing page that was permanently empty without it. Absent
+>   `isPrivate` is treated as private, so a group is only public by saying so.
+>
+> The `isAdmin()`-accepts-`super_admin` change was **not** applied — it is for
+> the app's operator dashboard, not the website, and widening an admin check is
+> the app's call.
+
 ## Ownership
 
 The **main Operator app project owns the shared Firestore ruleset.** The website
@@ -8,8 +30,9 @@ to reason about — the one applied there.
 
 **This repo never modifies those rules.** It does not deploy them, does not hold
 them in version control, and does not reach into the app codebase. Its job is to
-state what the website requires and why. Colin applies any change manually in
-Firebase, through the main project's route.
+state what the website requires and why. Changes are applied in the app repo's
+`firestore.rules` and deployed from there — the rules recorded below were applied
+that way, on both `development` and `staging`, rather than by hand in the console.
 
 That constraint shapes the design rather than fighting it: **when admin-only
 data can be read through a Next.js route with the Admin SDK, it should be.**
