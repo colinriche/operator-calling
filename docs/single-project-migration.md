@@ -16,6 +16,23 @@ the old project — the code change alone does not move it.
 
 ## What has to change in Vercel
 
+> **Superseded.** The six `NEXT_PUBLIC_FIREBASE_*` variables below are no longer
+> how the project is chosen. The client config for both projects is now baked
+> into `lib/firebase-env.ts` and selected with one variable —
+> `NEXT_PUBLIC_FIREBASE_ENV`, defaulting to `prod` — so an unconfigured
+> deployment already lands on `operator-calling`. See
+> [`firebase-environments.md`](./firebase-environments.md) for the current
+> setup, which is shorter than this.
+>
+> Two corrections worth recording, since this list was followed by hand:
+>
+> - The app id here, `1:858295006183:web:48c3cd6b3e63525b394342`, **does not
+>   exist**. `operator-calling` has exactly one web app and its id is
+>   `1:858295006183:web:b4e7c6e6a59f5109394342` (confirmed with
+>   `firebase apps:sdkconfig WEB`). Anything set from this line was wrong.
+> - `prod` and `dev` now ignore these variables entirely, so a stale value left
+>   behind in Vercel is inert rather than silently overriding half the config.
+
 Production, Preview and Development, then redeploy:
 
 ```
@@ -24,7 +41,7 @@ NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN          operator-calling.firebaseapp.com
 NEXT_PUBLIC_FIREBASE_PROJECT_ID           operator-calling
 NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET       operator-calling.firebasestorage.app
 NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID  858295006183
-NEXT_PUBLIC_FIREBASE_APP_ID               1:858295006183:web:48c3cd6b3e63525b394342
+NEXT_PUBLIC_FIREBASE_APP_ID               1:858295006183:web:b4e7c6e6a59f5109394342
 FIREBASE_CLIENT_EMAIL                     the operator-calling service account
 FIREBASE_PRIVATE_KEY                      its private key
 ```

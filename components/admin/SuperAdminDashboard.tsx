@@ -14,6 +14,7 @@ import { seedDashboardStarterData } from "@/lib/dashboardSeed";
 import { OutreachSourcesPanel } from "@/components/admin/OutreachSourcesPanel";
 import { doc, serverTimestamp, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { firebaseProjectId } from "@/lib/firebase-env";
 
 interface UserRow {
   id: string;
@@ -57,9 +58,7 @@ interface ArchiveRow {
 // Derived rather than hardcoded so it can never again name a project the rest
 // of the site has left. It does require the function to be deployed in
 // `operator-calling`; that lives in the app repo, not this one.
-const USER_MANAGEMENT_FUNCTION_URL = `https://us-central1-${
-  process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ?? ""
-}.cloudfunctions.net/sendFcmMessage`;
+const USER_MANAGEMENT_FUNCTION_URL = `https://us-central1-${firebaseProjectId()}.cloudfunctions.net/sendFcmMessage`;
 
 export function SuperAdminDashboard() {
   const { user, profile, loading: authLoading } = useAuth();

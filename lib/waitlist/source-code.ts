@@ -1,4 +1,5 @@
 import { randomInt, randomBytes, createHash } from "crypto";
+import { adminCredentials } from "../firebase-env";
 
 // ─── Tracked source codes ────────────────────────────────────────────────────
 //
@@ -63,10 +64,14 @@ export function normaliseSourceCode(raw: unknown): string | null {
 // by anyone who obtains the database. WAITLIST_HASH_SALT overrides it if you
 // would rather set a dedicated value.
 
+// The private key is read through adminCredentials() so that a deployment using
+// the environment-scoped FIREBASE_PRIVATE_KEY_{PROD,DEV} names still finds salt
+// material — reading FIREBASE_PRIVATE_KEY directly would silently fall through
+// to the shared constant and make every hash guessable.
 function salt(): string {
   return (
     process.env.WAITLIST_HASH_SALT ||
-    process.env.FIREBASE_PRIVATE_KEY ||
+    adminCredentials().privateKey ||
     "operator-waitlist-fallback-salt"
   );
 }
