@@ -59,6 +59,12 @@ export async function PATCH(
     if (typeof body[key] === "string") update[key] = str(body[key], max);
   }
 
+  // Whether tracked URLs carry the topic slug. Cosmetic, so it needs no
+  // re-issuing of codes — the same links simply copy differently from now on.
+  if (typeof body.includeTopicInUrl === "boolean") {
+    update.includeTopicInUrl = body.includeTopicInUrl;
+  }
+
   if (typeof body.platformId === "string" && PLATFORM_IDS.includes(body.platformId)) {
     update.platformId = body.platformId;
   }

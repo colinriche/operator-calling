@@ -29,6 +29,7 @@ import {
   platformLabel,
 } from "@/lib/waitlist/constants";
 import { countryName, languageName } from "@/lib/waitlist/locales";
+import { topicSlug } from "@/lib/waitlist/tracked-url";
 import { OutreachComposer } from "@/components/admin/OutreachComposer";
 import type { DemandSourceRow } from "@/lib/waitlist/types";
 
@@ -105,6 +106,7 @@ const BLANK_FORM = {
   platformId: "reddit",
   sourceType: "subreddit",
   topicName: "",
+  includeTopicInUrl: false,
   sourceUrl: "",
   publicAudienceLabel: "",
   postingRules: "",
@@ -152,6 +154,7 @@ export function OutreachSourcesPanel() {
   const [thresholdDraft, setThresholdDraft] = useState("");
   const [savingThreshold, setSavingThreshold] = useState(false);
   const [togglingCalls, setTogglingCalls] = useState<string | null>(null);
+  const [savingTopicUrl, setSavingTopicUrl] = useState<string | null>(null);
   const [openOutreach, setOpenOutreach] = useState<string | null>(null);
   const [sourceThresholdDraft, setSourceThresholdDraft] = useState<
     Record<string, string>
@@ -354,6 +357,33 @@ export function OutreachSourcesPanel() {
     } catch (err) {
       console.error(err);
       toast.error(err instanceof Error ? err.message : "Failed to save");
+    }
+  }
+
+  // Sources created before this option existed, and ones whose topic was added
+  // later, need a way to opt in without recreating anything. Tracked codes are
+  // untouched — only how the URL is written out changes.
+  async function toggleTopicInUrl(sourceId: string, include: boolean) {
+    if (!user) return;
+    setSavingTopicUrl(sourceId);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/admin/demand-sources/${sourceId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ includeTopicInUrl: include }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to save");
+      await load();
+    } catch (err) {
+      console.error(err);
+      toast.error(err instanceof Error ? err.message : "Failed to save");
+    } finally {
+      setSavingTopicUrl(null);
     }
   }
 
@@ -699,6 +729,37 @@ export function OutreachSourcesPanel() {
                 placeholder="e.g. Talking with new people"
                 className={inputClass}
               />
+              {/* Cosmetic: the topic makes a pasted link readable. The waitlist
+                  page ignores it, so it changes nothing about where people land. */}
+              <label
+                className={cn(
+                  "flex items-start gap-2 text-xs mt-1.5",
+                  form.topicName.trim()
+                    ? "text-foreground"
+                    : "text-muted-foreground"
+                )}
+              >
+                <input
+                  type="checkbox"
+                  disabled={!form.topicName.trim()}
+                  checked={form.includeTopicInUrl && !!form.topicName.trim()}
+                  onChange={(e) =>
+                    setForm({ ...form, includeTopicInUrl: e.target.checked })
+                  }
+                  className="mt-0.5 w-4 h-4 shrink-0 rounded border-border accent-primary disabled:opacity-50"
+                />
+                <span>
+                  Include the topic in the tracked URL
+                  {topicSlug(form.topicName) && (
+                    <>
+                      {" — "}
+                      <code className="font-mono text-muted-foreground">
+                        &amp;t={topicSlug(form.topicName)}
+                      </code>
+                    </>
+                  )}
+                </span>
+              </label>
             </div>
             <div>
               <label className="block text-xs font-medium text-foreground mb-1.5">
@@ -1014,6 +1075,24 @@ export function OutreachSourcesPanel() {
 
               {/* Tracked links */}
               <div className="space-y-2 pt-1">
+                {/* Only offered where there is a topic to put in the URL. */}
+                {topicSlug(source.topicName) && (
+                  <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <input
+                      type="checkbox"
+                      checked={source.includeTopicInUrl}
+                      disabled={savingTopicUrl === source.id}
+                      onChange={(e) =>
+                        void toggleTopicInUrl(source.id, e.target.checked)
+                      }
+                      className="w-4 h-4 shrink-0 rounded border-border accent-primary"
+                    />
+                    Include the topic in these links —{" "}
+                    <code className="font-mono">
+                      &amp;t={topicSlug(source.topicName)}
+                    </code>
+                  </label>
+                )}
                 {source.links.length === 0 && (
                   <p className="text-xs text-muted-foreground">
                     No tracked links yet.

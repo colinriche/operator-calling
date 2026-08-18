@@ -19,6 +19,8 @@ export interface DemandSourceRow {
   sourceName: string;
   sourceType: SourceType | string;
   topicName: string;
+  /** Append the topic to this source's tracked URLs, purely for readability. */
+  includeTopicInUrl: boolean;
   sourceUrl: string;
   publicDisplayName: string;
   publicAudienceLabel: string;

@@ -16,6 +16,7 @@ import {
   toIso,
   waitlistDb,
 } from "@/lib/waitlist/server";
+import { buildTrackedUrl, type TopicUrlOptions } from "@/lib/waitlist/tracked-url";
 import type { DemandSourceRow, SourceLinkRow } from "@/lib/waitlist/types";
 
 // Demand sources — admin or super_admin.
@@ -41,7 +42,9 @@ function originFrom(req: NextRequest): string {
 function buildLinkRow(
   id: string,
   data: FirebaseFirestore.DocumentData,
-  origin: string
+  origin: string,
+  // The topic lives on the source, not the link, so it has to be passed in.
+  topic?: TopicUrlOptions
 ): SourceLinkRow {
   return {
     id,
@@ -53,7 +56,7 @@ function buildLinkRow(
     formType: data.formType ?? "waitlist",
     status: data.status ?? "active",
     label: data.label ?? "",
-    trackedUrl: `${origin}/waitlist?s=${data.sourceCode ?? ""}`,
+    trackedUrl: buildTrackedUrl(origin, data.sourceCode ?? "", topic),
     createdAt: toIso(data.createdAt),
     createdBy: data.createdBy ?? null,
     firstUsedAt: toIso(data.firstUsedAt),
@@ -109,9 +112,26 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // Built before the link rows: each link's copyable URL may carry its
+    // source's topic, and the link document has no idea what that topic is.
+    const topicBySource = new Map<string, TopicUrlOptions>();
+    for (const doc of sourceSnap.docs) {
+      const data = doc.data();
+      topicBySource.set(doc.id, {
+        topicName: data.topicName ?? "",
+        includeTopicInUrl: data.includeTopicInUrl === true,
+      });
+    }
+
     const linksBySource = new Map<string, SourceLinkRow[]>();
     for (const doc of linkSnap.docs) {
-      const row = buildLinkRow(doc.id, doc.data(), origin);
+      const data = doc.data();
+      const row = buildLinkRow(
+        doc.id,
+        data,
+        origin,
+        topicBySource.get(data.demandSourceId ?? "")
+      );
       const list = linksBySource.get(row.demandSourceId) ?? [];
       list.push(row);
       linksBySource.set(row.demandSourceId, list);
@@ -138,6 +158,7 @@ export async function GET(req: NextRequest) {
         sourceName: data.sourceName ?? "",
         sourceType: data.sourceType ?? "other",
         topicName: data.topicName ?? "",
+        includeTopicInUrl: data.includeTopicInUrl === true,
         sourceUrl: data.sourceUrl ?? "",
         publicDisplayName: data.publicDisplayName ?? "",
         publicAudienceLabel: data.publicAudienceLabel ?? "",
@@ -235,6 +256,10 @@ export async function POST(req: NextRequest) {
       ? Math.floor(thresholdRaw)
       : null;
 
+  const topicName = str(body.topicName, 200);
+  // Cosmetic only, and meaningless without a topic to put in the URL.
+  const includeTopicInUrl = body.includeTopicInUrl === true && !!topicName;
+
   try {
     const db = waitlistDb();
 
@@ -242,7 +267,8 @@ export async function POST(req: NextRequest) {
       platformId,
       sourceName,
       sourceType,
-      topicName: str(body.topicName, 200),
+      topicName,
+      includeTopicInUrl,
       sourceUrl: str(body.sourceUrl, 1000),
       publicDisplayName: str(body.publicDisplayName, 200),
       publicAudienceLabel: str(body.publicAudienceLabel, 200),
@@ -290,7 +316,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       id: sourceRef.id,
       sourceCode,
-      trackedUrl: `${originFrom(req)}/waitlist?s=${sourceCode}`,
+      trackedUrl: buildTrackedUrl(originFrom(req), sourceCode, {
+        topicName,
+        includeTopicInUrl,
+      }),
     });
   } catch (err) {
     console.error("[admin/demand-sources POST]", err);

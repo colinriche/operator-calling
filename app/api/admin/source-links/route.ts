@@ -3,6 +3,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { requireAdmin } from "@/lib/admin-auth";
 import { COLLECTIONS, LINK_STATUSES } from "@/lib/waitlist/constants";
 import { createUniqueSourceCode, waitlistDb } from "@/lib/waitlist/server";
+import { buildTrackedUrl } from "@/lib/waitlist/tracked-url";
 
 // Tracked links — admin or super_admin.
 //
@@ -76,7 +77,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       id: ref.id,
       sourceCode,
-      trackedUrl: `${originFrom(req)}/waitlist?s=${sourceCode}`,
+      trackedUrl: buildTrackedUrl(originFrom(req), sourceCode, sourceData),
     });
   } catch (err) {
     console.error("[admin/source-links POST]", err);
