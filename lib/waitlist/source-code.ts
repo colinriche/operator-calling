@@ -64,10 +64,13 @@ export function normaliseSourceCode(raw: unknown): string | null {
 // by anyone who obtains the database. WAITLIST_HASH_SALT overrides it if you
 // would rather set a dedicated value.
 
-// The private key is read through adminCredentials() so that a deployment using
-// the environment-scoped FIREBASE_PRIVATE_KEY_{PROD,DEV} names still finds salt
-// material — reading FIREBASE_PRIVATE_KEY directly would silently fall through
-// to the shared constant and make every hash guessable.
+// The private key is read through adminCredentials() rather than from
+// process.env here, so this stays correct if the credential lookup ever changes
+// again. Falling through to the shared constant would make every hash guessable.
+//
+// Note the coupling: rotating the private key changes every visitor hash, which
+// resets unique-visit dedupe and rate-limit buckets. Set WAITLIST_HASH_SALT to
+// decouple them.
 function salt(): string {
   return (
     process.env.WAITLIST_HASH_SALT ||

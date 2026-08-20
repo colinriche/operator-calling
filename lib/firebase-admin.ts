@@ -4,11 +4,9 @@ import { getAuth, type Auth, type DecodedIdToken } from "firebase-admin/auth";
 
 // ─── One Firebase project, chosen by environment ─────────────────────────────
 //
-// The website talks to exactly one Firebase project at a time — `operator-calling`
-// by default, or the `webrtc-clone-dc88c` development project when
-// NEXT_PUBLIC_FIREBASE_ENV says so. Auth, the `admins` collection, users,
-// groups, memberships, schedules, waitlist and outreach data all live in
-// whichever one is selected, and every server route reaches them through the
+// The website talks to exactly one Firebase project, `operator-calling`. Auth,
+// the `admins` collection, users, groups, memberships, schedules, waitlist and
+// outreach data all live there, and every server route reaches them through the
 // single Admin SDK app below.
 //
 // The project id comes from lib/firebase-env.ts — the same module the browser
@@ -18,19 +16,23 @@ import { getAuth, type Auth, type DecodedIdToken } from "firebase-admin/auth";
 // previously made a valid sign-in produce "insufficient permissions" and admin
 // lookups that found nothing.
 //
-// Credentials must be a service account belonging to that same project. Set the
-// environment-scoped pair so both can coexist and one variable flips the site:
+// Credentials must be a service account belonging to that same project. Two
+// variables, no alternatives and no fallback:
 //
-//   NEXT_PUBLIC_FIREBASE_ENV     prod
-//   FIREBASE_CLIENT_EMAIL_PROD   firebase-adminsdk-…@operator-calling.iam.gserviceaccount.com
-//   FIREBASE_PRIVATE_KEY_PROD    its private key
-//   FIREBASE_CLIENT_EMAIL_DEV    firebase-adminsdk-…@webrtc-clone-dc88c.iam.gserviceaccount.com
-//   FIREBASE_PRIVATE_KEY_DEV     its private key
+//   FIREBASE_CLIENT_EMAIL   firebase-adminsdk-…@operator-calling.iam.gserviceaccount.com
+//   FIREBASE_PRIVATE_KEY    its private key
 //
-// The unsuffixed FIREBASE_CLIENT_EMAIL / FIREBASE_PRIVATE_KEY still work as a
-// fallback, so a deployment that has only ever set those keeps running.
+// The key is the PEM from the service-account JSON. Literal `\n` escapes are
+// normalised below, so either the escaped or the real multi-line form works —
+// but a stray `"` from the surrounding JSON does not, and produces
+// `error:1E08010C:DECODER routines::unsupported` on the first Firestore call.
 
-import { adminCredentials, firebaseProjectId } from "./firebase-env";
+import {
+  adminCredentials,
+  firebaseProjectId,
+  CLIENT_EMAIL_VAR,
+  PRIVATE_KEY_VAR,
+} from "./firebase-env";
 
 export { firebaseProjectId };
 
@@ -46,13 +48,11 @@ export function getAdminApp(): App {
   }
 
   const projectId = firebaseProjectId();
-  const { clientEmail, privateKey, clientEmailVar, privateKeyVar } =
-    adminCredentials();
+  const { clientEmail, privateKey } = adminCredentials();
 
   const missing: string[] = [];
-  if (!projectId) missing.push("NEXT_PUBLIC_FIREBASE_ENV (or its project id)");
-  if (!clientEmail) missing.push(clientEmailVar);
-  if (!privateKey) missing.push(privateKeyVar);
+  if (!clientEmail) missing.push(CLIENT_EMAIL_VAR);
+  if (!privateKey) missing.push(PRIVATE_KEY_VAR);
   if (missing.length) {
     throw new Error(
       `[firebase-admin] Cannot initialize Firebase — missing environment ` +
@@ -65,9 +65,8 @@ export function getAdminApp(): App {
   // rejecting valid sign-ins, admin lookups finding nothing. Say so plainly.
   if (!clientEmail!.endsWith(`@${projectId}.iam.gserviceaccount.com`)) {
     console.warn(
-      `[firebase-admin] ${clientEmailVar} (${clientEmail}) does not belong ` +
-        `to ${projectId}. The service account must be from the same project the ` +
-        `site is configured for (NEXT_PUBLIC_FIREBASE_ENV).`
+      `[firebase-admin] ${CLIENT_EMAIL_VAR} (${clientEmail}) does not belong ` +
+        `to ${projectId}. The service account must be from that project.`
     );
   }
 

@@ -88,7 +88,7 @@ claim, then a custom claim, then the legacy `user` document at `user/{uid}`.
 It exists so deploying this change cannot lock every administrator out before
 the collection is populated. **Until it is removed, a `user` document with
 `role: "admin"` still grants access — which is the exact weakness `admins` was
-introduced to close.** The legacy documents were in `webrtc-clone-dc88c`, which
+introduced to close.** The legacy documents were in the previous project, which
 the website no longer reads; whatever `user` documents exist in
 `operator-calling` now decide this.
 

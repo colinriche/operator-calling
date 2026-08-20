@@ -21,9 +21,9 @@ npm run type-check   # TypeScript check (tsc --noEmit)
 
 Copy `.env.local.example` to `.env.local` and fill in the Firebase service-account credentials before running.
 
-The Firebase **project** is chosen by one variable, `NEXT_PUBLIC_FIREBASE_ENV` (`prod` | `dev` | `custom`), defaulting to `prod` (`operator-calling`); `dev` is `webrtc-clone-dc88c`. The client config for both is baked into `lib/firebase-env.ts`, so nothing else is needed to switch. Server credentials are not baked in — set `FIREBASE_CLIENT_EMAIL_{PROD,DEV}` / `FIREBASE_PRIVATE_KEY_{PROD,DEV}`. See `docs/firebase-environments.md`.
+The Firebase **project** is always `operator-calling`, hard-coded in `lib/firebase-env.ts`. There is no variable that selects it, no default and no fallback. Three environment variables run the site: `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY` and `ADMIN_LOGIN_ENABLED`. See `docs/firebase-environments.md`.
 
-**Never** add a second path to the Firebase project id. `lib/firebase.ts` and `lib/firebase-admin.ts` both resolve through `lib/firebase-env.ts`; a client and server pointing at different projects is what produced sign-ins that verified against one project and found nothing in the other.
+**Never** add a second path to the Firebase project id, and never add a fallback to the credential lookup. `lib/firebase.ts` and `lib/firebase-admin.ts` both resolve through `lib/firebase-env.ts`; a client and server pointing at different projects is what produced sign-ins that verified against one project and found nothing in the other, and every code path that once selected between projects was a way to configure half of one.
 
 ## Tech Stack
 

@@ -50,10 +50,10 @@ interface ArchiveRow {
   deletionType: string;
 }
 
-// The app's user-management Cloud Function, in whichever project the site is
-// configured for. It was hardcoded to `webrtc-clone-dc88c`, which would reject
-// an `operator-calling` ID token outright — the function verifies the token
-// with its own project's Admin SDK, and a token is only valid for its issuer.
+// The app's user-management Cloud Function, in the project the site uses. This
+// URL was once hardcoded to a different project, which rejected the site's ID
+// tokens outright — the function verifies the token with its own project's
+// Admin SDK, and a token is only valid for its issuer.
 //
 // Derived rather than hardcoded so it can never again name a project the rest
 // of the site has left. It does require the function to be deployed in

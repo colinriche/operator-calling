@@ -2,11 +2,11 @@
 
 > **Status: applied.** Everything in the "Manual Firestore rules changes"
 > section below has been written into the app repo's `firestore.rules` and
-> deployed to **both** `operator-calling` and `webrtc-clone-dc88c`, along with a
-> `groups(isPrivate, name)` composite index the public listing also needed. Live
-> rules in both projects were byte-identical to the repo file beforehand, so no
-> manual change was overwritten. Verified by running every website query against
-> both live projects, signed out and signed in.
+> deployed to **both** `operator-calling` and the project the website used
+> previously, along with a `groups(isPrivate, name)` composite index the public
+> listing also needed. Live rules in both were byte-identical to the repo file
+> beforehand, so no manual change was overwritten. Verified by running every
+> website query against both, signed out and signed in.
 >
 > Two deviations from the draft below, both deliberate:
 >

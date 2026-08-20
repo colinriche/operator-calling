@@ -48,10 +48,9 @@ Source of truth is the **main project's Development branch**.
 ### Locating it in about two minutes
 
 ```bash
-# List what is actually deployed — check both, the guard belongs wherever
-# groups are read from, which is now operator-calling.
+# List what is actually deployed. The guard belongs wherever groups are read
+# from, which is operator-calling.
 firebase functions:list --project operator-calling
-firebase functions:list --project webrtc-clone-dc88c
 
 # In the main project checkout, on Development:
 grep -rn "scheduledGroupCalls" --include="*.ts" --include="*.js" .

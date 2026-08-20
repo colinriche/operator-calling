@@ -11,8 +11,8 @@ so the two can no longer drift apart.
 
 **Status of production: done, 2026-08-19.** Vercel production runs on
 `operator-calling` — verified by an admin sign-in whose ID token resolved
-server-side, and by `/admin/*` reading live data. No `webrtc-clone-dc88c`
-credential remains in the Vercel project.
+server-side, and by `/admin/*` reading live data. No credential from the
+previous project remains in Vercel.
 
 The last step took two attempts, and the second failure looked nothing like a
 configuration problem — see [Failure modes](#failure-modes-seen-in-practice)
@@ -26,21 +26,20 @@ Sensitive, so Vercel will not return them to anyone — including the person who
 set them. The notes on what each *contains* are Colin's report, not something
 this repo can verify.
 
-**Production is the only configured environment.** Everything unused was deleted
-on 2026-08-20. Four variables remain, all scoped to Production, all of them read:
+**Production is the only configured environment**, and the project-selection
+machinery is gone entirely — see
+[`firebase-environments.md`](./firebase-environments.md). Three variables run the
+site, all scoped to Production:
 
 | Variable | Contains |
 |---|---|
-| `FIREBASE_CLIENT_EMAIL_PROD` | the `operator-calling` service account |
-| `FIREBASE_PRIVATE_KEY_PROD` | its private key |
-| `NEXT_PUBLIC_FIREBASE_ENV` | `prod` |
+| `FIREBASE_CLIENT_EMAIL` | the `operator-calling` service account |
+| `FIREBASE_PRIVATE_KEY` | its private key |
 | `ADMIN_LOGIN_ENABLED` | gates `POST /api/admin/token` |
 
-Nothing else is set. In particular there is deliberately **no fallback pair**:
-the unsuffixed `FIREBASE_CLIENT_EMAIL` / `FIREBASE_PRIVATE_KEY` that
-`adminCredentials()` falls back to are gone, as are the `*_STAGING` leftovers and
-the six `NEXT_PUBLIC_FIREBASE_*` values (inert unless
-`NEXT_PUBLIC_FIREBASE_ENV=custom`).
+Everything else was deleted on 2026-08-20: the `*_STAGING` leftovers, the six
+`NEXT_PUBLIC_FIREBASE_*` values, `NEXT_PUBLIC_FIREBASE_ENV`, and the `*_PROD`
+credential pair. `lib/firebase-env.ts` no longer reads any of them.
 
 What follows from that:
 
@@ -49,17 +48,13 @@ What follows from that:
   environment variable(s): FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY` and
   return 500. This is intended, not breakage: production is the test environment
   (nothing is verified on a preview), and a preview sharing production
-  credentials would read and write live data. Restoring previews means adding
-  the `_PROD` pair to the Preview scope — and accepting exactly that.
-- **`NEXT_PUBLIC_FIREBASE_ENV=prod` is redundant but kept.** `prod` is already
-  the default when the variable is unset. It is set explicitly so the intent is
-  visible in the dashboard rather than implied by a code default.
-- **There is no `_DEV` pair.** Selecting `dev` would load the
-  `webrtc-clone-dc88c` client config and find no credentials at all. Add
-  `FIREBASE_CLIENT_EMAIL_DEV` / `FIREBASE_PRIVATE_KEY_DEV` first.
+  credentials would read and write live data.
+- **There is no way to point the site at another project without a code change.**
+  That is the point. The mobile app still has its own dev project; the website
+  just has no route to anything but production.
 
-The service account must belong to the same project as the resolved config.
-`lib/firebase-admin.ts` logs a named warning when it sees a mismatch.
+The service account must belong to `operator-calling`. `lib/firebase-admin.ts`
+logs a named warning when it sees a mismatch.
 
 One side effect worth knowing: `WAITLIST_HASH_SALT` defaults to the private key,
 so changing that key changes the visitor-IP hashes and resets unique-visit
@@ -120,7 +115,7 @@ credentials back every route covering groups, memberships, schedules, invites,
 the dashboard and account link/delete. There was no "move admin auth" change —
 only one move of the whole identity and data plane.
 
-## What is left behind in `webrtc-clone-dc88c`
+## What is left behind in the previous project
 
 Counted directly, no personal data read:
 
@@ -142,7 +137,7 @@ is consistent with the app having moved to `operator-calling` itself.
 Consequences of the switch, in the order they bite:
 
 1. **Ordinary user accounts do not transfer.** Firebase Auth users are
-   per-project. Anyone with an email/password account in `webrtc-clone-dc88c`
+   per-project. Anyone with an email/password account in the previous project
    has no account in `operator-calling` and must sign up again.
 2. **`admin_controls/platform` and `schedules`** must exist in
    `operator-calling` or the super-admin dashboard shows zeroes. It no longer

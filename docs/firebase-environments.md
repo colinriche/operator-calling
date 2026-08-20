@@ -1,124 +1,97 @@
-# Switching the Firebase project
+# The Firebase project
 
-The website talks to **one** Firebase project at a time, chosen by a single
-variable. `operator-calling` is the default.
+The website uses **one** Firebase project, `operator-calling`, hard-coded in
+`lib/firebase-env.ts`. There is no runtime switch, no default, and no fallback.
+
+Three environment variables run the site:
 
 ```
-NEXT_PUBLIC_FIREBASE_ENV = prod | dev | custom      # unset ⇒ prod
+FIREBASE_CLIENT_EMAIL   firebase-adminsdk-…@operator-calling.iam.gserviceaccount.com
+FIREBASE_PRIVATE_KEY    its private key
+ADMIN_LOGIN_ENABLED     true      # gates POST /api/admin/token
 ```
 
-| Value | Project | Notes |
-|---|---|---|
-| `prod` (default) | `operator-calling` | The live project. Also `production`. |
-| `dev` | `webrtc-clone-dc88c` | Matches the mobile app's `dev` flavour and `dart-defines/dev.json`. Also `development`. |
-| `custom` | whatever you configure | Reads the full `NEXT_PUBLIC_FIREBASE_*` set. For a third project or the emulator suite. |
+Nothing else is read. `NEXT_PUBLIC_FIREBASE_ENV`, the `*_PROD` / `*_DEV`
+credential pairs and the six `NEXT_PUBLIC_FIREBASE_*` values were removed on
+2026-08-20; if you find one lingering in a dashboard it is inert.
 
-An unrecognised value warns and falls back to `prod` rather than starting
-half-configured.
-
-## Why one variable
+## Why there is no switch
 
 The browser client (`lib/firebase.ts`) and the Admin SDK (`lib/firebase-admin.ts`)
-both resolve through `lib/firebase-env.ts`. Neither reads the project from
-anywhere else, so they cannot drift apart.
+both resolve through `lib/firebase-env.ts`, and that module now returns a
+constant. Neither can read the project from anywhere else, so they cannot drift
+apart.
 
 That matters more than it looks. A Firebase ID token is only valid for the
 project that issued it — the client is the issuer, the server is the verifier.
 When those two disagreed, sign-in appeared to succeed and then every read failed
 with `Missing or insufficient permissions`, and admin lookups quietly found
-nothing. This is the same failure the single-project migration fixed; keeping one
-resolver is what stops it coming back.
+nothing. The selection machinery that was supposed to keep them in step was
+itself the thing that let them separate: every code path — an env name, a scoped
+credential pair, an unsuffixed fallback — was another way to configure half a
+project. Deleting them removes the failure class rather than guarding against it.
 
-For that reason `prod` and `dev` **ignore** the `NEXT_PUBLIC_FIREBASE_*`
-variables entirely. A stale `NEXT_PUBLIC_FIREBASE_PROJECT_ID` left in Vercel
-cannot silently override half the config. If you need those variables honoured,
-say so explicitly with `NEXT_PUBLIC_FIREBASE_ENV=custom`, which requires all six
-and rejects a partial set.
+**This is a statement about the website only.** The mobile app still has its own
+`dev` flavour and its own project, configured in `lib/firebase_options.dart` and
+`dart-defines/dev.json`, and reads nothing from this repo. What changed is that
+the website can no longer be pointed at anything but production — chosen to keep
+the deployment simple, not because anything else went away.
+
+If a second project is ever genuinely needed here, add it as an explicit, tested
+code path. Do not reintroduce a silent default or a fallback.
 
 ## The client config is committed on purpose
 
-`lib/firebase-env.ts` holds the complete web config for both projects. Firebase
-web config is public by design — it identifies a project, it does not grant
-access to one. Access is decided by Firestore/Storage rules and by Auth. The
-mobile app commits the same values in `lib/firebase_options.dart`, and they ship
-in the browser bundle regardless.
+`lib/firebase-env.ts` holds the complete web config. Firebase web config is
+public by design — it identifies a project, it does not grant access to one.
+Access is decided by Firestore/Storage rules and by Auth. The mobile app commits
+the same values in `lib/firebase_options.dart`, and they ship in the browser
+bundle regardless.
 
-Values were read from the live projects with `firebase apps:sdkconfig WEB`, not
-copied from documentation. Each project has exactly one web app.
+Values were read from the live project with `firebase apps:sdkconfig WEB`, not
+copied from documentation. `operator-calling` has exactly one web app.
 
 **Server credentials are never baked in** — those are real secrets and stay in
 the environment.
 
-## Vercel setup
+## The private key
+
+It is the PEM from the service-account JSON. `lib/firebase-admin.ts` normalises
+literal `\n` escapes, so both the escaped one-line form and a real multi-line
+PEM work. What does not work is the surrounding `"` from the JSON: that produces
 
 ```
-NEXT_PUBLIC_FIREBASE_ENV      prod
-
-FIREBASE_CLIENT_EMAIL_PROD    firebase-adminsdk-…@operator-calling.iam.gserviceaccount.com
-FIREBASE_PRIVATE_KEY_PROD     its private key
-
-FIREBASE_CLIENT_EMAIL_DEV     firebase-adminsdk-…@webrtc-clone-dc88c.iam.gserviceaccount.com
-FIREBASE_PRIVATE_KEY_DEV      its private key
+error:1E08010C:DECODER routines::unsupported
 ```
 
-With both pairs present, flipping `NEXT_PUBLIC_FIREBASE_ENV` moves the server
-with the client. Set Preview/Development to `dev` and Production to `prod` to get
-the app's dev/prod split.
+on the first Firestore call, which surfaces as a 403 from every `/api/admin/*`
+route rather than anything mentioning a key. See
+[`single-project-migration.md`](./single-project-migration.md#failure-modes-seen-in-practice).
 
-The unsuffixed `FIREBASE_CLIENT_EMAIL` / `FIREBASE_PRIVATE_KEY` still work as a
-fallback, so a deployment that has only ever set those keeps running — but it
-will then use the same service account whichever env is selected, which is a
-mismatch as soon as you switch. `lib/firebase-admin.ts` logs a named warning when
-the service account does not belong to the selected project.
+`WAITLIST_HASH_SALT` defaults to this key, so rotating it changes every
+visitor-IP hash and resets unique-visit dedupe and rate-limit buckets.
+Duplicate-signup detection is unaffected — it uses an unsalted hash,
+deliberately. Set `WAITLIST_HASH_SALT` explicitly to decouple them.
 
-Email and key are always resolved as a pair. If only one half of a scoped pair is
-set, both are ignored and the fallback is used, so one project's email can never
-be combined with another's key.
+## Only Production is configured
 
-### One side effect
+Preview and Development deployments have no credentials, so their server routes
+throw `[firebase-admin] Cannot initialize Firebase — missing environment
+variable(s): …` and return 500. This is intended: production is the test
+environment, and a preview holding production credentials would read and write
+live data.
 
-`WAITLIST_HASH_SALT` defaults to the resolved Firebase private key, so switching
-project changes the visitor-IP hashes. That resets unique-visit dedupe and
-rate-limit buckets. Duplicate-signup detection is unaffected — it uses an
-unsalted hash, deliberately. Set `WAITLIST_HASH_SALT` explicitly to keep the
-buckets stable across a switch.
+## What lives outside this repo
 
-## What does *not* follow the switch
+**Accounts.** Firebase Auth users are per-project, so no account transferred
+from the project the website used previously. See
+[`single-project-migration.md`](./single-project-migration.md).
 
-**Accounts.** Firebase Auth users are per-project. Someone with an account in
-`operator-calling` has no account in `webrtc-clone-dc88c`, and vice versa. A
-switch is a switch of the whole identity plane, not just the data.
-
-**Cloud Functions.** `SuperAdminDashboard` derives its function URL from the
-selected project, so it will call
-`https://us-central1-<project>.cloudfunctions.net/sendFcmMessage`. That function
-has to be deployed in whichever project you select; it lives in the app repo.
+**Cloud Functions.** `SuperAdminDashboard` derives its function URL from
+`firebaseProjectId()`, calling
+`https://us-central1-operator-calling.cloudfunctions.net/sendFcmMessage`. That
+function is deployed from the app repo and must exist in this project.
 
 **Firestore rules.** Owned by the app repo and applied manually — this repo never
-modifies them. See [`firestore-rules.md`](./firestore-rules.md).
-
-## Permissions parity, measured
-
-Anonymous reads against both live projects, to confirm a switch does not change
-what the browser is allowed to do:
-
-| Collection | `operator-calling` | `webrtc-clone-dc88c` |
-|---|---|---|
-| `memberships` | denied | denied |
-| `schedules` | denied | denied |
-| `callbacks` | denied | denied |
-| `notifications` | denied | denied |
-| `groups` | denied | denied |
-| `interests` | denied | denied |
-| `invites` | denied | denied |
-| `reports` | denied | denied |
-| `scheduledGroupCalls` | denied | denied |
-| `user` | **allowed** | **allowed** |
-
-Identical in both. The rules gap that `firestore-rules.md` describes —
-`memberships`, `schedules`, `callbacks` and `notifications` having no `match`
-block, so the ordinary dashboard cannot read them — is present in **both**
-projects equally. Switching neither causes it nor fixes it.
-
-`user` being world-readable is deliberate and documented: `hooks/useAuth.ts` has
-to resolve a profile before any session context exists.
+modifies them. What the website needs from them, including why `user` is
+world-readable, is in [`firestore-rules.md`](./firestore-rules.md).
