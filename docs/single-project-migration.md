@@ -9,61 +9,100 @@ client config (`lib/firebase.ts`) and one Admin SDK app (`lib/firebase-admin.ts`
 and the server takes its project id from the *same* variable the browser reads,
 so the two can no longer drift apart.
 
-**Status of production: pending a Vercel change.** The project is chosen by
-environment variables, and Vercel production still holds the
-`webrtc-clone-dc88c` values. Until they are changed the site keeps running on
-the old project — the code change alone does not move it.
+**Status of production: done, 2026-08-19.** Vercel production runs on
+`operator-calling` — verified by an admin sign-in whose ID token resolved
+server-side, and by `/admin/*` reading live data. No `webrtc-clone-dc88c`
+credential remains in the Vercel project.
 
-## What has to change in Vercel
+The last step took two attempts, and the second failure looked nothing like a
+configuration problem — see [Failure modes](#failure-modes-seen-in-practice)
+before debugging anything here.
 
-> **Superseded.** The six `NEXT_PUBLIC_FIREBASE_*` variables below are no longer
-> how the project is chosen. The client config for both projects is now baked
-> into `lib/firebase-env.ts` and selected with one variable —
-> `NEXT_PUBLIC_FIREBASE_ENV`, defaulting to `prod` — so an unconfigured
-> deployment already lands on `operator-calling`. See
-> [`firebase-environments.md`](./firebase-environments.md) for the current
-> setup, which is shorter than this.
->
-> Two corrections worth recording, since this list was followed by hand:
->
-> - The app id here, `1:858295006183:web:48c3cd6b3e63525b394342`, **does not
->   exist**. `operator-calling` has exactly one web app and its id is
->   `1:858295006183:web:b4e7c6e6a59f5109394342` (confirmed with
->   `firebase apps:sdkconfig WEB`). Anything set from this line was wrong.
-> - `prod` and `dev` now ignore these variables entirely, so a stale value left
->   behind in Vercel is inert rather than silently overriding half the config.
+## What is in Vercel now
 
-Production, Preview and Development, then redeploy:
+Variable **names** below were read with
+`npx vercel env ls --project operator-calling` on 2026-08-20. Values are marked
+Sensitive, so Vercel will not return them to anyone — including the person who
+set them. The notes on what each *contains* are Colin's report, not something
+this repo can verify.
+
+| Variable | Environments | Contains |
+|---|---|---|
+| `FIREBASE_CLIENT_EMAIL_PROD` | Production | the `operator-calling` service account |
+| `FIREBASE_PRIVATE_KEY_PROD` | Production | its private key |
+| `NEXT_PUBLIC_FIREBASE_ENV` | Production | `prod` |
+| `FIREBASE_CLIENT_EMAIL` / `FIREBASE_PRIVATE_KEY` | Production, Preview, Development | the same `operator-calling` credentials |
+| `FIREBASE_PROJECT_ID_STAGING`, `FIREBASE_CLIENT_EMAIL_STAGING`, `FIREBASE_PRIVATE_KEY_STAGING` | Production | **inert** — no code reads these; safe to delete |
+| the six `NEXT_PUBLIC_FIREBASE_*` values | Production, Preview, Development | **inert** unless `NEXT_PUBLIC_FIREBASE_ENV=custom` |
+
+`adminCredentials()` in `lib/firebase-env.ts` prefers the env-suffixed pair and
+falls back to the unsuffixed one, so Production uses `_PROD` and everything else
+uses the unsuffixed pair. Both now hold the same project's credentials, which is
+why Preview works too.
+
+Two consequences of that arrangement:
+
+- **Preview and Development deployments read and write live production data.**
+  There is no separate project behind them any more.
+- **There is no `_DEV` pair.** Setting `NEXT_PUBLIC_FIREBASE_ENV=dev` anywhere
+  would select the `webrtc-clone-dc88c` client config, find no `_DEV`
+  credentials, and fall back to the unsuffixed pair — which is now
+  `operator-calling`. That pairs one project's client with another's service
+  account: the exact mismatch this module exists to prevent. Add
+  `FIREBASE_CLIENT_EMAIL_DEV` / `FIREBASE_PRIVATE_KEY_DEV` before ever selecting
+  `dev`.
+
+The service account must belong to the same project as the resolved config.
+`lib/firebase-admin.ts` logs a named warning when it sees a mismatch.
+
+One side effect worth knowing: `WAITLIST_HASH_SALT` defaults to the private key,
+so changing that key changes the visitor-IP hashes and resets unique-visit
+dedupe and rate-limit buckets. If the key was replaced rather than re-pasted on
+2026-08-19, those buckets restarted then. Duplicate-signup detection is
+unaffected — it uses an unsalted hash, deliberately. Set `WAITLIST_HASH_SALT`
+explicitly to make future key rotations harmless.
+
+## Failure modes seen in practice
+
+Both produced **HTTP 403 "Admin role required" on every `/api/admin/*` route**,
+with the admin visibly signed in. Neither was an authorisation problem, and
+neither is diagnosable from the browser — the server log names the cause:
 
 ```
-NEXT_PUBLIC_FIREBASE_API_KEY              AIzaSyC_R2854WYyC5pYG7kvi_V6fN4qBemaiFI
-NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN          operator-calling.firebaseapp.com
-NEXT_PUBLIC_FIREBASE_PROJECT_ID           operator-calling
-NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET       operator-calling.firebasestorage.app
-NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID  858295006183
-NEXT_PUBLIC_FIREBASE_APP_ID               1:858295006183:web:b4e7c6e6a59f5109394342
-FIREBASE_CLIENT_EMAIL                     the operator-calling service account
-FIREBASE_PRIVATE_KEY                      its private key
+npx vercel logs https://operatorcalling.com --project operator-calling --json
 ```
 
-`FIREBASE_CLIENT_EMAIL` / `FIREBASE_PRIVATE_KEY` currently hold the
-`webrtc-clone-dc88c` service account. The `operator-calling` service account is
-already in Vercel under `FIREBASE_CLIENT_EMAIL_STAGING` /
-`FIREBASE_PRIVATE_KEY_STAGING` — copy those two values across.
+**1. Malformed private key** (what actually happened, 2026-08-19):
 
-Then delete `FIREBASE_PROJECT_ID_STAGING`, `FIREBASE_CLIENT_EMAIL_STAGING` and
-`FIREBASE_PRIVATE_KEY_STAGING`. Nothing reads them any more.
+```
+[admin-auth] admins lookup failed: 2 UNKNOWN: Getting metadata from plugin
+  failed with error: error:1E08010C:DECODER routines::unsupported
+[admin-auth] colinriche@gmail.com is not an admin
+```
 
-The service account must belong to the same project as
-`NEXT_PUBLIC_FIREBASE_PROJECT_ID`. A mismatch is the failure mode that produced
-the original mess — valid sign-ins that fail to verify, admin lookups that find
-nothing — so `lib/firebase-admin.ts` now logs a named warning when it sees one.
+`DECODER routines::unsupported` is OpenSSL refusing the PEM. The Admin SDK
+cannot mint an access token, so *every* Firestore read throws, `requireAdmin`
+catches it and falls through to the legacy path, and the caller is reported as
+not an admin. The second line is a symptom — `admins/{email}` was never read.
 
-One side effect worth knowing: `WAITLIST_HASH_SALT` defaults to
-`FIREBASE_PRIVATE_KEY`, so changing the key changes the visitor-IP hashes.
-That resets unique-visit dedupe and rate-limit buckets. Duplicate-signup
-detection is unaffected — it uses an unsalted hash, deliberately. Set
-`WAITLIST_HASH_SALT` explicitly if you want to keep the old buckets.
+The cause was a paste artefact. In the service-account JSON the key appears as
+`"private_key": "-----BEGIN PRIVATE KEY-----\n…\n"` — the surrounding quotes are
+JSON syntax and must not be copied. `lib/firebase-admin.ts` normalises literal
+`\n` escapes, so both the escaped and the real-multiline form work; a stray `"`
+does not.
+
+Note what still succeeds in this state: ID-token verification, which needs only
+the project id and Google's public certs. That is why the caller's email appears
+in the log at all, and it is the tell that the client and server agree on the
+project and only the credential is broken.
+
+**2. Credentials from the wrong project.** Reads fail with a permission error
+rather than a decoder error, and `lib/firebase-admin.ts` logs that the service
+account does not belong to the configured project.
+
+A third, unrelated cause of the same 403 is covered in
+[`admin-roles.md`](./admin-roles.md): an email with no `admins/{email}` record.
+That one logs `is not an admin` **without** a preceding lookup failure.
 
 ## Why it had to be one atomic switch
 
@@ -111,13 +150,20 @@ Consequences of the switch, in the order they bite:
 
 In this order, because each depends on the last:
 
-1. Admin sign-in → the session is issued by `operator-calling`.
-2. `/admin/outreach` → waitlist and demand data load.
-3. `/admin/super` → overview loads (Admin SDK, so rules are not involved).
-4. `/dashboard` → client-side Firestore reads succeed; this is the one that
+1. ✅ Admin sign-in → the session is issued by `operator-calling`. *Confirmed
+   2026-08-19: the ID token verified server-side and resolved to the caller's
+   email.*
+2. ✅ `/admin/outreach` → waitlist and demand data load. *Confirmed 2026-08-20,
+   once the private key was re-pasted.*
+3. ⬜ `/admin/super` → overview loads (Admin SDK, so rules are not involved).
+4. ⬜ `/dashboard` → client-side Firestore reads succeed; this is the one that
    exercises the rules, and where `Missing or insufficient permissions` would
    reappear if anything is missing from the ruleset.
-5. Public waitlist registration.
+5. ⬜ Public waitlist registration.
+
+Steps 3–5 are still unchecked. Step 4 is the one worth doing deliberately: every
+route verified so far goes through the Admin SDK, which ignores Firestore rules
+entirely, so nothing yet has tested the ruleset in this project.
 
 What the website needs from the ruleset is recorded in
 [`firestore-rules.md`](./firestore-rules.md). Rules are applied by Colin through
