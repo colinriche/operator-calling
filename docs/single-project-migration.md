@@ -26,31 +26,37 @@ Sensitive, so Vercel will not return them to anyone — including the person who
 set them. The notes on what each *contains* are Colin's report, not something
 this repo can verify.
 
-| Variable | Environments | Contains |
-|---|---|---|
-| `FIREBASE_CLIENT_EMAIL_PROD` | Production | the `operator-calling` service account |
-| `FIREBASE_PRIVATE_KEY_PROD` | Production | its private key |
-| `NEXT_PUBLIC_FIREBASE_ENV` | Production | `prod` |
-| `FIREBASE_CLIENT_EMAIL` / `FIREBASE_PRIVATE_KEY` | Production, Preview, Development | the same `operator-calling` credentials |
-| `FIREBASE_PROJECT_ID_STAGING`, `FIREBASE_CLIENT_EMAIL_STAGING`, `FIREBASE_PRIVATE_KEY_STAGING` | Production | **inert** — no code reads these; safe to delete |
-| the six `NEXT_PUBLIC_FIREBASE_*` values | Production, Preview, Development | **inert** unless `NEXT_PUBLIC_FIREBASE_ENV=custom` |
+**Production is the only configured environment.** Everything unused was deleted
+on 2026-08-20. Four variables remain, all scoped to Production, all of them read:
 
-`adminCredentials()` in `lib/firebase-env.ts` prefers the env-suffixed pair and
-falls back to the unsuffixed one, so Production uses `_PROD` and everything else
-uses the unsuffixed pair. Both now hold the same project's credentials, which is
-why Preview works too.
+| Variable | Contains |
+|---|---|
+| `FIREBASE_CLIENT_EMAIL_PROD` | the `operator-calling` service account |
+| `FIREBASE_PRIVATE_KEY_PROD` | its private key |
+| `NEXT_PUBLIC_FIREBASE_ENV` | `prod` |
+| `ADMIN_LOGIN_ENABLED` | gates `POST /api/admin/token` |
 
-Two consequences of that arrangement:
+Nothing else is set. In particular there is deliberately **no fallback pair**:
+the unsuffixed `FIREBASE_CLIENT_EMAIL` / `FIREBASE_PRIVATE_KEY` that
+`adminCredentials()` falls back to are gone, as are the `*_STAGING` leftovers and
+the six `NEXT_PUBLIC_FIREBASE_*` values (inert unless
+`NEXT_PUBLIC_FIREBASE_ENV=custom`).
 
-- **Preview and Development deployments read and write live production data.**
-  There is no separate project behind them any more.
-- **There is no `_DEV` pair.** Setting `NEXT_PUBLIC_FIREBASE_ENV=dev` anywhere
-  would select the `webrtc-clone-dc88c` client config, find no `_DEV`
-  credentials, and fall back to the unsuffixed pair — which is now
-  `operator-calling`. That pairs one project's client with another's service
-  account: the exact mismatch this module exists to prevent. Add
-  `FIREBASE_CLIENT_EMAIL_DEV` / `FIREBASE_PRIVATE_KEY_DEV` before ever selecting
-  `dev`.
+What follows from that:
+
+- **Preview and Development deployments have no Firebase credentials.** Server
+  routes there throw `[firebase-admin] Cannot initialize Firebase — missing
+  environment variable(s): FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY` and
+  return 500. This is intended, not breakage: production is the test environment
+  (nothing is verified on a preview), and a preview sharing production
+  credentials would read and write live data. Restoring previews means adding
+  the `_PROD` pair to the Preview scope — and accepting exactly that.
+- **`NEXT_PUBLIC_FIREBASE_ENV=prod` is redundant but kept.** `prod` is already
+  the default when the variable is unset. It is set explicitly so the intent is
+  visible in the dashboard rather than implied by a code default.
+- **There is no `_DEV` pair.** Selecting `dev` would load the
+  `webrtc-clone-dc88c` client config and find no credentials at all. Add
+  `FIREBASE_CLIENT_EMAIL_DEV` / `FIREBASE_PRIVATE_KEY_DEV` first.
 
 The service account must belong to the same project as the resolved config.
 `lib/firebase-admin.ts` logs a named warning when it sees a mismatch.
