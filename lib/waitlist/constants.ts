@@ -75,6 +75,70 @@ export const RELATIONSHIP_STATUS_IDS = RELATIONSHIP_STATUSES.map(
 
 export const DEFAULT_RELATIONSHIP_STATUS: RelationshipStatus = "unverified";
 
+/**
+ * Statuses where naming the external community on the public page is honest.
+ *
+ * Below these, the page says "from a Facebook group" and never the group's
+ * name. Printing a real community's name next to an invitation reads as that
+ * community endorsing it, and for an unverified source nobody there has said
+ * anything at all. Verified, supported and partnered sources have — that is
+ * exactly what those statuses record.
+ */
+export const NAMEABLE_RELATIONSHIP_STATUSES: readonly string[] = [
+  "organiser_verified",
+  "officially_supported",
+  "partnered",
+];
+
+export function canNameSourcePublicly(status: string): boolean {
+  return NAMEABLE_RELATIONSHIP_STATUSES.includes(status);
+}
+
+// ─── Waitlist page modes ─────────────────────────────────────────────────────
+//
+// Which of the three pages a tracked link renders. Stored on the demand source
+// as `waitlistMode`; unset falls back to community when a link resolved and
+// global when it did not, so every source that predates this field keeps
+// exactly the page it had.
+
+export const WAITLIST_MODES = [
+  {
+    id: "global",
+    label: "Global",
+    hint: "Operator branding and talking-to-new-people wording. No shared-interest language.",
+  },
+  {
+    id: "community",
+    label: "Community interest",
+    hint: "Topic and imagery at the top, with the source and an independence note.",
+  },
+  {
+    id: "family",
+    label: "Family",
+    hint: "The family name as the heading, with an optional uploaded hero image.",
+  },
+] as const;
+
+export type WaitlistMode = (typeof WAITLIST_MODES)[number]["id"];
+
+export const WAITLIST_MODE_IDS = WAITLIST_MODES.map((m) => m.id) as readonly string[];
+
+// ─── Family hero image ───────────────────────────────────────────────────────
+//
+// Uploaded by an admin, served from a public download URL so link-preview
+// crawlers can fetch it — which is precisely why the upload demands an explicit
+// acknowledgement rather than a quiet file picker.
+
+export const HERO_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+
+export const HERO_IMAGE_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+] as const;
+
+export type HeroImageType = (typeof HERO_IMAGE_TYPES)[number];
+
 // ─── Demand source status ────────────────────────────────────────────────────
 
 export const DEMAND_STATUSES = [

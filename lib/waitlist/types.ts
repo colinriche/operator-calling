@@ -6,7 +6,9 @@ import type {
   SourceType,
   TesterStatus,
   TimezoneSource,
+  WaitlistMode,
 } from "./constants";
+import type { TopicArtId } from "./topic-art";
 
 // ─── Wire shapes ─────────────────────────────────────────────────────────────
 //
@@ -25,6 +27,18 @@ export interface DemandSourceRow {
   publicDisplayName: string;
   publicAudienceLabel: string;
   publicDescription: string;
+  /** Which of the three waitlist pages this source's links render. */
+  waitlistMode: WaitlistMode | string;
+  /** Chosen from the curated set; "" means fall back to the brand mark. */
+  topicArtId: string;
+  /** Family mode only — the heading the page leads with. */
+  familyName: string;
+  /** Public download URL of the uploaded hero image, or null. */
+  heroImageUrl: string | null;
+  /** Storage object path, kept so a replacement can delete the old file. */
+  heroImagePath: string | null;
+  heroImageUploadedAt: string | null;
+  heroImageUploadedBy: string | null;
   internalNotes: string;
   postingRules: string;
   relationshipStatus: RelationshipStatus | string;
@@ -113,6 +127,65 @@ export interface WaitlistContext {
   /** True when a real, live tracked source backs this page. */
   attributed: boolean;
   shareChannel: ShareChannel | null;
+
+  // ─── What the page is ──────────────────────────────────────────────────────
+  mode: WaitlistMode;
+  sourceType: SourceType | string | null;
+  /** The community's own name. Only ever *shown* when `canNameSource`. */
+  publicDisplayName: string;
+  /**
+   * Decided on the server from relationshipStatus, so a page and its Open Graph
+   * tags cannot disagree about whether a community may be named.
+   */
+  canNameSource: boolean;
+  topicName: string;
+  topicArtId: string;
+  familyName: string;
+  heroImageUrl: string | null;
+}
+
+// ─── Presentation ────────────────────────────────────────────────────────────
+//
+// The single source of truth for everything a visitor or a link-preview crawler
+// sees. Built once per request from the context by
+// lib/waitlist/presentation.ts; the page, the form, the share row and the Open
+// Graph image all read this same object and nothing else.
+
+export type WaitlistHero =
+  | { kind: "brand"; src: string; alt: string }
+  | { kind: "art"; src: string; alt: string }
+  | { kind: "image"; src: string; alt: string };
+
+export interface WaitlistPresentation {
+  mode: WaitlistMode;
+  /** Small line above the heading. The source, in community mode. */
+  eyebrow: string | null;
+  heading: string;
+  /** Opening paragraph, reused verbatim as the Open Graph description. */
+  lead: string;
+  /** Longer explanation shown only on the page. */
+  body: string;
+  tagline: string | null;
+  bullets: Array<{ id: "availability" | "incoming" | "privacy"; text: string }>;
+  /** Shown prominently, above the form. Null where it would be meaningless. */
+  independenceNote: string | null;
+  /** The existing relationship-derived fine print, kept at the foot. */
+  disclaimer: string;
+  formHeading: string;
+  formIntro: string;
+  /** Fine print directly under the submit button. */
+  formFootnote: string;
+  successNote: string;
+  organiserLabel: string;
+  shareText: string;
+  /**
+   * What this registration is an interest *in*, in a form that can be dropped
+   * into a sentence. Also what the confirmation email says, so the email and
+   * the page a person joined from describe the same thing.
+   */
+  interestLabel: string;
+  hero: WaitlistHero;
+  og: { title: string; description: string };
 }
 
 // ─── Registration ────────────────────────────────────────────────────────────

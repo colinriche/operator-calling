@@ -27,8 +27,10 @@ import { getAuth, type Auth, type DecodedIdToken } from "firebase-admin/auth";
 // but a stray `"` from the surrounding JSON does not, and produces
 // `error:1E08010C:DECODER routines::unsupported` on the first Firestore call.
 
+import { getStorage } from "firebase-admin/storage";
 import {
   adminCredentials,
+  firebaseClientConfig,
   firebaseProjectId,
   CLIENT_EMAIL_VAR,
   PRIVATE_KEY_VAR,
@@ -85,6 +87,17 @@ export function getAdminDb(): Firestore {
 
 export function getAdminAuth(): Auth {
   return getAuth(getAdminApp());
+}
+
+/**
+ * The one Storage bucket, named from the same config the browser client uses.
+ *
+ * Server-side uploads deliberately: writing through the Admin SDK needs no
+ * Storage rules at all, and this project's ruleset is shared with the mobile
+ * app — a website feature should not require a rules deploy to work.
+ */
+export function getAdminBucket() {
+  return getStorage(getAdminApp()).bucket(firebaseClientConfig().storageBucket);
 }
 
 export function getAdminServices(): { db: Firestore; adminAuth: Auth } {

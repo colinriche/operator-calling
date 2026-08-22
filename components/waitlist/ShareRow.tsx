@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { Copy, Check, Share2, Mail } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { defaultShareText } from "@/lib/waitlist/copy";
 import type { ShareChannel } from "@/lib/waitlist/constants";
 
 // ─── Share this ──────────────────────────────────────────────────────────────
@@ -18,11 +17,15 @@ import type { ShareChannel } from "@/lib/waitlist/constants";
 
 interface ShareRowProps {
   sourceCode: string | null;
-  audienceLabel: string;
+  /**
+   * From the presentation, so a shared link describes the page it points at —
+   * a global page must not be passed round as though it were about a topic.
+   */
+  shareText: string;
   className?: string;
 }
 
-export function ShareRow({ sourceCode, audienceLabel, className }: ShareRowProps) {
+export function ShareRow({ sourceCode, shareText, className }: ShareRowProps) {
   const [origin, setOrigin] = useState("");
   const [copied, setCopied] = useState(false);
   const [canNativeShare, setCanNativeShare] = useState(false);
@@ -31,8 +34,6 @@ export function ShareRow({ sourceCode, audienceLabel, className }: ShareRowProps
     setOrigin(window.location.origin);
     setCanNativeShare(typeof navigator !== "undefined" && !!navigator.share);
   }, []);
-
-  const shareText = defaultShareText(audienceLabel);
 
   function urlFor(channel: ShareChannel): string {
     const base = `${origin}/waitlist`;

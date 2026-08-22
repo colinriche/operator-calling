@@ -16,8 +16,12 @@ import {
   type ShareChannel,
   type TesterStatus,
 } from "./constants";
-import { resolveAudienceLabel, resolveDisclaimer } from "./copy";
 import { canonicalEmail, normaliseEmail } from "./email";
+import {
+  buildWaitlistPresentation,
+  globalContext,
+  waitlistContextFrom,
+} from "./presentation";
 import {
   generateManageToken,
   generateSourceCode,
@@ -127,27 +131,15 @@ async function resolveSource(
   return { linkId: linkDoc.id, linkData, sourceId, sourceData };
 }
 
-/** Neutral context used when there is no usable tracked source. */
-function generalContext(shareChannel: ShareChannel | null): WaitlistContext {
-  return {
-    sourceCode: null,
-    demandSourceId: null,
-    sourceLinkId: null,
-    platformId: null,
-    groupId: null,
-    audienceLabel: resolveAudienceLabel(null),
-    disclaimer: resolveDisclaimer(DEFAULT_RELATIONSHIP_STATUS),
-    relationshipStatus: DEFAULT_RELATIONSHIP_STATUS,
-    attributed: false,
-    shareChannel,
-  };
-}
-
 /**
  * Resolve everything the public page needs from a raw `?s=` value. Platform,
- * audience label, group link and relationship status are all read from the
- * database — never accepted from the query string — so a visitor cannot forge
- * an endorsement by editing the URL.
+ * audience label, group link, relationship status, page mode and imagery are
+ * all read from the database — never accepted from the query string — so a
+ * visitor cannot forge an endorsement, or a family name, by editing the URL.
+ *
+ * The mapping itself lives in lib/waitlist/presentation.ts, shared with the
+ * admin preview, so the page an admin is shown is built by the same code that
+ * builds the page a visitor gets.
  */
 export async function resolveWaitlistContext(
   rawCode: unknown,
@@ -155,7 +147,7 @@ export async function resolveWaitlistContext(
 ): Promise<WaitlistContext> {
   const shareChannel = normaliseShareChannel(rawShareChannel);
   const code = normaliseSourceCode(rawCode);
-  if (!code) return generalContext(shareChannel);
+  if (!code) return globalContext(shareChannel);
 
   try {
     const db = waitlistDb();
@@ -163,28 +155,21 @@ export async function resolveWaitlistContext(
     if (!resolved) {
       // Record the miss for debugging without exposing anything to the visitor.
       console.warn(`[waitlist] unresolved source code: ${code}`);
-      return generalContext(shareChannel);
+      return globalContext(shareChannel);
     }
 
     const { linkId, sourceId, sourceData } = resolved;
-    const relationshipStatus =
-      sourceData.relationshipStatus ?? DEFAULT_RELATIONSHIP_STATUS;
 
-    return {
+    return waitlistContextFrom(sourceData, {
       sourceCode: code,
       demandSourceId: sourceId,
       sourceLinkId: linkId,
-      platformId: sourceData.platformId ?? null,
-      groupId: sourceData.groupId ?? null,
-      audienceLabel: resolveAudienceLabel(sourceData.publicAudienceLabel),
-      disclaimer: resolveDisclaimer(relationshipStatus),
-      relationshipStatus,
-      attributed: true,
       shareChannel,
-    };
+      attributed: true,
+    });
   } catch (err) {
     console.error("[waitlist] context resolution failed:", err);
-    return generalContext(shareChannel);
+    return globalContext(shareChannel);
   }
 }
 
@@ -315,7 +300,20 @@ export async function registerWaitlistEntry(
 
   const demandSourceId = resolved?.sourceId ?? GENERAL_DEMAND_SOURCE_ID;
   const sourceData = resolved?.sourceData ?? {};
-  const audienceLabel = resolveAudienceLabel(sourceData.publicAudienceLabel);
+
+  // Taken from the presentation rather than straight off the source, so the
+  // confirmation email names the same thing the page they joined from did — a
+  // family by its name, a global page as talking with new people, and not the
+  // neutral "people who share this interest" fallback in either case.
+  const audienceLabel = buildWaitlistPresentation(
+    waitlistContextFrom(sourceData, {
+      sourceCode: code,
+      demandSourceId: resolved?.sourceId ?? null,
+      sourceLinkId: resolved?.linkId ?? null,
+      shareChannel: null,
+      attributed: !!resolved,
+    })
+  ).interestLabel;
 
   // Identity is the canonical address, not the stored one, so a Gmail user
   // cannot register the same mailbox repeatedly with dots and +tags.

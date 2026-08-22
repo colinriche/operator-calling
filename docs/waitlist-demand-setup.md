@@ -163,10 +163,17 @@ An unknown, paused or archived code silently falls back to the generic waitlist
 The disclaimer is derived from the source's `relationshipStatus` alone
 (`lib/waitlist/copy.ts`). Default is `unverified`, which says plainly that the
 group and its organisers have not approved or partnered with The Operator.
-Only `partnered` produces partnership wording.
+Only `partnered` produces partnership wording. That status also decides whether
+the community may be named on the page at all.
+
+Which of the three pages a source renders — global, community or family — comes
+from its `waitlistMode`, and everything the page and its link preview show is
+built from one object. See **docs/waitlist-page-modes.md**.
 
 The page is `noindex` — tracked links shouldn't accumulate search results for
-every forum posted in.
+every forum posted in. Link-preview crawlers are unaffected, which is
+deliberate: the preview image is generated per source at
+`/api/og/waitlist?s=CODE`.
 
 ## Known limitations
 

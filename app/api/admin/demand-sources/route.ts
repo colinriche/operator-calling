@@ -9,7 +9,9 @@ import {
   PLATFORM_IDS,
   RELATIONSHIP_STATUS_IDS,
   SOURCE_TYPE_IDS,
+  WAITLIST_MODE_IDS,
 } from "@/lib/waitlist/constants";
+import { isTopicArtId } from "@/lib/waitlist/topic-art";
 import {
   createUniqueSourceCode,
   getGlobalThreshold,
@@ -163,6 +165,16 @@ export async function GET(req: NextRequest) {
         publicDisplayName: data.publicDisplayName ?? "",
         publicAudienceLabel: data.publicAudienceLabel ?? "",
         publicDescription: data.publicDescription ?? "",
+        // Sent raw, exactly as stored. The panel resolves the fallback through
+        // the same presentation code the page uses rather than second-guessing
+        // it here.
+        waitlistMode: data.waitlistMode ?? "",
+        topicArtId: data.topicArtId ?? "",
+        familyName: data.familyName ?? "",
+        heroImageUrl: data.heroImageUrl ?? null,
+        heroImagePath: data.heroImagePath ?? null,
+        heroImageUploadedAt: toIso(data.heroImageUploadedAt),
+        heroImageUploadedBy: data.heroImageUploadedBy ?? null,
         internalNotes: data.internalNotes ?? "",
         postingRules: data.postingRules ?? "",
         relationshipStatus:
@@ -273,6 +285,17 @@ export async function POST(req: NextRequest) {
       publicDisplayName: str(body.publicDisplayName, 200),
       publicAudienceLabel: str(body.publicAudienceLabel, 200),
       publicDescription: str(body.publicDescription, 1000),
+      waitlistMode: WAITLIST_MODE_IDS.includes(str(body.waitlistMode, 40))
+        ? str(body.waitlistMode, 40)
+        : "community",
+      // Validated against the curated set, so an unknown id can never reach the
+      // page and produce a broken hero.
+      topicArtId: isTopicArtId(body.topicArtId) ? body.topicArtId : "",
+      familyName: str(body.familyName, 120),
+      // Only ever set by the image route, which requires the public-visibility
+      // confirmation. It must not be settable by a plain create or edit.
+      heroImageUrl: null,
+      heroImagePath: null,
       internalNotes: str(body.internalNotes, 4000),
       postingRules: str(body.postingRules, 2000),
       relationshipStatus,

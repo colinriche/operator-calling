@@ -1,92 +1,136 @@
+import { cache } from "react";
+import { headers } from "next/headers";
 import type { Metadata } from "next";
 import { PhoneIncoming, CalendarClock, ShieldCheck } from "lucide-react";
 import { WaitlistForm } from "@/components/waitlist/WaitlistForm";
+import { WaitlistHeader } from "@/components/waitlist/WaitlistHeader";
+import {
+  buildWaitlistPresentation,
+  waitlistOgImageUrl,
+} from "@/lib/waitlist/presentation";
 import { resolveWaitlistContext } from "@/lib/waitlist/server";
 
 // Attribution is resolved per-request from the source code, so this can never
 // be statically rendered.
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
-  title: "Join the waitlist",
-  description:
-    "The Operator arranges scheduled one-to-one voice calls around shared interests. You make yourself available and the call comes to you.",
-  // A tracked link is an internal attribution tool, not something that should
-  // accumulate search results for every forum we post in.
-  robots: { index: false, follow: false },
-};
+type SearchParams = Record<string, string | string[] | undefined>;
+
+function first(params: SearchParams, key: string): string | undefined {
+  const value = params[key];
+  return Array.isArray(value) ? value[0] : value;
+}
+
+// generateMetadata and the render below are two passes over the same request.
+// Without this they would each resolve the source separately, which is both a
+// second Firestore read and — if a source were edited between the two — a page
+// whose Open Graph tags described a different page.
+const contextFor = cache(
+  async (code: string | undefined, share: string | undefined) =>
+    resolveWaitlistContext(code, share)
+);
+
+/** Absolute origin, which og:image requires and relative URLs cannot give. */
+async function origin(): Promise<string> {
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host");
+  const proto = h.get("x-forwarded-proto") ?? "https";
+  return host ? `${proto}://${host}` : "https://operatorcalling.com";
+}
+
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}): Promise<Metadata> {
+  const params = await searchParams;
+  const context = await contextFor(first(params, "s"), first(params, "share"));
+  const p = buildWaitlistPresentation(context);
+  const image = waitlistOgImageUrl(await origin(), context.sourceCode);
+
+  // Title, description and image all come out of the same presentation object
+  // the page renders from — there is nothing here to keep in sync by hand.
+  return {
+    title: p.og.title,
+    description: p.og.description,
+    // A tracked link is an internal attribution tool, not something that should
+    // accumulate search results for every forum we post in. This does not stop
+    // link-preview crawlers, which is the point: no indexing, full previews.
+    robots: { index: false, follow: false },
+    openGraph: {
+      type: "website",
+      siteName: "The Operator",
+      title: p.og.title,
+      description: p.og.description,
+      images: [{ url: image, width: 1200, height: 630, alt: p.og.title }],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: p.og.title,
+      description: p.og.description,
+      images: [image],
+    },
+  };
+}
+
+const BULLET_ICONS = {
+  availability: CalendarClock,
+  incoming: PhoneIncoming,
+  privacy: ShieldCheck,
+} as const;
 
 export default async function WaitlistPage({
   searchParams,
 }: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
+  searchParams: Promise<SearchParams>;
 }) {
   const params = await searchParams;
-  const first = (key: string) => {
-    const value = params[key];
-    return Array.isArray(value) ? value[0] : value;
-  };
-
-  const context = await resolveWaitlistContext(first("s"), first("share"));
+  const context = await contextFor(first(params, "s"), first(params, "share"));
+  const p = buildWaitlistPresentation(context);
 
   // Admin previews must not pollute the public counters.
-  const isPreview = first("preview") === "1";
+  const isPreview = first(params, "preview") === "1";
 
   return (
     <div className="max-w-2xl mx-auto px-4 sm:px-6 py-10 sm:py-14">
-      <h1 className="font-heading font-bold text-3xl sm:text-4xl text-foreground mb-4 text-balance">
-        Like talking on the phone with new people?
-      </h1>
+      <WaitlistHeader p={p} />
 
-      <p className="text-lg text-muted-foreground leading-relaxed mb-4">
-        The Operator is built around scheduled one-to-one voice calls. You do not
-        need to search for people, send connection requests or arrange the call
-        yourself. Make yourself available and, when a suitable call is scheduled,
-        The Operator makes the connection and the call comes to you.
+      <p className="text-base text-muted-foreground leading-relaxed mb-4">
+        {p.body}
       </p>
 
-      <p className="font-heading text-base text-foreground/80 mb-8">
-        The operator makes the call, so you don&apos;t have to.
-      </p>
+      {p.tagline && (
+        <p className="font-heading text-base text-foreground/80 mb-8">
+          {p.tagline}
+        </p>
+      )}
 
       {/* The three things a first-time visitor has to grasp before the form. */}
       <ul className="grid sm:grid-cols-3 gap-3 mb-8">
-        {[
-          {
-            icon: CalendarClock,
-            text: "You pick when you're available — no searching for anyone.",
-          },
-          {
-            icon: PhoneIncoming,
-            text: "The call comes to you. The Operator makes the connection.",
-          },
-          {
-            icon: ShieldCheck,
-            text: "Nobody exchanges phone numbers.",
-          },
-        ].map(({ icon: Icon, text }) => (
-          <li
-            key={text}
-            className="bg-card rounded-2xl border border-border/60 p-4 flex sm:flex-col gap-3"
-          >
-            <Icon className="w-5 h-5 text-primary shrink-0" aria-hidden="true" />
-            <span className="text-sm text-muted-foreground leading-relaxed">
-              {text}
-            </span>
-          </li>
-        ))}
+        {p.bullets.map((bullet) => {
+          const Icon = BULLET_ICONS[bullet.id];
+          return (
+            <li
+              key={bullet.id}
+              className="bg-card rounded-2xl border border-border/60 p-4 flex sm:flex-col gap-3"
+            >
+              <Icon className="w-5 h-5 text-primary shrink-0" aria-hidden="true" />
+              <span className="text-sm text-muted-foreground leading-relaxed">
+                {bullet.text}
+              </span>
+            </li>
+          );
+        })}
       </ul>
 
-      <p className="text-sm text-muted-foreground leading-relaxed mb-8">
-        The Operator is independent and not affiliated with the website, group or
-        discussion where you found this link. Calls take place through The
-        Operator without anyone sharing their phone number.
-      </p>
-
-      <WaitlistForm context={context} isPreview={isPreview} />
+      <WaitlistForm
+        context={context}
+        presentation={p}
+        isPreview={isPreview}
+      />
 
       <p className="text-xs text-muted-foreground leading-relaxed mt-8">
-        {context.disclaimer}
+        {p.disclaimer}
       </p>
     </div>
   );

@@ -259,29 +259,20 @@ messages can be sent once a provider is chosen.
 
 ## 8. Public copy
 
-### Headline
+### Headline, intro, community interest and independence
 
-```
-Like talking on the phone with new people?
-```
+**No longer fixed text.** The page has three modes — global, community and
+family — and its heading, intro, source line, form wording and independence
+note are all built per request by `lib/waitlist/presentation.ts`, which is also
+what the Open Graph tags and the generated preview image are built from.
 
-### Intro
+See **docs/waitlist-page-modes.md**. In particular the wording below is *not*
+what a community page says any more: the topic is the heading, the source
+appears above it as "from a Facebook group", and whether the community may be
+named by name is decided from its relationship status.
 
-```
-Operator arranges scheduled one-to-one voice calls. You do not need to search
-for people, send connection requests or arrange the call yourself. Make
-yourself available and, when a call is scheduled, Operator makes the
-connection and the call comes to you.
-```
-
-### Community interest
-
-```
-Register your interest in calls with other people interested in
-[Public Audience Label].
-
-When enough people register, a calling group may be created for this interest.
-```
+The copy that follows is still fixed text, and still lives in
+`lib/waitlist/copy.ts`.
 
 ### Tester offer
 
@@ -303,11 +294,24 @@ Yes, I'd like to join the early access tester programme.
 
 ### Independence disclaimer
 
+Two of them now, both derived from `relationshipStatus`:
+
+- A **short note above the form** on a community page, naming the kind of place
+  the link came from — "It is not run by, approved by or connected to the
+  Facebook group where you found this link." Prominent rather than fine print,
+  because this is the one somebody actually reads.
+- The **full statement at the foot of the page**, which is the text below,
+  produced by `resolveDisclaimer` in `lib/waitlist/copy.ts`.
+
 ```
 Operator is an independent service and is not affiliated with the website,
 group or discussion where you found this link. Its owners and organisers have
 not approved or partnered with Operator.
 ```
+
+Global and family pages get a neutral disclaimer instead: neither has a
+third-party community to be independent of, and this wording would be naming a
+link the visitor never followed.
 
 ### Time zone
 

@@ -13,6 +13,7 @@ import {
   UsersRound,
   GitBranch,
   MessageSquare,
+  LayoutTemplate,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -26,11 +27,13 @@ import {
   PLATFORMS,
   RELATIONSHIP_STATUSES,
   SOURCE_TYPES,
+  WAITLIST_MODES,
   platformLabel,
 } from "@/lib/waitlist/constants";
 import { countryName, languageName } from "@/lib/waitlist/locales";
 import { topicSlug } from "@/lib/waitlist/tracked-url";
 import { OutreachComposer } from "@/components/admin/OutreachComposer";
+import { WaitlistPagePanel } from "@/components/admin/WaitlistPagePanel";
 import type { DemandSourceRow } from "@/lib/waitlist/types";
 
 // ─── Outreach sources ────────────────────────────────────────────────────────
@@ -103,6 +106,8 @@ interface RegistrationRow {
 
 const BLANK_FORM = {
   sourceName: "",
+  waitlistMode: "community",
+  familyName: "",
   platformId: "reddit",
   sourceType: "subreddit",
   topicName: "",
@@ -156,6 +161,7 @@ export function OutreachSourcesPanel() {
   const [togglingCalls, setTogglingCalls] = useState<string | null>(null);
   const [savingTopicUrl, setSavingTopicUrl] = useState<string | null>(null);
   const [openOutreach, setOpenOutreach] = useState<string | null>(null);
+  const [openPage, setOpenPage] = useState<string | null>(null);
   const [sourceThresholdDraft, setSourceThresholdDraft] = useState<
     Record<string, string>
   >({});
@@ -763,6 +769,42 @@ export function OutreachSourcesPanel() {
             </div>
             <div>
               <label className="block text-xs font-medium text-foreground mb-1.5">
+                Waitlist page
+              </label>
+              <select
+                value={form.waitlistMode}
+                onChange={(e) => setForm({ ...form, waitlistMode: e.target.value })}
+                className={inputClass}
+              >
+                {WAITLIST_MODES.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.label}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-muted-foreground mt-1.5">
+                {WAITLIST_MODES.find((m) => m.id === form.waitlistMode)?.hint}
+              </p>
+            </div>
+            {form.waitlistMode === "family" && (
+              <div>
+                <label className="block text-xs font-medium text-foreground mb-1.5">
+                  Family name
+                </label>
+                <input
+                  value={form.familyName}
+                  onChange={(e) => setForm({ ...form, familyName: e.target.value })}
+                  placeholder="e.g. the Okonkwo family"
+                  className={inputClass}
+                />
+                <p className="text-xs text-muted-foreground mt-1.5">
+                  The page heading. Add the optional hero image afterwards, under
+                  Waitlist page.
+                </p>
+              </div>
+            )}
+            <div>
+              <label className="block text-xs font-medium text-foreground mb-1.5">
                 Platform
               </label>
               <select
@@ -976,6 +1018,16 @@ export function OutreachSourcesPanel() {
                     {openRegistrations === source.id ? "Hide" : "Registrations"}
                   </Button>
                   <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      setOpenPage((cur) => (cur === source.id ? null : source.id))
+                    }
+                  >
+                    <LayoutTemplate className="w-3.5 h-3.5" />
+                    {openPage === source.id ? "Hide" : "Waitlist page"}
+                  </Button>
+                  <Button
                     variant={
                       source.status === "do_not_contact" ? "outline" : "outline"
                     }
@@ -1137,6 +1189,10 @@ export function OutreachSourcesPanel() {
                   </div>
                 ))}
               </div>
+
+              {openPage === source.id && (
+                <WaitlistPagePanel source={source} onSaved={load} />
+              )}
 
               {source.groupId && (
                 <div className="border-t border-border/60 pt-3 space-y-1.5">

@@ -7,7 +7,6 @@ import { ShareRow } from "@/components/waitlist/ShareRow";
 import { ManageLink } from "@/components/waitlist/ManageLink";
 import { TimezoneField } from "@/components/waitlist/TimezoneField";
 import {
-  organiserCheckboxLabel,
   TESTER_CAVEAT,
   TESTER_EXPLANATION,
   TESTER_HEADLINE,
@@ -22,17 +21,27 @@ import {
   OTHER_COUNTRIES,
   PRIORITY_COUNTRIES,
 } from "@/lib/waitlist/locales";
-import type { WaitlistContext } from "@/lib/waitlist/types";
+import type { WaitlistContext, WaitlistPresentation } from "@/lib/waitlist/types";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 interface WaitlistFormProps {
   context: WaitlistContext;
+  /**
+   * Every visible string comes from here rather than from this component, so
+   * the form on a global page cannot mention a shared interest that a global
+   * page does not have.
+   */
+  presentation: WaitlistPresentation;
   /** Admin preview — renders normally but records nothing. */
   isPreview: boolean;
 }
 
-export function WaitlistForm({ context, isPreview }: WaitlistFormProps) {
+export function WaitlistForm({
+  context,
+  presentation,
+  isPreview,
+}: WaitlistFormProps) {
   const [email, setEmail] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [country, setCountry] = useState("");
@@ -152,10 +161,7 @@ export function WaitlistForm({ context, isPreview }: WaitlistFormProps) {
             You&apos;re on the waitlist.
           </h2>
           <p className="text-muted-foreground leading-relaxed">
-            We&apos;ll keep your interest linked to{" "}
-            <strong className="text-foreground">{context.audienceLabel}</strong>. If
-            enough people are interested and a calling group is created, we can let
-            you know.
+            {presentation.successNote}
           </p>
           {confirmedOrganising && (
             <p className="text-sm text-muted-foreground leading-relaxed mt-4 pt-4 border-t border-border/60">
@@ -213,7 +219,7 @@ export function WaitlistForm({ context, isPreview }: WaitlistFormProps) {
 
         <ShareRow
           sourceCode={context.sourceCode}
-          audienceLabel={context.audienceLabel}
+          shareText={presentation.shareText}
         />
       </div>
     );
@@ -232,11 +238,10 @@ export function WaitlistForm({ context, isPreview }: WaitlistFormProps) {
       >
         <div>
           <h2 className="font-heading font-semibold text-lg text-foreground">
-            Register your interest
+            {presentation.formHeading}
           </h2>
           <p className="text-sm text-muted-foreground mt-1">
-            Register your interest in talking with people interested in{" "}
-            <strong className="text-foreground">{context.audienceLabel}</strong>.
+            {presentation.formIntro}
           </p>
         </div>
 
@@ -416,7 +421,7 @@ export function WaitlistForm({ context, isPreview }: WaitlistFormProps) {
             className="mt-0.5 w-4 h-4 shrink-0 rounded border-border accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
           />
           <span className="text-sm text-foreground">
-            {organiserCheckboxLabel(!!context.groupId)}
+            {presentation.organiserLabel}
           </span>
         </label>
 
@@ -459,16 +464,13 @@ export function WaitlistForm({ context, isPreview }: WaitlistFormProps) {
         </button>
 
         <p className="text-xs text-muted-foreground leading-relaxed">
-          Joining records your interest. We may email you about this Operator
-          calling group. The website or group where you found this link does not
-          receive your details. When enough people register, an Operator calling
-          group may be created for this interest.
+          {presentation.formFootnote}
         </p>
       </form>
 
       <ShareRow
         sourceCode={context.sourceCode}
-        audienceLabel={context.audienceLabel}
+        shareText={presentation.shareText}
       />
     </div>
   );

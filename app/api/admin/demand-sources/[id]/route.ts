@@ -7,8 +7,10 @@ import {
   PLATFORM_IDS,
   RELATIONSHIP_STATUS_IDS,
   SOURCE_TYPE_IDS,
+  WAITLIST_MODE_IDS,
 } from "@/lib/waitlist/constants";
 import { getGlobalThreshold, waitlistDb } from "@/lib/waitlist/server";
+import { isTopicArtId } from "@/lib/waitlist/topic-art";
 
 // PATCH /api/admin/demand-sources/[id] — edit a demand source.
 //
@@ -29,9 +31,16 @@ const TEXT_FIELDS: Array<[key: string, max: number]> = [
   ["publicDisplayName", 200],
   ["publicAudienceLabel", 200],
   ["publicDescription", 1000],
+  ["familyName", 120],
   ["internalNotes", 4000],
   ["postingRules", 2000],
 ];
+
+// Deliberately absent from everything below: heroImageUrl and heroImagePath.
+// The hero image is only ever set by POST …/[id]/image, which requires the
+// public-visibility confirmation. Accepting a URL here would be a way to put an
+// image on a public page and into every link preview without anyone having
+// acknowledged that it becomes public.
 
 export async function PATCH(
   req: NextRequest,
@@ -63,6 +72,21 @@ export async function PATCH(
   // re-issuing of codes — the same links simply copy differently from now on.
   if (typeof body.includeTopicInUrl === "boolean") {
     update.includeTopicInUrl = body.includeTopicInUrl;
+  }
+
+  // Which of the three pages this source's tracked links render.
+  if (
+    typeof body.waitlistMode === "string" &&
+    WAITLIST_MODE_IDS.includes(body.waitlistMode)
+  ) {
+    update.waitlistMode = body.waitlistMode;
+  }
+
+  // "" clears the choice and falls back to the brand mark; anything not in the
+  // curated set is ignored rather than stored and rendered as a broken hero.
+  if (typeof body.topicArtId === "string") {
+    if (body.topicArtId === "") update.topicArtId = "";
+    else if (isTopicArtId(body.topicArtId)) update.topicArtId = body.topicArtId;
   }
 
   if (typeof body.platformId === "string" && PLATFORM_IDS.includes(body.platformId)) {
