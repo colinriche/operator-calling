@@ -46,7 +46,20 @@ export async function generateMetadata({
   const params = await searchParams;
   const context = await contextFor(first(params, "s"), first(params, "share"));
   const p = buildWaitlistPresentation(context);
-  const image = waitlistOgImageUrl(await origin(), context.sourceCode);
+  const site = await origin();
+  const image = waitlistOgImageUrl(site, context.sourceCode);
+
+  // The canonical address of this page. Only `s` is carried: `t` is cosmetic
+  // and `share`/`preview` describe how someone arrived, not what they are
+  // looking at, so leaving them in would make every re-share a different URL.
+  //
+  // Without og:url a scraper has to assume the URL it happened to fetch is the
+  // canonical one. Facebook re-resolves a link when the post is actually
+  // submitted rather than reusing the composer's preview, and that second pass
+  // is where an absent og:url costs you the card.
+  const canonical = context.sourceCode
+    ? `${site}/waitlist?s=${encodeURIComponent(context.sourceCode)}`
+    : `${site}/waitlist`;
 
   // Title, description and image all come out of the same presentation object
   // the page renders from — there is nothing here to keep in sync by hand.
@@ -57,12 +70,24 @@ export async function generateMetadata({
     // accumulate search results for every forum we post in. This does not stop
     // link-preview crawlers, which is the point: no indexing, full previews.
     robots: { index: false, follow: false },
+    alternates: { canonical },
     openGraph: {
       type: "website",
       siteName: "The Operator",
+      url: canonical,
       title: p.og.title,
       description: p.og.description,
-      images: [{ url: image, width: 1200, height: 630, alt: p.og.title }],
+      // Declaring the type as well as the dimensions means a scraper does not
+      // have to fetch the image to learn what it is.
+      images: [
+        {
+          url: image,
+          width: 1200,
+          height: 630,
+          type: "image/png",
+          alt: p.og.title,
+        },
+      ],
     },
     twitter: {
       card: "summary_large_image",

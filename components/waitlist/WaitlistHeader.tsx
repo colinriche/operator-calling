@@ -17,18 +17,24 @@ import type { WaitlistPresentation } from "@/lib/waitlist/types";
 export function WaitlistHeader({ p }: { p: WaitlistPresentation }) {
   return (
     <header className="mb-8">
-      {p.hero.kind === "brand" ? (
+      {/* Only an uploaded family photograph earns the full-width banner. A
+          family page is *about* those people, so the picture is the point.
+          Topic artwork is decoration — a mark identifying the subject, the same
+          job the brand mark does on the global page — and blowing it up to
+          16/9 pushed the heading and the independence note below the fold on a
+          phone, which is exactly where they must not be. */}
+      {p.hero.kind === "image" ? (
         <img
           src={p.hero.src}
           alt={p.hero.alt}
-          aria-hidden={p.hero.alt === "" || undefined}
-          className="w-16 h-16 rounded-2xl object-cover mb-5"
+          className="w-full aspect-[16/9] object-cover rounded-2xl border border-border/60 mb-6 bg-muted"
         />
       ) : (
         <img
           src={p.hero.src}
           alt={p.hero.alt}
-          className="w-full aspect-[16/9] object-cover rounded-2xl border border-border/60 mb-6 bg-muted"
+          aria-hidden={p.hero.alt === "" || undefined}
+          className="w-16 h-16 rounded-2xl object-cover mb-5"
         />
       )}
 

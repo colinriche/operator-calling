@@ -234,9 +234,15 @@ export async function GET(req: NextRequest) {
       height: HEIGHT,
       ...(fonts.length > 0 ? { fonts } : {}),
       headers: {
-        // Long enough that a burst of previews costs one render, short enough
-        // that an admin editing a family name sees it change the same day.
-        "cache-control": "public, max-age=300, s-maxage=300, stale-while-revalidate=86400",
+        // A scraper fetches this twice — once to build the composer preview and
+        // again when the post is submitted — and the second fetch has a tighter
+        // budget than the first. Five minutes was short enough that the second
+        // one could land on a cold render; a day, revalidated in the
+        // background, means it almost never does. An admin editing a family
+        // name sees the page change immediately either way; only the generated
+        // card lags.
+        "cache-control":
+          "public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800",
       },
     }
   );
