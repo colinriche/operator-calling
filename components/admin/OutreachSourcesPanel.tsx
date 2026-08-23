@@ -23,6 +23,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 import {
+  CONNECTION_TYPES,
   DEMAND_STATUSES,
   PLATFORMS,
   RELATIONSHIP_STATUSES,
@@ -107,6 +108,7 @@ interface RegistrationRow {
 const BLANK_FORM = {
   sourceName: "",
   waitlistMode: "community",
+  connectionType: "shared_interest",
   familyName: "",
   platformId: "reddit",
   sourceType: "subreddit",
@@ -786,6 +788,29 @@ export function OutreachSourcesPanel() {
                 {WAITLIST_MODES.find((m) => m.id === form.waitlistMode)?.hint}
               </p>
             </div>
+            {form.waitlistMode !== "family" && (
+              <div>
+                <label className="block text-xs font-medium text-foreground mb-1.5">
+                  Do these people already know each other?
+                </label>
+                <select
+                  value={form.connectionType}
+                  onChange={(e) =>
+                    setForm({ ...form, connectionType: e.target.value })
+                  }
+                  className={inputClass}
+                >
+                  {CONNECTION_TYPES.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-muted-foreground mt-1.5">
+                  {CONNECTION_TYPES.find((c) => c.id === form.connectionType)?.hint}
+                </p>
+              </div>
+            )}
             {form.waitlistMode === "family" && (
               <div>
                 <label className="block text-xs font-medium text-foreground mb-1.5">

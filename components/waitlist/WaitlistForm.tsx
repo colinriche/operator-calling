@@ -48,6 +48,7 @@ export function WaitlistForm({
   const [englishFirst, setEnglishFirst] = useState(true);
   const [firstLanguage, setFirstLanguage] = useState("");
   const [organising, setOrganising] = useState(false);
+  const [familyInterest, setFamilyInterest] = useState(false);
   const [honeypot, setHoneypot] = useState("");
   const [timezone, setTimezone] = useState(SCHEDULE_ZONE);
   const [timezoneSource, setTimezoneSource] =
@@ -113,6 +114,7 @@ export function WaitlistForm({
           email: email.trim(),
           displayName: displayName.trim(),
           interestedInOrganising: organising,
+          familyInterest,
           country,
           englishFirstLanguage: englishFirst,
           firstLanguage: englishFirst ? null : firstLanguage,
@@ -424,6 +426,23 @@ export function WaitlistForm({
             {presentation.organiserLabel}
           </span>
         </label>
+
+        {/* A second, separate interest. Ticking it adds a family to what we
+            know they want; it does not reinterpret the group or topic they
+            came here for, and leaving it alone costs them nothing. */}
+        {presentation.familyPrompt && (
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={familyInterest}
+              onChange={(e) => setFamilyInterest(e.target.checked)}
+              className="mt-0.5 w-4 h-4 shrink-0 rounded border-border accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+            />
+            <span className="text-sm text-foreground">
+              {presentation.familyPrompt}
+            </span>
+          </label>
+        )}
 
         {/* A heads-up, not a field. Early Access is an optional second step
             after joining — nothing here is part of this submission, which is

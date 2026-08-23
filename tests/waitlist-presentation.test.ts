@@ -237,6 +237,154 @@ describe("mode resolution", () => {
   });
 });
 
+// Two audiences, two arguments. Describing a group of former colleagues as
+// "others who share an interest" describes something they did not sign up for,
+// and describing strangers as people you already know is a false promise —
+// so neither vocabulary may leak into the other's page.
+describe("connection type", () => {
+  const KNOWN: PublicSourceFields = {
+    ...COMMUNITY,
+    connectionType: "existing_connections",
+    topicName: "St Mary's class of 1998",
+  };
+
+  it("sells keeping a connection alive, not meeting people", () => {
+    const p = buildWaitlistPresentation(contextFor(KNOWN));
+
+    expect(p.lead).toContain("Keep in contact with St Mary's class of 1998");
+    expect(p.lead).toContain("let The Operator decide when it's time to talk");
+    expect(p.body).toContain("When the everyday reasons for calling disappear");
+    expect(p.body).toContain(
+      "privacy settings that let you choose who you don't want to be connected with"
+    );
+    expect(p.body).toContain(
+      "rather than letting them dwindle into messages and social-media reactions"
+    );
+
+    const everything = [p.lead, p.body, p.formIntro, p.successNote, p.shareText].join(" ");
+    expect(everything).not.toContain("share an interest");
+    expect(everything).not.toContain("search for people");
+  });
+
+  // The Operator decides when it is time. Wording that hands the visitor the
+  // diary, or that reads like a standing appointment, turns an occasional and
+  // welcome thing into an obligation — so these phrasings are barred outright
+  // rather than left to whoever edits the copy next.
+  it("never makes an existing-connections page sound like an appointment", () => {
+    for (const fields of [
+      KNOWN,
+      { ...KNOWN, topicName: "" },
+      { waitlistMode: "family", familyName: "the Okonkwo family" },
+    ]) {
+      const p = buildWaitlistPresentation(contextFor(fields));
+      const everything = [
+        p.lead,
+        p.body,
+        p.formIntro,
+        p.formFootnote,
+        p.successNote,
+        p.shareText,
+        p.organiserLabel,
+        ...p.bullets.map((b) => b.text),
+      ]
+        .join(" ")
+        .toLowerCase();
+
+      for (const banned of [
+        "arrange every call yourself",
+        "remember to make the call",
+        "people who already know each other",
+        "schedule a call between you",
+        "proper voice call",
+        "when your availability overlaps",
+        "appointment",
+        "meeting",
+      ]) {
+        expect(everything).not.toContain(banned);
+      }
+    }
+  });
+
+  it("sells not having to find anyone to people who don't know each other", () => {
+    const p = buildWaitlistPresentation(contextFor(COMMUNITY));
+
+    expect(p.lead).toContain("share an interest in live poker");
+    expect(p.body).toContain("You don't need to search for people");
+
+    const everything = [p.lead, p.body, p.formIntro, p.successNote, p.shareText].join(" ");
+    expect(everything).not.toContain("Keep in contact");
+    expect(everything).not.toContain("already know each other");
+    // The approved shared-interest wording is unchanged and must stay that way.
+    expect(p.lead).toBe(
+      "Enjoy voice calls with others who share an interest in live poker. Tell us when you're available, and The Operator will schedule a one-to-one call for you."
+    );
+  });
+
+  it("treats a family as people who already know each other, whatever is stored", () => {
+    const p = buildWaitlistPresentation(
+      contextFor({
+        waitlistMode: "family",
+        familyName: "the Okonkwo family",
+        // Wrong on the record, and it must not be able to make a family page
+        // address a family as strangers with a shared interest.
+        connectionType: "shared_interest",
+      })
+    );
+
+    expect(p.connectionType).toBe("existing_connections");
+    expect(p.lead).toContain("Keep in contact with the Okonkwo family");
+    expect(p.lead).not.toContain("share an interest");
+  });
+
+  it("falls back to the weaker claim, never the stronger one", () => {
+    for (const stored of [undefined, "", "nonsense", "friends"]) {
+      const p = buildWaitlistPresentation(
+        contextFor({ ...COMMUNITY, connectionType: stored })
+      );
+      expect(p.connectionType).toBe("shared_interest");
+      expect(p.lead).not.toContain("Keep in contact");
+    }
+  });
+
+  it("still mirrors the page in the preview for both types", () => {
+    for (const fields of [COMMUNITY, KNOWN]) {
+      const p = buildWaitlistPresentation(contextFor(fields));
+      expect(p.og.description).toBe(p.lead);
+    }
+  });
+});
+
+// A second, additive interest. It must never be mistaken for the thing they
+// actually came to register for.
+describe("the family prompt", () => {
+  it("is offered on pages that are not already about a family", () => {
+    for (const fields of [
+      COMMUNITY,
+      { ...COMMUNITY, connectionType: "existing_connections" },
+      { waitlistMode: "global" },
+    ]) {
+      const p = buildWaitlistPresentation(contextFor(fields));
+      expect(p.familyPrompt).toBe(
+        "Would you also like to use The Operator to keep your family connected?"
+      );
+    }
+  });
+
+  it("is not offered on a family page, which has already asked", () => {
+    const p = buildWaitlistPresentation(
+      contextFor({ waitlistMode: "family", familyName: "the Okonkwo family" })
+    );
+    expect(p.familyPrompt).toBeNull();
+  });
+
+  it("does not change what the registration is for", () => {
+    const p = buildWaitlistPresentation(contextFor(COMMUNITY));
+    // The prompt is an extra question on the page, not a redefinition of the
+    // audience — the interest label still names the topic they arrived for.
+    expect(p.interestLabel).toBe("live poker");
+  });
+});
+
 describe("the preview image URL", () => {
   it("is absolute and carries the source code", () => {
     expect(waitlistOgImageUrl("https://operatorcalling.com", "K7P4MX")).toBe(

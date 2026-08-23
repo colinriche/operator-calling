@@ -18,9 +18,12 @@
 
 import {
   canNameSourcePublicly,
+  CONNECTION_TYPE_IDS,
+  DEFAULT_CONNECTION_TYPE,
   DEFAULT_RELATIONSHIP_STATUS,
   FALLBACK_AUDIENCE_LABEL,
   WAITLIST_MODE_IDS,
+  type ConnectionType,
   type ShareChannel,
   type WaitlistMode,
 } from "./constants";
@@ -54,6 +57,7 @@ export interface PublicSourceFields {
   publicAudienceLabel?: unknown;
   topicName?: unknown;
   waitlistMode?: unknown;
+  connectionType?: unknown;
   topicArtId?: unknown;
   familyName?: unknown;
   heroImageUrl?: unknown;
@@ -86,12 +90,31 @@ export function resolveWaitlistMode(raw: unknown, attributed: boolean): Waitlist
   return attributed ? "community" : "global";
 }
 
+/**
+ * Whether these people already know each other.
+ *
+ * A family page is existing connections by definition — that is what a family
+ * is — so it does not depend on the stored value being right. Everything else
+ * falls back to shared interest, the weaker of the two claims.
+ */
+export function resolveConnectionType(
+  raw: unknown,
+  mode: WaitlistMode
+): ConnectionType {
+  if (mode === "family") return "existing_connections";
+  const value = text(raw);
+  return CONNECTION_TYPE_IDS.includes(value)
+    ? (value as ConnectionType)
+    : DEFAULT_CONNECTION_TYPE;
+}
+
 export function waitlistContextFrom(
   fields: PublicSourceFields,
   meta: ContextMeta
 ): WaitlistContext {
   const relationshipStatus =
     text(fields.relationshipStatus) || DEFAULT_RELATIONSHIP_STATUS;
+  const mode = resolveWaitlistMode(fields.waitlistMode, meta.attributed);
 
   return {
     sourceCode: meta.sourceCode,
@@ -105,7 +128,8 @@ export function waitlistContextFrom(
     attributed: meta.attributed,
     shareChannel: meta.shareChannel,
 
-    mode: resolveWaitlistMode(fields.waitlistMode, meta.attributed),
+    mode,
+    connectionType: resolveConnectionType(fields.connectionType, mode),
     sourceType: text(fields.sourceType) || null,
     publicDisplayName: text(fields.publicDisplayName),
     // Decided once, here. Every consumer asks this flag rather than re-deriving
@@ -142,22 +166,89 @@ function leadingCapital(value: string): string {
   return value.length === 0 ? value : value[0].toUpperCase() + value.slice(1);
 }
 
-function bulletsFor(mode: WaitlistMode): WaitlistPresentation["bullets"] {
+function bulletsFor(
+  connectionType: ConnectionType
+): WaitlistPresentation["bullets"] {
+  const known = connectionType === "existing_connections";
   return [
     {
       id: "availability",
-      text:
-        mode === "family"
-          ? "Everyone says when they're free — nobody has to agree a time."
-          : "You pick when you're available — no searching for anyone.",
+      // Type 1 must not put the visitor in the scheduler's seat, so this says
+      // who decides rather than asking them when they are free.
+      text: known
+        ? "The Operator decides when it's time. Nothing to arrange between you."
+        : "You pick when you're available — no searching for anyone.",
     },
     {
       id: "incoming",
       text: "The call comes to you. The Operator makes the connection.",
     },
-    { id: "privacy", text: "Nobody exchanges phone numbers." },
+    {
+      id: "privacy",
+      // In a group that already knows each other, everyone has everyone's
+      // number — so the meaningful control is who you would rather not be put
+      // through to, not whether numbers are shared.
+      text: known
+        ? "You choose who you'd rather not be connected with."
+        : "Nobody exchanges phone numbers.",
+    },
   ];
 }
+
+// ─── The two arguments ───────────────────────────────────────────────────────
+//
+// A page is selling one of two quite different things, and the wording is not
+// interchangeable. For strangers the promise is that you never have to find
+// anyone. For people who already know each other, finding each other was never
+// the problem — remembering to actually call is.
+
+/** Type 2: people who don't know each other but share something. */
+function sharedInterestCopy(topic: string): { lead: string; body: string } {
+  // Substituted as a whole clause rather than a bare noun: with no topic the
+  // fallback replaces the "who share an interest in ___" construction instead
+  // of filling its blank. Plural and singular differ only in agreement.
+  const plural = topic
+    ? `who share an interest in ${topic}`
+    : "interested in The Operator Calling project";
+  const singular = topic
+    ? `who shares an interest in ${topic}`
+    : "interested in The Operator Calling project";
+
+  return {
+    lead: `Enjoy voice calls with others ${plural}. Tell us when you're available, and The Operator will schedule a one-to-one call for you.`,
+    body: `You don't need to search for people, send connection requests or arrange calls yourself. Tell us when you're available, and when someone else ${singular} is also available, The Operator will schedule a one-to-one call and ring you both when it's time.`,
+  };
+}
+
+/**
+ * Type 1: a family, a year group, an old team.
+ *
+ * The argument is not "we save you the admin". People in these groups can
+ * already reach each other; what they have lost is the everyday reason to —
+ * the shared job, the school run, the club night. So The Operator is the one
+ * that decides when it is time, and the call arrives rather than being
+ * arranged.
+ *
+ * That is why nothing here frames the visitor as the scheduler, mentions
+ * overlapping availability, or reads like an appointment. Those phrasings turn
+ * a warm, occasional thing into a standing commitment, which is the opposite
+ * of what this audience is being offered.
+ */
+function existingConnectionsCopy(group: string): { lead: string; body: string } {
+  return {
+    lead: `Keep in contact with ${group}, and let The Operator decide when it's time to talk. It occasionally brings two members together for a one-to-one call, helping keep the connection strong.`,
+    body: `When the everyday reasons for calling disappear, people can gradually drift apart. The Operator gives those connections a reason to talk again, occasionally bringing two members together for a one-to-one call. You stay in control, with privacy settings that let you choose who you don't want to be connected with. It helps keep relationships alive and strengthen the bond, rather than letting them dwindle into messages and social-media reactions.`,
+  };
+}
+
+/**
+ * Offered on every page that is not already about a family.
+ *
+ * Additive by design: it is a second interest recorded next to the first, and
+ * ticking it must not reinterpret the group or topic the visitor arrived for.
+ */
+const FAMILY_PROMPT =
+  "Would you also like to use The Operator to keep your family connected?";
 
 // ─── The build ───────────────────────────────────────────────────────────────
 
@@ -175,9 +266,13 @@ export function buildWaitlistPresentation(
 ): WaitlistPresentation {
   const common = {
     mode: context.mode,
-    bullets: bulletsFor(context.mode),
+    connectionType: context.connectionType,
+    bullets: bulletsFor(context.connectionType),
     formHeading: "Register your interest",
     tagline: TAGLINE as string | null,
+    // Asking a family page whether you would also like a family page is asking
+    // something the visitor has already answered by being here.
+    familyPrompt: context.mode === "family" ? null : FAMILY_PROMPT,
   };
 
   // The relationship-derived fine print is about a community we were linked
@@ -191,14 +286,18 @@ export function buildWaitlistPresentation(
     // name has not been filled in yet still has to render something truthful.
     const family = context.familyName || context.publicDisplayName || "your family";
     const heading = leadingCapital(family);
-    const lead = `Voice calls for ${family}. Say when you're free and The Operator connects the call — nobody has to arrange it, and nobody swaps phone numbers.`;
+    // A family is the clearest case of people who already know each other, so
+    // it uses the same Type 1 wording as an old year group or former
+    // colleagues rather than a bespoke variant that says the same thing
+    // differently.
+    const { lead, body } = existingConnectionsCopy(family);
 
     return {
       ...common,
       eyebrow: "A private calling group",
       heading,
       lead,
-      body: `Everyone in ${family} says which times suit them. When two people are free at the same time, The Operator rings both of you and puts the call through. There is nothing to schedule between yourselves and no numbers to hand around.`,
+      body,
       disclaimer: NEUTRAL_DISCLAIMER,
       independenceNote: null,
       formIntro: `Register your interest in joining calls with ${family}.`,
@@ -229,29 +328,52 @@ export function buildWaitlistPresentation(
       (context.audienceLabel === FALLBACK_AUDIENCE_LABEL
         ? ""
         : context.audienceLabel);
-    const heading = topic ? leadingCapital(topic) : "Talking with people who share your interests";
-    const subject = topic || "the things you're into";
-    const lead = `One-to-one voice calls about ${subject}, with other people who are into it. You make yourself available and The Operator makes the call.`;
+    const known = context.connectionType === "existing_connections";
+
+    const heading = topic
+      ? leadingCapital(topic)
+      : known
+        ? "Keeping your group in contact"
+        : "Talking with people who share your interests";
+
+    // The group's own name where there is one. "your group" rather than a
+    // topic-shaped filler, because Type 1 sentences read "keep in touch
+    // with ___" and a topic noun does not fit there.
+    const group = topic || "your group";
+    const { lead, body } = known
+      ? existingConnectionsCopy(group)
+      : sharedInterestCopy(topic);
+
+    const label = topic || context.audienceLabel;
 
     return {
       ...common,
       eyebrow,
       heading,
       lead,
-      body: `You do not need to search for people, send connection requests or arrange anything yourself. Say when you're free, and when someone else who's interested in ${subject} is free at the same time, The Operator rings you both and connects the call.`,
+      body,
       disclaimer: context.disclaimer,
       independenceNote: independenceNote(context.relationshipStatus, descriptor),
-      formIntro: `Register your interest in talking with people interested in ${
-        topic || context.audienceLabel
-      }.`,
-      formFootnote: `Joining records your interest. We may email you about this Operator calling group. The ${descriptor} where you found this link does not receive your details. When enough people register, an Operator calling group may be created for this interest.`,
-      successNote: `We'll keep your interest linked to ${
-        topic || context.audienceLabel
-      }. If enough people are interested and a calling group is created, we can let you know.`,
+      formIntro: known
+        ? `Register your interest in keeping in contact with ${group}.`
+        : `Register your interest in talking with people interested in ${label}.`,
+      formFootnote: `Joining records your interest. We may email you about this Operator calling group. The ${descriptor} where you found this link does not receive your details. When enough people register, an Operator calling group may be created for this ${known ? "group" : "interest"}.`,
+      successNote: known
+        ? `We'll keep your interest linked to ${group}. When enough of the group have registered and a calling group is created, we can let you know.`
+        : `We'll keep your interest linked to ${label}. If enough people are interested and a calling group is created, we can let you know.`,
       organiserLabel: context.groupId
         ? "I may be interested in helping organise or schedule calls for this group."
-        : "I may be interested in helping organise or schedule calls around this interest.",
-      shareText: `This might interest people who like one-to-one voice calls about ${subject}. You make yourself available and The Operator arranges the call.`,
+        : known
+          ? "I may be interested in helping organise or schedule calls for this group."
+          : "I may be interested in helping organise or schedule calls around this interest.",
+      // Drops the "about ___" clause entirely with no topic, rather than
+      // reaching for a filler noun — a share message naming no subject still
+      // reads properly, which is not true of "voice calls about this topic".
+      shareText: known
+        ? `A way for ${group} to keep in contact by voice — The Operator occasionally brings two members together for a one-to-one call.`
+        : topic
+          ? `This might interest people who like one-to-one voice calls about ${topic}. You make yourself available and The Operator arranges the call.`
+          : "This might interest people who like one-to-one voice calls. You make yourself available and The Operator arranges the call.",
       interestLabel: topic || context.audienceLabel,
       hero: heroFor(context, heading),
       og: { title: eyebrow ? `${heading} — ${eyebrow}` : heading, description: lead },

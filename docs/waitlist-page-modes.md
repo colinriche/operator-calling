@@ -39,6 +39,52 @@ The invariants worth knowing, all covered by `tests/waitlist-presentation.test.t
 each resolve the source separately, and an edit landing between the two would
 produce a page whose own tags described a different page.
 
+## Two independent axes
+
+A page is described by two stored fields, and they answer different questions.
+
+**`waitlistMode`** — the *shape* of the page: global, community or family.
+
+**`connectionType`** — its *register*: do these people already know each other?
+
+- `shared_interest` — interests, hobbies, sports, supporters, communities. The
+  pitch is that you never have to find anyone: tell us when you're available and
+  a call gets scheduled.
+- `existing_connections` — a family, a year group, an old team, former
+  colleagues. These people can already reach each other. What they have lost is
+  the everyday reason to: the shared job, the school run, the club night. When
+  that goes, the relationship drifts into messages and social-media reactions
+  even though it still matters. The pitch is that **The Operator** decides when
+  it is time and occasionally brings two members together.
+
+They are separate because the arguments are not interchangeable. Telling a group
+of former colleagues they will be matched with "others who share an interest"
+describes something they did not sign up for, and telling strangers they are
+keeping in contact with people they know is a false promise. Tests enforce that
+neither vocabulary leaks into the other's page.
+
+### The Type 1 register
+
+Type 1 copy must never put the visitor in the scheduler's seat or read like a
+standing commitment — that turns something occasional and welcome into an
+obligation. A test bars these outright across every Type 1 string, bullets
+included:
+
+> "arrange every call yourself" · "remember to make the call" · "people who
+> already know each other" · "schedule a call between you" · "proper voice call"
+> · "when your availability overlaps" · "appointment" · "meeting"
+
+This is also why the Type 1 bullets differ. The availability bullet says who
+decides rather than asking when you're free, and the privacy bullet offers the
+control that actually matters here — in a group where everyone already has
+everyone's number, "nobody exchanges phone numbers" is not the reassurance
+being sought; "you choose who you'd rather not be connected with" is.
+
+`connectionType` defaults to `shared_interest` — deliberately the weaker of the
+two claims, so an unset or unrecognised value can never overclaim a
+relationship. A family page is `existing_connections` by definition, whatever is
+stored on it, since that is what a family is.
+
 ## The three modes
 
 Stored on the demand source as `waitlistMode`.
@@ -72,6 +118,10 @@ on the page.
 
 The family name is the heading. An admin may upload one hero image, which
 appears at the top of the page and in the preview.
+
+A family is the clearest case of `existing_connections`, so it uses the same
+Type 1 wording as an old year group or former colleagues rather than a bespoke
+variant saying the same thing differently.
 
 No independence note: there is no third-party community to be independent of,
 and the relationship-derived disclaimer would be answering a question nobody
@@ -147,12 +197,29 @@ Other properties of the route:
 | Field | Meaning |
 | --- | --- |
 | `waitlistMode` | `global` \| `community` \| `family` |
+| `connectionType` | `shared_interest` \| `existing_connections` — the page's register |
 | `topicArtId` | id from the curated set; `""` means the brand mark |
 | `familyName` | family mode heading |
 | `heroImageUrl` | public download URL, or null |
 | `heroImagePath` | Storage object path, kept so a replacement can delete the old file |
 | `heroImageUploadedAt` / `heroImageUploadedBy` | who uploaded, when |
 | `heroImagePublicConfirmedAt` / `heroImagePublicConfirmedBy` | who accepted that it becomes public |
+
+## The family prompt
+
+Every page that is not already about a family offers one extra question:
+
+> Would you also like to use The Operator to keep your family connected?
+
+It is strictly additive. Ticking it records `familyInterest` on the registration
+and nothing else — it does not change the demand source the registration is
+attributed to, or what `interestLabel` says they signed up for. Like organiser
+interest, it is one-way on resubmission: a later visit can add it but never
+silently withdraw it, so an unticked box cannot erase something asked for
+earlier.
+
+It is hidden on a family page, where it would be asking something the visitor
+answered by arriving.
 
 Sources that predate this field have no `waitlistMode`, which is not an error:
 `resolveWaitlistMode` falls back to `community` when a tracked link resolved and

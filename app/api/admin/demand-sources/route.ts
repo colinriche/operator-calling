@@ -4,6 +4,8 @@ import { requireAdmin } from "@/lib/admin-auth";
 import { groupsDb } from "@/lib/waitlist/group-linking";
 import {
   COLLECTIONS,
+  CONNECTION_TYPE_IDS,
+  DEFAULT_CONNECTION_TYPE,
   DEFAULT_RELATIONSHIP_STATUS,
   DEMAND_STATUS_IDS,
   PLATFORM_IDS,
@@ -169,6 +171,7 @@ export async function GET(req: NextRequest) {
         // the same presentation code the page uses rather than second-guessing
         // it here.
         waitlistMode: data.waitlistMode ?? "",
+        connectionType: data.connectionType ?? "",
         topicArtId: data.topicArtId ?? "",
         familyName: data.familyName ?? "",
         heroImageUrl: data.heroImageUrl ?? null,
@@ -288,6 +291,9 @@ export async function POST(req: NextRequest) {
       waitlistMode: WAITLIST_MODE_IDS.includes(str(body.waitlistMode, 40))
         ? str(body.waitlistMode, 40)
         : "community",
+      connectionType: CONNECTION_TYPE_IDS.includes(str(body.connectionType, 40))
+        ? str(body.connectionType, 40)
+        : DEFAULT_CONNECTION_TYPE,
       // Validated against the curated set, so an unknown id can never reach the
       // page and produce a broken hero.
       topicArtId: isTopicArtId(body.topicArtId) ? body.topicArtId : "",

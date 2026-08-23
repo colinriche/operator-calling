@@ -8,10 +8,13 @@ import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 import {
   canNameSourcePublicly,
+  CONNECTION_TYPES,
+  DEFAULT_CONNECTION_TYPE,
   HERO_IMAGE_MAX_BYTES,
   HERO_IMAGE_TYPES,
   RELATIONSHIP_STATUSES,
   WAITLIST_MODES,
+  type ConnectionType,
   type WaitlistMode,
 } from "@/lib/waitlist/constants";
 import {
@@ -52,6 +55,10 @@ export function WaitlistPagePanel({ source, onSaved }: Props) {
     (WAITLIST_MODES.find((m) => m.id === source.waitlistMode)?.id ??
       "community") as WaitlistMode
   );
+  const [connectionType, setConnectionType] = useState<ConnectionType>(
+    (CONNECTION_TYPES.find((c) => c.id === source.connectionType)?.id ??
+      DEFAULT_CONNECTION_TYPE) as ConnectionType
+  );
   const [topicArtId, setTopicArtId] = useState(source.topicArtId ?? "");
   const [familyName, setFamilyName] = useState(source.familyName ?? "");
   const [saving, setSaving] = useState(false);
@@ -62,6 +69,7 @@ export function WaitlistPagePanel({ source, onSaved }: Props) {
 
   const dirty =
     mode !== (source.waitlistMode || "community") ||
+    connectionType !== (source.connectionType || DEFAULT_CONNECTION_TYPE) ||
     topicArtId !== (source.topicArtId ?? "") ||
     familyName !== (source.familyName ?? "");
 
@@ -79,6 +87,7 @@ export function WaitlistPagePanel({ source, onSaved }: Props) {
             topicName: source.topicName,
             groupId: source.groupId,
             waitlistMode: mode,
+            connectionType,
             topicArtId,
             familyName,
             heroImageUrl: source.heroImageUrl,
@@ -92,7 +101,7 @@ export function WaitlistPagePanel({ source, onSaved }: Props) {
           }
         )
       ),
-    [source, mode, topicArtId, familyName]
+    [source, mode, connectionType, topicArtId, familyName]
   );
 
   async function save() {
@@ -106,7 +115,12 @@ export function WaitlistPagePanel({ source, onSaved }: Props) {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ waitlistMode: mode, topicArtId, familyName }),
+        body: JSON.stringify({
+          waitlistMode: mode,
+          connectionType,
+          topicArtId,
+          familyName,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to save");
@@ -214,6 +228,41 @@ export function WaitlistPagePanel({ source, onSaved }: Props) {
           ))}
         </div>
       </div>
+
+      {/* Family mode is existing connections by definition, so the choice is
+          only offered where it is actually a choice. */}
+      {mode !== "family" && (
+        <div>
+          <label className={labelClass}>Do these people already know each other?</label>
+          <div className="grid sm:grid-cols-2 gap-2">
+            {CONNECTION_TYPES.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => setConnectionType(c.id)}
+                className={cn(
+                  "text-left rounded-lg border px-3 py-2.5 transition-colors",
+                  connectionType === c.id
+                    ? "border-primary bg-primary/5"
+                    : "border-border hover:border-primary/40"
+                )}
+              >
+                <span className="block text-sm font-medium text-foreground">
+                  {c.label}
+                </span>
+                <span className="block text-xs text-muted-foreground leading-snug mt-0.5">
+                  {c.hint}
+                </span>
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground mt-2">
+            Changes the wording only. Telling former colleagues they&apos;ll be
+            matched with &ldquo;others who share an interest&rdquo; describes
+            something they did not sign up for.
+          </p>
+        </div>
+      )}
 
       {mode === "community" && (
         <div>

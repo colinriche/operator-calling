@@ -123,6 +123,49 @@ export type WaitlistMode = (typeof WAITLIST_MODES)[number]["id"];
 
 export const WAITLIST_MODE_IDS = WAITLIST_MODES.map((m) => m.id) as readonly string[];
 
+// ─── Connection type ─────────────────────────────────────────────────────────
+//
+// Whether the people on the other end of these calls already know each other.
+// Independent of `waitlistMode`, which decides the *shape* of the page; this
+// decides its *register*, and the two arguments are completely different:
+//
+//   shared_interest        strangers with something in common. The pitch is
+//                          that you do not have to find anyone.
+//   existing_connections   a family, a year group, an old team, former
+//                          colleagues. They can already reach each other and
+//                          mostly don't. The pitch is that nobody has to keep
+//                          remembering to make the effort.
+//
+// Telling a group of old schoolfriends they will be matched with "others who
+// share an interest" describes something they did not sign up for, which is why
+// this is stored rather than inferred from the topic.
+
+export const CONNECTION_TYPES = [
+  {
+    id: "shared_interest",
+    label: "Shared interest",
+    hint: "Interests, hobbies, sports, supporters, communities — people who don't already know each other.",
+  },
+  {
+    id: "existing_connections",
+    label: "Existing personal connections",
+    hint: "Family, school or university friends, former colleagues, an old club — people who already know each other.",
+  },
+] as const;
+
+export type ConnectionType = (typeof CONNECTION_TYPES)[number]["id"];
+
+export const CONNECTION_TYPE_IDS = CONNECTION_TYPES.map(
+  (c) => c.id
+) as readonly string[];
+
+/**
+ * Shared interest, because it is the weaker claim. Describing acquaintances as
+ * strangers is clumsy; describing strangers as people you already know is a
+ * false promise, so an unset value must never land there.
+ */
+export const DEFAULT_CONNECTION_TYPE: ConnectionType = "shared_interest";
+
 // ─── Family hero image ───────────────────────────────────────────────────────
 //
 // Uploaded by an admin, served from a public download URL so link-preview

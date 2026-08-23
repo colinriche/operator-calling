@@ -361,6 +361,10 @@ export async function registerWaitlistEntry(
           timezone: input.timezone,
           timezoneSource: input.timezoneSource,
           ...(upgrade ? { interestedInOrganising: true } : {}),
+          // Same one-way rule as organiser interest: a resubmission can add it
+          // but never silently withdraw it, so an unticked box on a second
+          // visit cannot erase something they asked for on the first.
+          ...(input.familyInterest ? { familyInterest: true } : {}),
           updatedAt: FieldValue.serverTimestamp(),
           submissionCount: FieldValue.increment(1),
         },
@@ -400,6 +404,10 @@ export async function registerWaitlistEntry(
       canonicalEmail: canonical,
       displayName: input.displayName,
       interestedInOrganising: input.interestedInOrganising,
+      // Separate from the community they registered for, and deliberately not
+      // a demand source of its own: it records that this person would want The
+      // Operator for their family too, nothing more.
+      familyInterest: input.familyInterest,
       country: input.country,
       englishFirstLanguage: input.englishFirstLanguage,
       firstLanguage: input.firstLanguage,

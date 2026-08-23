@@ -92,6 +92,10 @@ export async function POST(req: NextRequest) {
       email,
       displayName: str(body.displayName, 80),
       interestedInOrganising: body.interestedInOrganising === true,
+      // A second, separate interest. It never affects which demand source this
+      // registration is attributed to — the group they came for is the group
+      // they came for.
+      familyInterest: body.familyInterest === true,
       country,
       englishFirstLanguage,
       firstLanguage,

@@ -1,4 +1,5 @@
 import type {
+  ConnectionType,
   DemandStatus,
   LinkStatus,
   RelationshipStatus,
@@ -29,6 +30,8 @@ export interface DemandSourceRow {
   publicDescription: string;
   /** Which of the three waitlist pages this source's links render. */
   waitlistMode: WaitlistMode | string;
+  /** Whether these people already know each other. Drives the page's wording. */
+  connectionType: ConnectionType | string;
   /** Chosen from the curated set; "" means fall back to the brand mark. */
   topicArtId: string;
   /** Family mode only — the heading the page leads with. */
@@ -130,6 +133,7 @@ export interface WaitlistContext {
 
   // ─── What the page is ──────────────────────────────────────────────────────
   mode: WaitlistMode;
+  connectionType: ConnectionType;
   sourceType: SourceType | string | null;
   /** The community's own name. Only ever *shown* when `canNameSource`. */
   publicDisplayName: string;
@@ -158,6 +162,16 @@ export type WaitlistHero =
 
 export interface WaitlistPresentation {
   mode: WaitlistMode;
+  connectionType: ConnectionType;
+  /**
+   * The optional "…and your family too?" question, offered alongside whatever
+   * the page is actually about. Null where the page is already a family page
+   * and the question would be asking something already answered.
+   *
+   * Deliberately additive: answering it records a second, separate interest and
+   * never reinterprets the group or topic the visitor came here for.
+   */
+  familyPrompt: string | null;
   /** Small line above the heading. The source, in community mode. */
   eyebrow: string | null;
   heading: string;
@@ -194,6 +208,12 @@ export interface RegistrationInput {
   email: string;
   displayName: string;
   interestedInOrganising: boolean;
+  /**
+   * They also want The Operator for their own family. A second interest
+   * recorded alongside this registration — it never changes which demand source
+   * the registration is attributed to.
+   */
+  familyInterest: boolean;
   country: string;
   englishFirstLanguage: boolean;
   firstLanguage: string | null;

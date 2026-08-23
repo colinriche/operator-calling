@@ -3,6 +3,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { requireAdmin } from "@/lib/admin-auth";
 import {
   COLLECTIONS,
+  CONNECTION_TYPE_IDS,
   DEMAND_STATUS_IDS,
   PLATFORM_IDS,
   RELATIONSHIP_STATUS_IDS,
@@ -80,6 +81,16 @@ export async function PATCH(
     WAITLIST_MODE_IDS.includes(body.waitlistMode)
   ) {
     update.waitlistMode = body.waitlistMode;
+  }
+
+  // Whether these people already know each other. Changes only the wording;
+  // an unrecognised value is ignored rather than stored, so a bad write cannot
+  // leave a page claiming a relationship its audience does not have.
+  if (
+    typeof body.connectionType === "string" &&
+    CONNECTION_TYPE_IDS.includes(body.connectionType)
+  ) {
+    update.connectionType = body.connectionType;
   }
 
   // "" clears the choice and falls back to the brand mark; anything not in the
