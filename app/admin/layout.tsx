@@ -1,88 +1,13 @@
-import Link from "next/link";
-import { Phone, LayoutDashboard, Users, Calendar, Settings, Shield, BarChart3, Megaphone } from "lucide-react";
-import { ThemeToggle } from "@/components/shared/ThemeToggle";
-
-const adminNav = [
-  { href: "/admin", icon: LayoutDashboard, label: "Overview" },
-  { href: "/admin/members", icon: Users, label: "Members" },
-  { href: "/admin/schedules", icon: Calendar, label: "Schedules" },
-  { href: "/admin/moderation", icon: Shield, label: "Moderation" },
-  { href: "/admin/settings", icon: Settings, label: "Group settings" },
-  { href: "/admin/outreach", icon: Megaphone, label: "Outreach" },
-  { href: "/admin/super", icon: BarChart3, label: "Super admin", superOnly: true },
-];
+import { AdminNav } from "@/components/admin/AdminNav";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex min-h-screen bg-background">
-      {/* Sidebar */}
-      <aside className="hidden md:flex flex-col w-60 shrink-0 border-r border-border bg-card min-h-screen sticky top-0 h-screen">
-        <div className="p-5 border-b border-border">
-          <Link href="/" className="flex items-center gap-2 font-heading font-bold text-base text-foreground">
-            <span className="w-7 h-7 rounded-full gradient-gold flex items-center justify-center">
-              <Phone className="w-3.5 h-3.5 text-primary-foreground" />
-            </span>
-            Admin
-          </Link>
-        </div>
-
-        <nav className="flex-1 p-4 space-y-0.5">
-          {adminNav.map(({ href, icon: Icon, label, superOnly }) => (
-            <Link
-              key={href}
-              href={href}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors text-muted-foreground hover:text-foreground hover:bg-muted ${superOnly ? "mt-4 border-t border-border pt-4" : ""}`}
-            >
-              <Icon className="w-4 h-4 shrink-0" />
-              {label}
-            </Link>
-          ))}
-        </nav>
-
-        <div className="p-4 border-t border-border space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">Theme</span>
-            <ThemeToggle />
-          </div>
-          <Link href="/admin-login" className="text-xs text-muted-foreground hover:text-foreground transition-colors block">
-            Admin login
-          </Link>
-          <Link href="/dashboard" className="text-xs text-muted-foreground hover:text-foreground transition-colors block">
-            ← Back to dashboard
-          </Link>
-        </div>
-      </aside>
-
-      <div className="flex-1 flex flex-col">
-        {/* Mobile top bar. The sidebar is hidden below md, so these links are
-            the only navigation on a narrow screen. */}
-        <div className="md:hidden border-b border-border bg-card">
-          <div className="flex items-center justify-between px-4 py-3">
-            <Link href="/" className="flex items-center gap-2 font-heading font-bold text-sm text-foreground">
-              <span className="w-6 h-6 rounded-full gradient-gold flex items-center justify-center">
-                <Phone className="w-3 h-3 text-primary-foreground" />
-              </span>
-              Admin
-            </Link>
-            <ThemeToggle />
-          </div>
-          <nav className="flex gap-1 px-2 pb-2 overflow-x-auto">
-            {adminNav.map(({ href, icon: Icon, label }) => (
-              <Link
-                key={href}
-                href={href}
-                className="flex items-center gap-1.5 shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-              >
-                <Icon className="w-3.5 h-3.5 shrink-0" />
-                {label}
-              </Link>
-            ))}
-          </nav>
-        </div>
-        <main className="flex-1 p-4 md:p-6 lg:p-8 overflow-auto">
-          {children}
-        </main>
-      </div>
+    // Column on mobile so the nav bar sits above the content, row on desktop so
+    // the sidebar sits beside it. AdminNav emits both and each hides itself at
+    // the other breakpoint.
+    <div className="flex flex-col md:flex-row min-h-screen bg-background">
+      <AdminNav />
+      <main className="flex-1 min-w-0 p-4 md:p-6 lg:p-8">{children}</main>
     </div>
   );
 }
