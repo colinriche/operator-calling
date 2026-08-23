@@ -34,6 +34,22 @@ export function topicSlug(raw: unknown): string {
   return slug.slice(0, MAX_TOPIC_SLUG_LENGTH).replace(/-+$/, "");
 }
 
+/**
+ * How a source code is written into a URL: lowercase.
+ *
+ * Storage and lookup stay uppercase. `normaliseSourceCode` uppercases whatever
+ * arrives before it queries, so both cases resolve and every link already
+ * posted keeps working — this changes only how we *write* new ones, so a
+ * pasted Operator link reads as all lowercase.
+ *
+ * Everything that builds a waitlist URL goes through here rather than
+ * lowercasing at the call site, so the page, the canonical, the preview image
+ * and the share links cannot disagree about the same link's address.
+ */
+export function urlSourceCode(code: string): string {
+  return code.toLowerCase();
+}
+
 export interface TopicUrlOptions {
   topicName?: unknown;
   includeTopicInUrl?: unknown;
@@ -48,7 +64,7 @@ export function buildTrackedUrl(
   sourceCode: string,
   source?: TopicUrlOptions
 ): string {
-  const base = `${origin}/waitlist?s=${sourceCode}`;
+  const base = `${origin}/waitlist?s=${urlSourceCode(sourceCode)}`;
   if (source?.includeTopicInUrl !== true) return base;
 
   // topicSlug only ever emits [a-z0-9-], so no further encoding is needed.

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Copy, Check, Share2, Mail } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ShareChannel } from "@/lib/waitlist/constants";
+import { urlSourceCode } from "@/lib/waitlist/tracked-url";
 
 // ─── Share this ──────────────────────────────────────────────────────────────
 //
@@ -38,7 +39,9 @@ export function ShareRow({ sourceCode, shareText, className }: ShareRowProps) {
   function urlFor(channel: ShareChannel): string {
     const base = `${origin}/waitlist`;
     const params = new URLSearchParams();
-    if (sourceCode) params.set("s", sourceCode);
+    // Lowercase in the link that gets shared; the code posted to the share
+    // endpoint below stays as resolved, and that route normalises anyway.
+    if (sourceCode) params.set("s", urlSourceCode(sourceCode));
     params.set("share", channel);
     return `${base}?${params.toString()}`;
   }

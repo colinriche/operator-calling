@@ -35,6 +35,7 @@ import {
   sourceLine,
 } from "./copy";
 import { BRAND_ART_DATA_URI, isTopicArtId, topicArtDataUri } from "./topic-art";
+import { urlSourceCode } from "./tracked-url";
 import type {
   WaitlistContext,
   WaitlistHero,
@@ -441,5 +442,5 @@ function heroFor(context: WaitlistContext, heading: string): WaitlistHero {
  */
 export function waitlistOgImageUrl(origin: string, sourceCode: string | null): string {
   const base = `${origin.replace(/\/+$/, "")}/api/og/waitlist`;
-  return sourceCode ? `${base}?s=${encodeURIComponent(sourceCode)}` : base;
+  return sourceCode ? `${base}?s=${encodeURIComponent(urlSourceCode(sourceCode))}` : base;
 }

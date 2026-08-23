@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { FALLBACK_AUDIENCE_LABEL } from "@/lib/waitlist/constants";
+import { normaliseSourceCode } from "@/lib/waitlist/source-code";
+import { buildTrackedUrl, urlSourceCode } from "@/lib/waitlist/tracked-url";
 import {
   buildWaitlistPresentation,
   globalContext,
@@ -388,10 +390,39 @@ describe("the family prompt", () => {
 describe("the preview image URL", () => {
   it("is absolute and carries the source code", () => {
     expect(waitlistOgImageUrl("https://operatorcalling.com", "K7P4MX")).toBe(
-      "https://operatorcalling.com/api/og/waitlist?s=K7P4MX"
+      "https://operatorcalling.com/api/og/waitlist?s=k7p4mx"
     );
     expect(waitlistOgImageUrl("https://operatorcalling.com/", null)).toBe(
       "https://operatorcalling.com/api/og/waitlist"
     );
+  });
+});
+
+// Codes are stored and looked up in upper case; they are only ever *written*
+// in lower case. Every URL builder has to agree, or the canonical, the page
+// link and the preview image would describe the same page at three addresses.
+describe("source codes in URLs", () => {
+  it("writes them lower case everywhere", () => {
+    expect(urlSourceCode("K7P4MX")).toBe("k7p4mx");
+    expect(buildTrackedUrl("https://operatorcalling.com", "K7P4MX")).toBe(
+      "https://operatorcalling.com/waitlist?s=k7p4mx"
+    );
+    expect(
+      buildTrackedUrl("https://operatorcalling.com", "K7P4MX", {
+        topicName: "Live Poker",
+        includeTopicInUrl: true,
+      })
+    ).toBe("https://operatorcalling.com/waitlist?s=k7p4mx&t=live-poker");
+    expect(waitlistOgImageUrl("https://operatorcalling.com", "K7P4MX")).toContain(
+      "s=k7p4mx"
+    );
+  });
+
+  it("leaves lookup unaffected, so links already posted keep working", () => {
+    // normaliseSourceCode upper-cases before querying, which is what makes the
+    // lower-case form safe to publish in the first place.
+    expect(normaliseSourceCode("k7p4mx")).toBe("K7P4MX");
+    expect(normaliseSourceCode("K7P4MX")).toBe("K7P4MX");
+    expect(normaliseSourceCode(" k7p4mx ")).toBe("K7P4MX");
   });
 });

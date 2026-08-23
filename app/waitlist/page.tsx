@@ -9,6 +9,7 @@ import {
   waitlistOgImageUrl,
 } from "@/lib/waitlist/presentation";
 import { resolveWaitlistContext } from "@/lib/waitlist/server";
+import { urlSourceCode } from "@/lib/waitlist/tracked-url";
 
 // Attribution is resolved per-request from the source code, so this can never
 // be statically rendered.
@@ -58,7 +59,7 @@ export async function generateMetadata({
   // submitted rather than reusing the composer's preview, and that second pass
   // is where an absent og:url costs you the card.
   const canonical = context.sourceCode
-    ? `${site}/waitlist?s=${encodeURIComponent(context.sourceCode)}`
+    ? `${site}/waitlist?s=${encodeURIComponent(urlSourceCode(context.sourceCode))}`
     : `${site}/waitlist`;
 
   // Title, description and image all come out of the same presentation object
