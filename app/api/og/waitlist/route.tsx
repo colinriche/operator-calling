@@ -117,7 +117,11 @@ export async function GET(req: NextRequest) {
   const headingFamily = heading ? "Sora" : undefined;
   const bodyFamily = body ? "Inter" : undefined;
 
-  const title = clamp(p.og.title, 90);
+  // p.og.title, not p.heading, is what the meta tag carries — it appends the
+  // source line so a bare link preview still says where the link came from.
+  // The image shows that line separately as the eyebrow, so using the combined
+  // string here printed it twice and pushed the heading onto a third line.
+  const title = clamp(p.heading, 90);
   const description = clamp(p.og.description, 190);
 
   return new ImageResponse(
