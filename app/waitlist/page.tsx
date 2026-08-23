@@ -5,6 +5,17 @@ import { PhoneIncoming, CalendarClock, ShieldCheck } from "lucide-react";
 import { WaitlistForm } from "@/components/waitlist/WaitlistForm";
 import { WaitlistHeader } from "@/components/waitlist/WaitlistHeader";
 import {
+  JoinWaitlistBand,
+  JoinWaitlistFinalCta,
+  WAITLIST_FORM_ANCHOR,
+} from "@/components/waitlist/JoinWaitlistCta";
+import {
+  FeatureSections,
+  HowConnectingWorksSection,
+  WhyCallingSection,
+} from "@/components/marketing/FeatureSections";
+import { GroupsSection } from "@/components/marketing/GroupsSection";
+import {
   buildWaitlistPresentation,
   waitlistOgImageUrl,
 } from "@/lib/waitlist/presentation";
@@ -117,8 +128,19 @@ export default async function WaitlistPage({
   // Admin previews must not pollute the public counters.
   const isPreview = first(params, "preview") === "1";
 
+  // Which of the six homepage feature cards make sense here. The pair
+  // "calls with people you know" / "unexpected calls with people you don't" are
+  // the same product pitched at opposite audiences, so the page picks the one
+  // that matches what it has already promised — a family page must not tell
+  // its reader to expect calls from strangers.
+  const featureIds =
+    p.connectionType === "existing_connections"
+      ? (["known", "both-answer", "schedule", "privacy"] as const)
+      : (["strangers", "both-answer", "schedule", "privacy"] as const);
+
   return (
-    <div className="max-w-2xl mx-auto px-4 sm:px-6 py-10 sm:py-14">
+    <>
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 py-10 sm:py-14">
       <WaitlistHeader p={p} />
 
       <p className="text-base text-muted-foreground leading-relaxed mb-4">
@@ -149,15 +171,48 @@ export default async function WaitlistPage({
         })}
       </ul>
 
-      <WaitlistForm
-        context={context}
-        presentation={p}
-        isPreview={isPreview}
-      />
+      {/* The scroll target for every "Join the waitlist" button below. */}
+      <div id={WAITLIST_FORM_ANCHOR} className="scroll-mt-6">
+        <WaitlistForm
+          context={context}
+          presentation={p}
+          isPreview={isPreview}
+        />
+      </div>
 
       <p className="text-xs text-muted-foreground leading-relaxed mt-8">
         {p.disclaimer}
       </p>
-    </div>
+      </div>
+
+      {/* ─── Landing content ────────────────────────────────────────────────
+          Most people arriving here have never heard of The Operator, and
+          everything above assumes they have. These are the homepage's own
+          sections, reused rather than reworded, so there is one explanation of
+          the product and not two that drift apart.
+
+          The full-width sections sit outside the narrow column above; they are
+          max-w-7xl internally and would be squeezed to half width inside it.
+
+          Nothing below is source-specific except the feature selection — the
+          form, its wording, its artwork and its tracking are all above and
+          untouched. */}
+      <WhyCallingSection />
+
+      <JoinWaitlistBand note="The Operator is not live yet. Registering your interest is what decides where it opens first." />
+
+      <HowConnectingWorksSection />
+
+      <FeatureSections ids={featureIds} />
+
+      {/* Use-case tags off: on a page built around one group, a tag cloud of
+          other groups competes with it. */}
+      <GroupsSection showUseCases={false} />
+
+      <JoinWaitlistFinalCta
+        heading="Sound like something you'd use?"
+        body="Register your interest. It takes a moment, and there is nothing to install."
+      />
+    </>
   );
 }

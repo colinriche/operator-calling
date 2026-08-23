@@ -35,7 +35,17 @@ const testimonials = [
   },
 ];
 
-export function GroupsSection() {
+interface GroupsSectionProps {
+  /**
+   * The tag cloud ("Running clubs", "Corporate circles", "Study groups"…).
+   * On the homepage it shows the breadth of the product. On a waitlist page
+   * built around one specific group it competes with that group, so the
+   * waitlist turns it off.
+   */
+  showUseCases?: boolean;
+}
+
+export function GroupsSection({ showUseCases = true }: GroupsSectionProps = {}) {
   return (
     <section className="py-24 bg-muted/40">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -79,6 +89,7 @@ export function GroupsSection() {
         </div>
 
         {/* Use case tags */}
+        {showUseCases && (
         <AnimatedSection className="flex flex-wrap gap-3 justify-center">
           {useCases.map(({ icon, label }) => (
             <span
@@ -89,6 +100,7 @@ export function GroupsSection() {
             </span>
           ))}
         </AnimatedSection>
+        )}
       </div>
     </section>
   );

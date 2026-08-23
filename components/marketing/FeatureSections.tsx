@@ -6,36 +6,42 @@ import { AnimatedSection } from "./AnimatedSection";
 
 const features = [
   {
+    id: "known",
     icon: Phone,
     title: "Calls with people you know",
     description:
       "Stay connected with friends, family, or colleagues through voice calls — scheduled when it actually works for both of you.",
   },
   {
+    id: "strangers",
     icon: Users,
     title: "Unexpected calls with people you don't",
     description:
       "Opt into privacy-first calls with people from around the world. Same interests, different lives. Real conversation.",
   },
   {
+    id: "both-answer",
     icon: Clock,
     title: "Only connects when both answer",
     description:
       "No more awkward missed calls. The Operator dials both parties simultaneously — only connecting when you're both ready.",
   },
   {
+    id: "schedule",
     icon: Calendar,
     title: "Schedule calls at the right moment",
     description:
       "Set your availability windows. We'll find a time that works for both of you, automatically.",
   },
   {
+    id: "callback",
     icon: Bell,
     title: "Callback without the awkward timing",
     description:
       "Request a callback. When the other person is free, they accept. Zero pressure, smooth connection.",
   },
   {
+    id: "privacy",
     icon: Shield,
     title: "Privacy-first by design",
     description:
@@ -43,7 +49,26 @@ const features = [
   },
 ];
 
-export function FeatureSections() {
+export type FeatureId = (typeof features)[number]["id"];
+
+interface FeatureSectionsProps {
+  /**
+   * Which cards to show, in this order. Omitted means all six, which is what
+   * the homepage renders — so this prop cannot change that page by accident.
+   *
+   * The waitlist passes a subset because two of the six argue against each
+   * other depending on who is reading: "calls with people you know" and
+   * "unexpected calls with people you don't" are the same product described to
+   * opposite audiences.
+   */
+  ids?: readonly string[];
+}
+
+export function FeatureSections({ ids }: FeatureSectionsProps = {}) {
+  const shown = ids
+    ? (ids.map((id) => features.find((f) => f.id === id)).filter((f) => f !== undefined))
+    : features;
+
   return (
     <section className="py-24 bg-muted/40">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -57,7 +82,7 @@ export function FeatureSections() {
         </AnimatedSection>
 
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-8">
-          {features.map((feat, i) => (
+          {shown.map((feat, i) => (
             <AnimatedSection key={feat.title} delay={i * 0.08}>
               <div className="group bg-card rounded-2xl p-6 border border-border/60 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 h-full">
                 <div className="w-11 h-11 rounded-xl gradient-gold flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300">
