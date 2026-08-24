@@ -56,7 +56,7 @@ export function JoinWaitlistButton({ label = "Join the waitlist", className }: P
 /** A quiet band between two sections. */
 export function JoinWaitlistBand({ note }: { note: string }) {
   return (
-    <section className="py-14">
+    <section className="py-12">
       <div className="max-w-3xl mx-auto px-4 sm:px-6 text-center">
         <p className="text-lg text-muted-foreground mb-6 text-balance">{note}</p>
         <JoinWaitlistButton />
@@ -72,9 +72,9 @@ export function JoinWaitlistBand({ note }: { note: string }) {
  */
 export function JoinWaitlistFinalCta({ heading, body }: { heading: string; body: string }) {
   return (
-    <section className="py-20">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-        <div className="rounded-3xl gradient-gold p-10 sm:p-14 shadow-2xl shadow-primary/20">
+    <section className="py-14">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 text-center">
+        <div className="rounded-3xl gradient-gold p-8 sm:p-12 shadow-2xl shadow-primary/20">
           <h2 className="font-heading font-bold text-3xl sm:text-4xl text-primary-foreground mb-4 text-balance">
             {heading}
           </h2>

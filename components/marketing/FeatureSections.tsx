@@ -2,7 +2,15 @@
 
 import { motion } from "framer-motion";
 import { Clock, Shield, Users, Phone, Bell, Calendar } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { AnimatedSection } from "./AnimatedSection";
+import {
+  sectionContainer,
+  sectionGridGap,
+  sectionHeading,
+  sectionHeadingGap,
+  sectionPadding,
+} from "./section-layout";
 
 const features = [
   {
@@ -62,18 +70,20 @@ interface FeatureSectionsProps {
    * opposite audiences.
    */
   ids?: readonly string[];
+  /** Waitlist scale rather than homepage scale. See ./section-layout. */
+  compact?: boolean;
 }
 
-export function FeatureSections({ ids }: FeatureSectionsProps = {}) {
+export function FeatureSections({ ids, compact }: FeatureSectionsProps = {}) {
   const shown = ids
     ? (ids.map((id) => features.find((f) => f.id === id)).filter((f) => f !== undefined))
     : features;
 
   return (
-    <section className="py-24 bg-muted/40">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <AnimatedSection className="text-center mb-16">
-          <h2 className="font-heading font-bold text-4xl sm:text-5xl text-foreground mb-4">
+    <section className={cn(sectionPadding(compact), "bg-muted/40")}>
+      <div className={sectionContainer(compact)}>
+        <AnimatedSection className={cn("text-center", sectionHeadingGap(compact))}>
+          <h2 className={cn("font-heading font-bold text-foreground mb-4", sectionHeading(compact))}>
             Built for real conversation
           </h2>
           <p className="text-lg text-muted-foreground max-w-xl mx-auto">
@@ -81,7 +91,13 @@ export function FeatureSections({ ids }: FeatureSectionsProps = {}) {
           </p>
         </AnimatedSection>
 
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div
+          className={cn(
+            "grid sm:grid-cols-2",
+            compact ? "" : "lg:grid-cols-3",
+            sectionGridGap(compact)
+          )}
+        >
           {shown.map((feat, i) => (
             <AnimatedSection key={feat.title} delay={i * 0.08}>
               <div className="group bg-card rounded-2xl p-6 border border-border/60 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 h-full">
@@ -99,11 +115,11 @@ export function FeatureSections({ ids }: FeatureSectionsProps = {}) {
   );
 }
 
-export function WhyCallingSection() {
+export function WhyCallingSection({ compact }: { compact?: boolean } = {}) {
   return (
-    <section className="py-24">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid lg:grid-cols-2 gap-16 items-center">
+    <section className={sectionPadding(compact)}>
+      <div className={sectionContainer(compact)}>
+        <div className={cn("grid lg:grid-cols-2 items-center", compact ? "gap-10" : "gap-16")}>
           {/* Visual */}
           <AnimatedSection>
             <div className="relative">
@@ -158,7 +174,12 @@ export function WhyCallingSection() {
             <span className="text-primary font-semibold text-sm uppercase tracking-widest mb-4 block">
               The case for calling
             </span>
-            <h2 className="font-heading font-bold text-4xl sm:text-5xl text-foreground mb-6 leading-tight">
+            <h2
+              className={cn(
+                "font-heading font-bold text-foreground mb-6 leading-tight",
+                sectionHeading(compact)
+              )}
+            >
               A 5-minute call beats a hundred messages.
             </h2>
             <p className="text-lg text-muted-foreground mb-6 leading-relaxed">
@@ -176,7 +197,7 @@ export function WhyCallingSection() {
   );
 }
 
-export function HowConnectingWorksSection() {
+export function HowConnectingWorksSection({ compact }: { compact?: boolean } = {}) {
   const steps = [
     { n: "01", title: "You both indicate readiness", desc: "Set your availability window or request a callback. No guessing." },
     { n: "02", title: "The Operator dials both sides", desc: "When the timing works, both phones ring simultaneously." },
@@ -184,10 +205,10 @@ export function HowConnectingWorksSection() {
   ];
 
   return (
-    <section className="py-24 bg-foreground text-background">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <AnimatedSection className="text-center mb-16">
-          <h2 className="font-heading font-bold text-4xl sm:text-5xl mb-4">
+    <section className={cn(sectionPadding(compact), "bg-foreground text-background")}>
+      <div className={sectionContainer(compact)}>
+        <AnimatedSection className={cn("text-center", sectionHeadingGap(compact))}>
+          <h2 className={cn("font-heading font-bold mb-4", sectionHeading(compact))}>
             Only connects when{" "}
             <span className="gradient-text-gold">both answer.</span>
           </h2>
@@ -196,7 +217,7 @@ export function HowConnectingWorksSection() {
           </p>
         </AnimatedSection>
 
-        <div className="grid md:grid-cols-3 gap-8">
+        <div className={cn("grid md:grid-cols-3", sectionGridGap(compact))}>
           {steps.map((step, i) => (
             <AnimatedSection key={step.n} delay={i * 0.1}>
               <div className="relative">

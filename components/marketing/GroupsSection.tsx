@@ -1,6 +1,14 @@
 "use client";
 
+import { cn } from "@/lib/utils";
 import { AnimatedSection } from "./AnimatedSection";
+import {
+  sectionContainer,
+  sectionGridGap,
+  sectionHeading,
+  sectionHeadingGap,
+  sectionPadding,
+} from "./section-layout";
 import { Users, Lock, Settings } from "lucide-react";
 
 const useCases = [
@@ -43,14 +51,19 @@ interface GroupsSectionProps {
    * waitlist turns it off.
    */
   showUseCases?: boolean;
+  /** Waitlist scale rather than homepage scale. See ./section-layout. */
+  compact?: boolean;
 }
 
-export function GroupsSection({ showUseCases = true }: GroupsSectionProps = {}) {
+export function GroupsSection({
+  showUseCases = true,
+  compact,
+}: GroupsSectionProps = {}) {
   return (
-    <section className="py-24 bg-muted/40">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <AnimatedSection className="text-center mb-16">
-          <h2 className="font-heading font-bold text-4xl sm:text-5xl text-foreground mb-4">
+    <section className={cn(sectionPadding(compact), "bg-muted/40")}>
+      <div className={sectionContainer(compact)}>
+        <AnimatedSection className={cn("text-center", sectionHeadingGap(compact))}>
+          <h2 className={cn("font-heading font-bold text-foreground mb-4", sectionHeading(compact))}>
             Community starts with a conversation.
           </h2>
           <p className="text-lg text-muted-foreground max-w-xl mx-auto">
@@ -60,7 +73,12 @@ export function GroupsSection({ showUseCases = true }: GroupsSectionProps = {}) 
         </AnimatedSection>
 
         {/* Group features */}
-        <div className="grid md:grid-cols-3 gap-6 mb-16">
+        <div
+          className={cn(
+            "grid md:grid-cols-3",
+            compact ? "gap-5 mb-0" : "gap-6 mb-16"
+          )}
+        >
           {[
             {
               icon: Users,

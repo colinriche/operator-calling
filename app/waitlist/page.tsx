@@ -191,23 +191,26 @@ export default async function WaitlistPage({
           sections, reused rather than reworded, so there is one explanation of
           the product and not two that drift apart.
 
-          The full-width sections sit outside the narrow column above; they are
-          max-w-7xl internally and would be squeezed to half width inside it.
+          These sit outside the narrow column above rather than inside it, so
+          their own containers govern their width — and every one is passed
+          `compact`, which drops them from homepage scale to this page's. At
+          full scale the join between a 672px column of form and a 1280px
+          section read as two different pages stitched together.
 
           Nothing below is source-specific except the feature selection — the
           form, its wording, its artwork and its tracking are all above and
           untouched. */}
-      <WhyCallingSection />
+      <WhyCallingSection compact />
 
       <JoinWaitlistBand note="The Operator is not live yet. Registering your interest is what decides where it opens first." />
 
-      <HowConnectingWorksSection />
+      <HowConnectingWorksSection compact />
 
-      <FeatureSections ids={featureIds} />
+      <FeatureSections ids={featureIds} compact />
 
       {/* Use-case tags off: on a page built around one group, a tag cloud of
           other groups competes with it. */}
-      <GroupsSection showUseCases={false} />
+      <GroupsSection showUseCases={false} compact />
 
       <JoinWaitlistFinalCta
         heading="Sound like something you'd use?"
