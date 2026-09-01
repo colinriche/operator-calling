@@ -238,7 +238,7 @@ function sharedInterestCopy(topic: string): { lead: string; body: string } {
 function existingConnectionsCopy(group: string): { lead: string; body: string } {
   return {
     lead: `Keep in contact with ${group}, and let The Operator decide when it's time to talk. It occasionally brings two members together for a one-to-one call, helping keep the connection strong.`,
-    body: `When the everyday reasons for calling disappear, people can gradually drift apart. The Operator gives those connections a reason to talk again, occasionally bringing two members together for a one-to-one call. You stay in control, with privacy settings that let you choose who you don't want to be connected with. It helps keep relationships alive and strengthen the bond, rather than letting them dwindle into messages and social-media reactions.`,
+    body: `When the everyday reasons for calling disappear, people can gradually drift apart. The Operator gives those connections a reason to talk again, occasionally bringing two members together for a one-to-one call. You stay in control, with privacy settings that let you choose who you do and who you don't want to be connected with. It helps keep relationships alive and strengthen the bond, rather than letting them dwindle into messages and social-media reactions.`,
   };
 }
 
