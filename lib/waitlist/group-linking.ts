@@ -34,7 +34,12 @@ const STOPWORDS = new Set([
   "club", "uk", "us",
 ]);
 
-function tokenise(value: string): string[] {
+/**
+ * Exported so demand-source duplicate detection scores names the same way
+ * group duplicate detection does. Two different tokenisers would mean "Live
+ * Poker UK" could match an existing group and not an existing source.
+ */
+export function tokenise(value: string): string[] {
   return value
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g, " ")

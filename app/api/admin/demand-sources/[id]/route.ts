@@ -11,6 +11,10 @@ import {
   WAITLIST_MODE_IDS,
 } from "@/lib/waitlist/constants";
 import { getGlobalThreshold, waitlistDb } from "@/lib/waitlist/server";
+import {
+  blockingDuplicates,
+  findSimilarDemandSources,
+} from "@/lib/waitlist/duplicate-sources";
 import { isTopicArtId } from "@/lib/waitlist/topic-art";
 
 // PATCH /api/admin/demand-sources/[id] — edit a demand source.
@@ -64,6 +68,20 @@ export async function PATCH(
   const update: Record<string, unknown> = {
     updatedAt: FieldValue.serverTimestamp(),
   };
+
+  // Archiving is the only removal this system has, and deliberately so: a
+  // source is pointed at by tracked links, registrations, visits and outreach
+  // history, none of which should vanish because somebody tidied a table.
+  // `archive` and `unarchive` are the same status write the dropdown performs,
+  // named so the intent is explicit at the call site and in the logs.
+  const archiveRequested = body.archive === true;
+  const unarchiveRequested = body.unarchive === true;
+  if (archiveRequested && unarchiveRequested) {
+    return NextResponse.json(
+      { error: "Cannot archive and unarchive in the same request" },
+      { status: 400 }
+    );
+  }
 
   for (const [key, max] of TEXT_FIELDS) {
     if (typeof body[key] === "string") update[key] = str(body[key], max);
@@ -138,13 +156,76 @@ export async function PATCH(
     if (!snap.exists) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
+    const existing = snap.data() ?? {};
+
+    // Editing a name or URL onto another source's is the same mistake as
+    // creating a duplicate, arrived at from the other direction — the same
+    // guard the create route applies, minus this row so it cannot match itself.
+    const identityEdited =
+      typeof update.sourceName === "string" || typeof update.sourceUrl === "string";
+    if (identityEdited && body.acknowledgeDuplicates !== true) {
+      const matches = await findSimilarDemandSources(db, {
+        sourceName: (update.sourceName as string) ?? existing.sourceName ?? "",
+        topicName: (update.topicName as string) ?? existing.topicName ?? "",
+        audienceLabel:
+          (update.publicAudienceLabel as string) ??
+          existing.publicAudienceLabel ??
+          "",
+        sourceUrl: (update.sourceUrl as string) ?? existing.sourceUrl ?? "",
+        excludeId: id,
+      });
+      const blocking = blockingDuplicates(matches);
+      if (blocking.length > 0) {
+        return NextResponse.json(
+          {
+            error: blocking[0].exactUrl
+              ? "Another source already has this URL"
+              : "This now looks like a source you already track",
+            similar: blocking,
+            requiresAcknowledgement: true,
+          },
+          { status: 409 }
+        );
+      }
+    }
+
+    if (archiveRequested) update.status = "archived";
+    if (unarchiveRequested) {
+      // Restore what it was before, and fall back to `researching` rather than
+      // `active_waitlist` for sources archived before this was recorded:
+      // unarchiving should never quietly put a live community page back in
+      // front of visitors on a guess about where it used to be.
+      const previous = existing.statusBeforeArchive;
+      update.status =
+        typeof previous === "string" &&
+        previous !== "archived" &&
+        DEMAND_STATUS_IDS.includes(previous)
+          ? previous
+          : "researching";
+    }
+
+    // Applied however the status arrived — the archive button, the status
+    // dropdown in the spreadsheet, or a plain PATCH. Remembering the previous
+    // status in only one of those paths is how the other one loses it.
+    if (typeof update.status === "string" && update.status !== existing.status) {
+      if (update.status === "archived") {
+        update.statusBeforeArchive =
+          typeof existing.status === "string" &&
+          existing.status !== "archived" &&
+          DEMAND_STATUS_IDS.includes(existing.status)
+            ? existing.status
+            : null;
+      } else if (existing.status === "archived") {
+        update.statusBeforeArchive = null;
+      }
+    }
 
     // Changing the bar re-evaluates against the signups already collected,
     // rather than waiting for the next one. Lowering it below the current count
     // should flag the source immediately; raising it above should reopen
     // collection instead of leaving it stuck at threshold_reached.
-    if (thresholdChanged) {
-      const current = snap.data() ?? {};
+    if (thresholdChanged && !archiveRequested && !unarchiveRequested) {
+      const current = existing;
       const effective =
         update.demandThreshold === null
           ? await getGlobalThreshold(db)

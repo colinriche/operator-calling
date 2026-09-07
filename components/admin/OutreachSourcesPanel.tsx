@@ -1,8 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Copy,
+  Download,
   ExternalLink,
   Link2,
   Loader2,
@@ -10,13 +12,14 @@ import {
   RefreshCw,
   Search,
   AlertTriangle,
+  Table2,
   UsersRound,
   GitBranch,
   MessageSquare,
   LayoutTemplate,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
@@ -33,9 +36,15 @@ import {
 } from "@/lib/waitlist/constants";
 import { countryName, languageName } from "@/lib/waitlist/locales";
 import { topicSlug } from "@/lib/waitlist/tracked-url";
+import {
+  csvFilename,
+  demandSourcesToCsv,
+  downloadCsv,
+} from "@/lib/waitlist/csv";
+import { DuplicateSourceWarning } from "@/components/admin/DuplicateSourceWarning";
 import { OutreachComposer } from "@/components/admin/OutreachComposer";
 import { WaitlistPagePanel } from "@/components/admin/WaitlistPagePanel";
-import type { DemandSourceRow } from "@/lib/waitlist/types";
+import type { DemandSourceRow, SimilarSourceRow } from "@/lib/waitlist/types";
 
 // ─── Outreach sources ────────────────────────────────────────────────────────
 //
@@ -136,6 +145,9 @@ export function OutreachSourcesPanel() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ ...BLANK_FORM });
   const [saving, setSaving] = useState(false);
+  // Sources the server refused this one as a duplicate of. Cleared whenever the
+  // name or URL changes, so a stale warning never sits above a corrected form.
+  const [duplicates, setDuplicates] = useState<SimilarSourceRow[]>([]);
 
   // Registrations are loaded per source on demand — emails are the most
   // sensitive thing here, so they are never bulk-loaded with the list. The
@@ -195,6 +207,12 @@ export function OutreachSourcesPanel() {
     if (user && !loaded) void load();
   }, [user, loaded, load]);
 
+  // A duplicate warning is about a specific name and URL. Once either changes
+  // it is describing something that is no longer on screen, so it goes.
+  useEffect(() => {
+    setDuplicates([]);
+  }, [form.sourceName, form.sourceUrl]);
+
   async function copy(text: string, label: string) {
     try {
       await navigator.clipboard.writeText(text);
@@ -204,8 +222,11 @@ export function OutreachSourcesPanel() {
     }
   }
 
-  async function handleCreate(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleCreate(
+    e: React.FormEvent | null,
+    acknowledgeDuplicates = false
+  ) {
+    e?.preventDefault();
     if (!user) return;
     if (!form.sourceName.trim()) {
       toast.error("Source name is required");
@@ -225,11 +246,22 @@ export function OutreachSourcesPanel() {
         body: JSON.stringify({
           ...form,
           demandThreshold: Number.isFinite(threshold) && threshold > 0 ? threshold : null,
+          acknowledgeDuplicates,
         }),
       });
       const data = await res.json();
+
+      // The server checks for an existing source covering the same place. It
+      // is a refusal, not a warning: the form stays open with the matches above
+      // it until someone either edits it or says it really is different.
+      if (res.status === 409 && data.requiresAcknowledgement) {
+        setDuplicates(data.similar ?? []);
+        toast.error(data.error ?? "This may already be tracked");
+        return;
+      }
       if (!res.ok) throw new Error(data.error ?? "Failed to create source");
 
+      setDuplicates([]);
       await copy(data.trackedUrl, "Source created — waitlist link copied");
       setForm({ ...BLANK_FORM });
       setShowForm(false);
@@ -240,6 +272,24 @@ export function OutreachSourcesPanel() {
     } finally {
       setSaving(false);
     }
+  }
+
+  /**
+   * Export what is on screen — the search, the platform filter and the sort all
+   * apply. The database stays the source of truth; this is a read-only snapshot
+   * for reading in a spreadsheet, and there is deliberately no way back in.
+   */
+  function exportCsv() {
+    if (visible.length === 0) {
+      toast.error("Nothing to export — clear the filters or add a source");
+      return;
+    }
+    downloadCsv(csvFilename("operator-outreach-sources"), demandSourcesToCsv(visible));
+    toast.success(
+      visible.length === sources.length
+        ? `Exported ${visible.length} source${visible.length === 1 ? "" : "s"}`
+        : `Exported ${visible.length} of ${sources.length} sources (current filters)`
+    );
   }
 
   async function addLink(sourceId: string) {
@@ -660,6 +710,22 @@ export function OutreachSourcesPanel() {
           )}
         </Button>
 
+        <Button variant="outline" size="sm" onClick={exportCsv} disabled={loading}>
+          <Download className="w-4 h-4" />
+          Export CSV
+        </Button>
+
+        <Link
+          href="/admin/outreach/spreadsheet"
+          className={cn(
+            buttonVariants({ variant: "outline", size: "sm" }),
+            "gap-2"
+          )}
+        >
+          <Table2 className="w-4 h-4" />
+          Spreadsheet view
+        </Link>
+
         <Button size="sm" onClick={() => setShowForm((v) => !v)}>
           <Plus className="w-4 h-4" />
           Add source
@@ -713,6 +779,16 @@ export function OutreachSourcesPanel() {
             Creates a demand source and its first tracked link. No Operator group is
             created.
           </p>
+
+          {duplicates.length > 0 && (
+            <DuplicateSourceWarning
+              matches={duplicates}
+              action="create"
+              overriding={saving}
+              onDismiss={() => setDuplicates([])}
+              onOverride={() => void handleCreate(null, true)}
+            />
+          )}
 
           <div className="grid sm:grid-cols-2 gap-3">
             <div>
@@ -937,7 +1013,10 @@ export function OutreachSourcesPanel() {
               type="button"
               variant="outline"
               size="sm"
-              onClick={() => setShowForm(false)}
+              onClick={() => {
+                setShowForm(false);
+                setDuplicates([]);
+              }}
             >
               Cancel
             </Button>

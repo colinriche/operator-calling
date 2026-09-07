@@ -46,6 +46,12 @@ export interface DemandSourceRow {
   postingRules: string;
   relationshipStatus: RelationshipStatus | string;
   status: DemandStatus | string;
+  /**
+   * What the status was before archiving, so unarchiving restores it rather
+   * than guessing. Null for sources archived before this was recorded, and
+   * cleared again once one is restored.
+   */
+  statusBeforeArchive: DemandStatus | string | null;
   groupId: string | null;
   /** Per-source override; null means "use the global default". */
   demandThreshold: number | null;
@@ -87,6 +93,28 @@ export interface DemandSourceRow {
   updatedAt: string | null;
   /** Tracked links pointing at this source. */
   links: SourceLinkRow[];
+}
+
+/**
+ * A demand source that looks like one being created or edited. Lives here
+ * rather than beside the detection code because the panels that must render it
+ * are client components, and lib/waitlist/duplicate-sources.ts reaches
+ * firebase-admin.
+ */
+export interface SimilarSourceRow {
+  id: string;
+  sourceName: string;
+  platformId: string;
+  sourceType: string;
+  sourceUrl: string;
+  status: DemandStatus | string;
+  topicName: string;
+  uniqueRegistrationCount: number;
+  /** 0-1. 1 means the URLs match and it is certainly the same place. */
+  score: number;
+  reason: string;
+  /** Same normalised URL - evidence rather than resemblance. */
+  exactUrl: boolean;
 }
 
 export interface SourceLinkRow {

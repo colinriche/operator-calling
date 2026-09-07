@@ -13,6 +13,10 @@ import {
   SOURCE_TYPE_IDS,
   WAITLIST_MODE_IDS,
 } from "@/lib/waitlist/constants";
+import {
+  blockingDuplicates,
+  findSimilarDemandSources,
+} from "@/lib/waitlist/duplicate-sources";
 import { isTopicArtId } from "@/lib/waitlist/topic-art";
 import {
   createUniqueSourceCode,
@@ -183,6 +187,7 @@ export async function GET(req: NextRequest) {
         relationshipStatus:
           data.relationshipStatus ?? DEFAULT_RELATIONSHIP_STATUS,
         status: data.status ?? "active_waitlist",
+        statusBeforeArchive: data.statusBeforeArchive ?? null,
         groupId: data.groupId ?? null,
         demandThreshold: perSource,
         effectiveThreshold: perSource ?? globalThreshold,
@@ -277,6 +282,33 @@ export async function POST(req: NextRequest) {
 
   try {
     const db = waitlistDb();
+
+    // Duplicate guard. Enforced here rather than in either caller so it holds
+    // for the outreach panel, the spreadsheet view and anything written later:
+    // a check that only one screen performs is a check that eventually gets
+    // routed around. Same shape as the group-creation guard — refuse, name the
+    // matches, and let a person decide it really is a different place.
+    if (body.acknowledgeDuplicates !== true) {
+      const matches = await findSimilarDemandSources(db, {
+        sourceName,
+        topicName,
+        audienceLabel: str(body.publicAudienceLabel, 200),
+        sourceUrl: str(body.sourceUrl, 1000),
+      });
+      const blocking = blockingDuplicates(matches);
+      if (blocking.length > 0) {
+        return NextResponse.json(
+          {
+            error: blocking[0].exactUrl
+              ? "A source with this URL already exists"
+              : "This looks like a source you already track",
+            similar: blocking,
+            requiresAcknowledgement: true,
+          },
+          { status: 409 }
+        );
+      }
+    }
 
     const sourceRef = await db.collection(COLLECTIONS.demandSources).add({
       platformId,
