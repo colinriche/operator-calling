@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og";
 import type { NextRequest } from "next/server";
-import sharp from "sharp";
+import { FALLBACK_PNG } from "@/lib/waitlist/og-fallback";
 import { buildWaitlistPresentation } from "@/lib/waitlist/presentation";
 import { resolveWaitlistContext } from "@/lib/waitlist/server";
 import { BRAND_ART_DATA_URI } from "@/lib/waitlist/topic-art";
@@ -43,18 +43,31 @@ import { BRAND_ART_DATA_URI } from "@/lib/waitlist/topic-art";
 // prints it when it wants to. Facebook gets a title it cannot fail to show,
 // because the title is part of the image.
 //
-// ─── Why this is a JPEG ──────────────────────────────────────────────────────
+// ─── Why this is a PNG, and why nothing native runs here ─────────────────────
 //
-// WhatsApp drops the image and renders a text-only card when it is over ~600KB.
-// A full-bleed photograph rendered to 1200x630 PNG measured 2.0MB — PNG is
-// lossless, so photographic detail costs everything it is worth. The strip
-// design before it measured 750KB, already close to the edge and only passing
-// because two thirds of it was flat cream.
+// A previous version re-encoded the rendered PNG to JPEG through sharp, to get
+// under the ~600KB above which WhatsApp declines to show a preview image at
+// all. It took the endpoint down completely.
 //
-// ImageResponse only emits PNG, so the PNG is re-encoded here. The same card
-// as JPEG measures around 200KB, which is comfortably inside every platform's
-// limit and visually indistinguishable at this size. og:image:type in the page
-// metadata says image/jpeg to match.
+// sharp is a native module. Turbopack externalised it under a hashed specifier
+// and emitted, in the deployed chunk:
+//
+//   t.exports = e.x("sharp-20c6a5da84e2135f", () => require("sharp-20c6a5da84e2135f"))
+//
+// Nothing by that name exists, `e.x` is a plain thunk call with no manifest
+// behind it, and the require therefore threw during module evaluation — before
+// the handler, and before any try/catch inside it. Every request returned 500
+// with a zero-byte body; Facebook reported only "could not be processed as an
+// image". Adding sharp to serverExternalPackages did not change the emitted
+// specifier.
+//
+// So: nothing is imported here that cannot be bundled. Getting the file size
+// down is worth doing, but with a pure-JavaScript encoder that has no platform
+// binary to resolve — not by reaching for a native module again.
+//
+// The layout helps on its own. The picture occupies 434 of the 630 rows and the
+// title band beneath it is flat colour, which measured 583KB for a realistic
+// photograph against 2.0MB for the full-bleed design that preceded it.
 
 export const runtime = "nodejs";
 
@@ -76,9 +89,6 @@ const SAND = "#F3E7D0";
 const GOLD = "#D89A2C";
 const INK = "#332D27";
 const MUTED = "#6B6259";
-
-/** Comfortably inside WhatsApp's limit, with room for a busy photograph. */
-const JPEG_QUALITY = 82;
 
 /**
  * Fonts are fetched rather than bundled, because next/font keeps its files
@@ -113,16 +123,14 @@ async function loadFont(
 }
 
 /**
- * Inline an uploaded hero image, downscaled to the band it will occupy.
+ * Inline an uploaded hero image.
  *
  * satori can fetch a remote image itself, but a slow or missing Storage object
  * would then take the whole preview down. Fetching it here means a failure
  * degrades to the brand mark instead.
  *
- * The resize is not cosmetic. A 4000px phone photograph handed to satori is
- * decoded at full size and resampled into a 1200px frame, which costs both
- * memory and detail that ends up as noise in the encoder. Cropping it to the
- * exact frame first is cheaper and compresses better.
+ * No resizing: that needs an image codec, and an image codec here is what broke
+ * the endpoint. satori scales it into the frame instead.
  */
 async function inlineImage(url: string): Promise<string | null> {
   try {
@@ -137,16 +145,59 @@ async function inlineImage(url: string): Promise<string | null> {
     // enormous should not be pulled into memory.
     if (buffer.byteLength > 8 * 1024 * 1024) return null;
 
-    const fitted = await sharp(buffer)
-      .rotate() // Honour EXIF orientation, or a phone photo arrives on its side.
-      .resize(WIDTH, VISUAL_HEIGHT, { fit: "cover", position: "attention" })
-      .jpeg({ quality: 88 })
-      .toBuffer();
-
-    return `data:image/jpeg;base64,${fitted.toString("base64")}`;
+    return `data:${type};base64,${buffer.toString("base64")}`;
   } catch {
     return null;
   }
+}
+
+/** PNG magic bytes: 89 50 4E 47 0D 0A 1A 0A. */
+function isPng(bytes: Buffer): boolean {
+  return (
+    bytes.length > 8 &&
+    bytes[0] === 0x89 &&
+    bytes[1] === 0x50 &&
+    bytes[2] === 0x4e &&
+    bytes[3] === 0x47 &&
+    bytes[4] === 0x0d &&
+    bytes[5] === 0x0a &&
+    bytes[6] === 0x1a &&
+    bytes[7] === 0x0a
+  );
+}
+
+/**
+ * One place that builds the response, so the declared type is read off the
+ * bytes rather than asserted alongside them.
+ *
+ * A header claiming image/jpeg over PNG bytes is exactly the sort of mismatch
+ * that makes a scraper reject a card while every other check looks fine, and it
+ * is only avoidable by never writing the two independently.
+ */
+function imageResponse(bytes: Buffer, { cache }: { cache: boolean }): Response {
+  return new Response(new Uint8Array(bytes), {
+    status: 200,
+    headers: {
+      "content-type": "image/png",
+      "content-length": String(bytes.byteLength),
+      // A scraper fetches this twice — once to build the composer preview and
+      // again when the post is submitted — and the second fetch has a tighter
+      // budget than the first. Five minutes was short enough that the second
+      // one could land on a cold render; a day, revalidated in the background,
+      // means it almost never does.
+      //
+      // Long caching is safe here because the URL carries `v`: an admin who
+      // changes the picture changes the address, so nothing has to expire for
+      // the new card to appear.
+      //
+      // The fallback is never cached. It is served because something broke, and
+      // pinning it at the CDN for a day would turn a transient failure into a
+      // day of blank cards long after the cause was fixed.
+      "cache-control": cache
+        ? "public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800"
+        : "public, max-age=0, must-revalidate",
+    },
+  });
 }
 
 /** Trim on a word boundary so a cropped title does not end mid-word. */
@@ -158,6 +209,18 @@ function clamp(value: string, max: number): string {
 }
 
 export async function GET(req: NextRequest) {
+  try {
+    return await render(req);
+  } catch (err) {
+    // Whatever failed — a font, satori, the source lookup — a scraper gets a
+    // real image rather than a 500 with nothing in it. An empty body is the one
+    // outcome that leaves every shared link with no picture at all.
+    console.error("[og/waitlist] render failed, serving fallback:", err);
+    return imageResponse(FALLBACK_PNG, { cache: false });
+  }
+}
+
+async function render(req: NextRequest): Promise<Response> {
   const context = await resolveWaitlistContext(
     req.nextUrl.searchParams.get("s"),
     null
@@ -284,8 +347,11 @@ export async function GET(req: NextRequest) {
                 backgroundColor: GOLD,
               }}
             />
+            {/* One string, not text plus an expression: satori counts those as
+                two child nodes and rejects any div with more than one unless it
+                carries an explicit display. */}
             <div style={{ fontSize: 22, color: MUTED }}>
-              The Operator · {label}
+              {`The Operator · ${label}`}
             </div>
           </div>
         </div>
@@ -298,35 +364,21 @@ export async function GET(req: NextRequest) {
     }
   );
 
+  // The body is consumed to completion here, once, and served as bytes. The
+  // ImageResponse's own stream and headers are not passed through: mixing a
+  // half-read stream with headers written by hand is how a response ends up
+  // truncated while still looking correct from the outside.
   const png = Buffer.from(await image.arrayBuffer());
 
-  // A failed re-encode falls back to the PNG. A 2MB image WhatsApp declines to
-  // show is a poor card; no card at all is a worse one.
-  let body: Buffer = png;
-  let contentType = "image/png";
-  try {
-    body = await sharp(png).jpeg({ quality: JPEG_QUALITY, mozjpeg: true }).toBuffer();
-    contentType = "image/jpeg";
-  } catch (err) {
-    console.error("[og/waitlist] jpeg encode failed, serving png:", err);
+  // Checked rather than assumed. If satori ever hands back something that is
+  // not a PNG, serving it under an image content type would produce exactly the
+  // "corrupted or invalid format" that started all this.
+  if (!isPng(png)) {
+    console.error(
+      `[og/waitlist] renderer returned ${png.byteLength} bytes that are not a PNG; serving fallback`
+    );
+    return imageResponse(FALLBACK_PNG, { cache: false });
   }
 
-  return new Response(new Uint8Array(body), {
-    status: 200,
-    headers: {
-      "content-type": contentType,
-      "content-length": String(body.byteLength),
-      // A scraper fetches this twice — once to build the composer preview and
-      // again when the post is submitted — and the second fetch has a tighter
-      // budget than the first. Five minutes was short enough that the second
-      // one could land on a cold render; a day, revalidated in the background,
-      // means it almost never does.
-      //
-      // Long caching is safe here because the URL carries `v`: an admin who
-      // changes the picture changes the address, so nothing has to expire for
-      // the new card to appear.
-      "cache-control":
-        "public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800",
-    },
-  });
+  return imageResponse(png, { cache: true });
 }

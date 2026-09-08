@@ -104,9 +104,9 @@ export async function generateMetadata({
           url: image,
           width: 1200,
           height: 630,
-          // The route re-encodes to JPEG: a lossless PNG of a photograph is
-          // over 2MB, which WhatsApp declines to show at all.
-          type: "image/jpeg",
+          // Must match what the route actually serves. It renders PNG and
+          // checks the magic bytes before sending, so this cannot drift.
+          type: "image/png",
           alt: p.og.title,
         },
       ],
