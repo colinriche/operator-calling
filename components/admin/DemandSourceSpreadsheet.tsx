@@ -17,6 +17,7 @@ import {
   ArrowUp,
   Check,
   Download,
+  Eye,
   Loader2,
   Plus,
   RefreshCw,
@@ -39,7 +40,7 @@ import {
 } from "@/lib/waitlist/constants";
 import { csvFilename, demandSourcesToCsv, downloadCsv } from "@/lib/waitlist/csv";
 import { DuplicateSourceWarning } from "@/components/admin/DuplicateSourceWarning";
-import { RowHeroImageButton } from "@/components/admin/RowHeroImageButton";
+import { RowWaitlistImageButton } from "@/components/admin/RowWaitlistImageButton";
 import type { DemandSourceRow, SimilarSourceRow } from "@/lib/waitlist/types";
 
 // ─── Demand sources, as a spreadsheet ────────────────────────────────────────
@@ -313,8 +314,12 @@ const BLANK_DRAFT: Record<string, string> = {
  * Width of the pinned actions column, and therefore the left offset of the
  * pinned name column beside it. One constant because they cannot disagree:
  * if they do, the name column overlaps the icons or floats away from them.
+ *
+ * Holds the state dot and three icon buttons on one line. It is sized to stop
+ * them wrapping, because a wrapped action cell is the one thing that would
+ * make the rows taller.
  */
-const ACTIONS_WIDTH = 88;
+const ACTIONS_WIDTH = 108;
 
 type RowState = "saving" | "saved" | "error";
 type StatusFilter = "active" | "archived" | "all" | string;
@@ -1058,6 +1063,9 @@ export function DemandSourceSpreadsheet() {
               {visible.map((source) => {
                 const state = rowState[source.id];
                 const archived = source.status === "archived";
+                // Built by the server from this deployment's origin, so the
+                // preview opens the same URL that gets posted.
+                const trackedUrl = source.links[0]?.trackedUrl ?? "";
                 return (
                   <tr
                     key={source.id}
@@ -1095,7 +1103,30 @@ export function DemandSourceSpreadsheet() {
                             <Trash2 className="w-3.5 h-3.5" />
                           )}
                         </button>
-                        <RowHeroImageButton source={source} onSaved={load} />
+                        <RowWaitlistImageButton source={source} onSaved={load} />
+                        {trackedUrl ? (
+                          // A real link, not a window.open: middle-click and
+                          // ctrl-click work, and it opens the actual waitlist
+                          // route rather than any spreadsheet-only rendering of
+                          // it, so what loads is what a visitor would get.
+                          <a
+                            href={trackedUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title="Preview waitlist"
+                            aria-label={`Preview the waitlist page for ${source.sourceName}`}
+                            className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground shrink-0"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                          </a>
+                        ) : (
+                          <span
+                            aria-label="No tracked link to preview"
+                            className="p-1 text-muted-foreground/30 shrink-0"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                          </span>
+                        )}
                       </div>
                     </td>
                     {COLUMNS.map((column, index) => (
@@ -1154,7 +1185,7 @@ export function DemandSourceSpreadsheet() {
               All changes saved
             </>
           ) : (
-            "Click a cell or press Enter to edit · Tab moves across · arrows move around"
+            "Click a cell or press Enter to edit · Tab moves across · arrows move around · hover the image icon to preview"
           )}
         </span>
       </div>

@@ -37,6 +37,7 @@ import {
 import { BRAND_ART_DATA_URI, isTopicArtId, topicArtDataUri } from "./topic-art";
 import { urlSourceCode } from "./tracked-url";
 import type {
+  DemandSourceRow,
   WaitlistContext,
   WaitlistHero,
   WaitlistPresentation,
@@ -429,6 +430,52 @@ function heroFor(context: WaitlistContext, heading: string): WaitlistHero {
   }
 
   return { kind: "brand", src: BRAND_ART_DATA_URI, alt: "" };
+}
+
+// ─── Admin preview ───────────────────────────────────────────────────────────
+
+/**
+ * What a demand source's waitlist page currently renders, from the row the
+ * admin API returns.
+ *
+ * `overrides` carries unsaved edits, so a panel can preview a mode or an
+ * artwork the record does not have yet. With none, this is the live page.
+ *
+ * The point of it being one function is `hero`: which of the uploaded image,
+ * the curated artwork and the brand mark a source actually shows is decided by
+ * heroFor and nothing else. Anywhere that answers that question by reading
+ * waitlistMode itself will eventually answer it differently.
+ */
+export function demandSourcePresentation(
+  source: DemandSourceRow,
+  overrides: PublicSourceFields = {}
+): WaitlistPresentation {
+  return buildWaitlistPresentation(
+    waitlistContextFrom(
+      {
+        platformId: source.platformId,
+        sourceType: source.sourceType,
+        relationshipStatus: source.relationshipStatus,
+        publicDisplayName: source.publicDisplayName,
+        publicAudienceLabel: source.publicAudienceLabel,
+        topicName: source.topicName,
+        groupId: source.groupId,
+        waitlistMode: source.waitlistMode,
+        connectionType: source.connectionType,
+        topicArtId: source.topicArtId,
+        familyName: source.familyName,
+        heroImageUrl: source.heroImageUrl,
+        ...overrides,
+      },
+      {
+        sourceCode: source.links[0]?.sourceCode ?? null,
+        demandSourceId: source.id,
+        sourceLinkId: source.links[0]?.id ?? null,
+        shareChannel: null,
+        attributed: true,
+      }
+    )
+  );
 }
 
 // ─── Open Graph image URL ────────────────────────────────────────────────────

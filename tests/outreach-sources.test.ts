@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { csvCell, demandSourcesToCsv, toCsv } from "@/lib/waitlist/csv";
+import { demandSourcePresentation } from "@/lib/waitlist/presentation";
 import {
   blockingDuplicates,
   findSimilarDemandSources,
@@ -224,5 +225,62 @@ describe("findSimilarDemandSources", () => {
       sourceUrl: "",
     });
     expect(matches).toHaveLength(0);
+  });
+});
+
+// ─── Which image a source actually shows ─────────────────────────────────────
+//
+// The spreadsheet's single image icon reads this rather than waitlistMode, so
+// these cases are what decides whether it offers an upload, an artwork or
+// nothing at all.
+
+describe("demandSourcePresentation hero", () => {
+  it("shows an uploaded image only on a family page", () => {
+    const hero = demandSourcePresentation(
+      source({ waitlistMode: "family", heroImageUrl: "https://example.com/a.jpg" })
+    ).hero;
+    expect(hero.kind).toBe("image");
+    expect(hero.src).toBe("https://example.com/a.jpg");
+  });
+
+  it("falls back to the brand mark on a family page with no upload", () => {
+    expect(
+      demandSourcePresentation(source({ waitlistMode: "family" })).hero.kind
+    ).toBe("brand");
+  });
+
+  it("shows the chosen artwork on a community page", () => {
+    const hero = demandSourcePresentation(
+      source({ waitlistMode: "community", topicArtId: "cards" })
+    ).hero;
+    expect(hero.kind).toBe("art");
+    expect(hero.src.startsWith("data:image/svg+xml;base64,")).toBe(true);
+  });
+
+  // The case the icon exists to get right: a source that was once a family page
+  // still carries heroImageUrl, and its community page deliberately ignores it.
+  // An icon reading the field directly would offer to edit an invisible photo.
+  it("ignores a leftover upload once the page is a community page", () => {
+    expect(
+      demandSourcePresentation(
+        source({
+          waitlistMode: "community",
+          topicArtId: "",
+          heroImageUrl: "https://example.com/old.jpg",
+        })
+      ).hero.kind
+    ).toBe("brand");
+  });
+
+  it("shows neither on a global page, whatever the record holds", () => {
+    expect(
+      demandSourcePresentation(
+        source({
+          waitlistMode: "global",
+          topicArtId: "cards",
+          heroImageUrl: "https://example.com/a.jpg",
+        })
+      ).hero.kind
+    ).toBe("brand");
   });
 });

@@ -15,12 +15,9 @@ import {
   type ConnectionType,
   type WaitlistMode,
 } from "@/lib/waitlist/constants";
-import {
-  buildWaitlistPresentation,
-  waitlistContextFrom,
-} from "@/lib/waitlist/presentation";
+import { demandSourcePresentation } from "@/lib/waitlist/presentation";
 import { HeroImageEditor } from "@/components/admin/HeroImageEditor";
-import { TOPIC_ART, topicArtDataUri } from "@/lib/waitlist/topic-art";
+import { TopicArtPicker } from "@/components/admin/TopicArtPicker";
 import type { DemandSourceRow } from "@/lib/waitlist/types";
 
 // ─── What this source's waitlist page looks like ─────────────────────────────
@@ -62,34 +59,16 @@ export function WaitlistPagePanel({ source, onSaved }: Props) {
     topicArtId !== (source.topicArtId ?? "") ||
     familyName !== (source.familyName ?? "");
 
-  // Exactly what the page will render, from exactly the same code.
+  // Exactly what the page will render, from exactly the same code — with the
+  // unsaved edits applied, which is the whole point of a preview.
   const preview = useMemo(
     () =>
-      buildWaitlistPresentation(
-        waitlistContextFrom(
-          {
-            platformId: source.platformId,
-            sourceType: source.sourceType,
-            relationshipStatus: source.relationshipStatus,
-            publicDisplayName: source.publicDisplayName,
-            publicAudienceLabel: source.publicAudienceLabel,
-            topicName: source.topicName,
-            groupId: source.groupId,
-            waitlistMode: mode,
-            connectionType,
-            topicArtId,
-            familyName,
-            heroImageUrl: source.heroImageUrl,
-          },
-          {
-            sourceCode: source.links[0]?.sourceCode ?? null,
-            demandSourceId: source.id,
-            sourceLinkId: source.links[0]?.id ?? null,
-            shareChannel: null,
-            attributed: true,
-          }
-        )
-      ),
+      demandSourcePresentation(source, {
+        waitlistMode: mode,
+        connectionType,
+        topicArtId,
+        familyName,
+      }),
     [source, mode, connectionType, topicArtId, familyName]
   );
 
@@ -191,41 +170,7 @@ export function WaitlistPagePanel({ source, onSaved }: Props) {
       {mode === "community" && (
         <div>
           <label className={labelClass}>Topic imagery</label>
-          <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
-            <button
-              type="button"
-              onClick={() => setTopicArtId("")}
-              title="No artwork — use the Operator brand mark"
-              className={cn(
-                "aspect-[4/3] rounded-lg border text-[10px] text-muted-foreground flex items-center justify-center",
-                topicArtId === ""
-                  ? "border-primary ring-2 ring-primary/30"
-                  : "border-border hover:border-primary/40"
-              )}
-            >
-              Brand
-            </button>
-            {TOPIC_ART.map((art) => (
-              <button
-                key={art.id}
-                type="button"
-                onClick={() => setTopicArtId(art.id)}
-                title={art.label}
-                className={cn(
-                  "aspect-[4/3] rounded-lg border overflow-hidden",
-                  topicArtId === art.id
-                    ? "border-primary ring-2 ring-primary/30"
-                    : "border-border hover:border-primary/40"
-                )}
-              >
-                <img
-                  src={topicArtDataUri(art.id)}
-                  alt={art.label}
-                  className="w-full h-full object-cover"
-                />
-              </button>
-            ))}
-          </div>
+          <TopicArtPicker value={topicArtId} onChange={setTopicArtId} />
           <p className="text-xs text-muted-foreground mt-2">
             A fixed set, so nothing on a public page depends on who owns a
             picture. The heading is the source&apos;s topic
