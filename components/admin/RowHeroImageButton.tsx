@@ -20,6 +20,12 @@ import type { DemandSourceRow } from "@/lib/waitlist/types";
 // never moves: a grid whose rows grow when you hover them is unusable for the
 // thing this grid exists for, which is scanning forty sources at once.
 //
+// The hover overlay shows the picture and nothing else. This view carries no
+// tooltips at all — no `title` attributes on cells or buttons — because in a
+// grid this dense every pointer pause would summon one over the data. Buttons
+// name themselves with aria-label instead, which screen readers read and
+// nothing draws.
+//
 // The preview is portalled to the body rather than positioned inside the cell.
 // A `position: fixed` child would very likely be fine, but it would be fine by
 // accident — one `transform` on an ancestor and fixed positioning starts
@@ -97,14 +103,9 @@ export function RowHeroImageButton({ source, onSaved }: Props) {
         onMouseLeave={() => setPreview(null)}
         onFocus={showPreview}
         onBlur={() => setPreview(null)}
-        title={
-          hasImage
-            ? "Has a hero image — hover to preview, click to change or remove"
-            : "No hero image — click to add one"
-        }
         aria-label={
           hasImage
-            ? `Hero image for ${source.sourceName}`
+            ? `Hero image for ${source.sourceName} — preview, change or remove`
             : `Add a hero image to ${source.sourceName}`
         }
         className={
@@ -126,7 +127,6 @@ export function RowHeroImageButton({ source, onSaved }: Props) {
         source.heroImageUrl &&
         createPortal(
           <div
-            role="tooltip"
             style={{
               top: preview.top,
               left: preview.left,

@@ -71,8 +71,6 @@ interface Column {
   /** Sortable value; falls back to the display text. */
   sortBy?: (s: DemandSourceRow) => string | number;
   numeric?: boolean;
-  /** Longer prose — worth a wider editor. */
-  long?: boolean;
 }
 
 const PLATFORM_OPTIONS = PLATFORMS as readonly { id: string; label: string }[];
@@ -198,7 +196,6 @@ const COLUMNS: Column[] = [
     label: "Public description",
     width: 240,
     kind: "text",
-    long: true,
     text: (s) => s.publicDescription,
   },
   {
@@ -206,7 +203,6 @@ const COLUMNS: Column[] = [
     label: "Posting rules",
     width: 220,
     kind: "text",
-    long: true,
     text: (s) => s.postingRules,
   },
   {
@@ -214,7 +210,6 @@ const COLUMNS: Column[] = [
     label: "Internal notes",
     width: 260,
     kind: "text",
-    long: true,
     text: (s) => s.internalNotes,
   },
 
@@ -748,7 +743,6 @@ export function DemandSourceSpreadsheet() {
             "text-muted-foreground",
             column.numeric && "text-right tabular-nums"
           )}
-          title={text}
         >
           {text}
         </span>
@@ -829,7 +823,6 @@ export function DemandSourceSpreadsheet() {
           );
           setEditing({ id: source.id, key: column.key });
         }}
-        title={column.long && text ? text : undefined}
         className={cn(
           cellClass,
           "cursor-text hover:bg-muted/60",
@@ -1089,10 +1082,10 @@ export function DemandSourceSpreadsheet() {
                           onClick={() =>
                             archived ? void unarchive(source) : void archive(source)
                           }
-                          title={
+                          aria-label={
                             archived
-                              ? "Restore this source to its previous status"
-                              : "Archive — keeps registrations, links and history"
+                              ? `Restore ${source.sourceName} to its previous status`
+                              : `Archive ${source.sourceName} — keeps registrations, links and history`
                           }
                           className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
                         >
