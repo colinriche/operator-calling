@@ -39,6 +39,7 @@ import {
 } from "@/lib/waitlist/constants";
 import { csvFilename, demandSourcesToCsv, downloadCsv } from "@/lib/waitlist/csv";
 import { DuplicateSourceWarning } from "@/components/admin/DuplicateSourceWarning";
+import { RowHeroImageButton } from "@/components/admin/RowHeroImageButton";
 import type { DemandSourceRow, SimilarSourceRow } from "@/lib/waitlist/types";
 
 // ─── Demand sources, as a spreadsheet ────────────────────────────────────────
@@ -312,6 +313,13 @@ const BLANK_DRAFT: Record<string, string> = {
   sourceUrl: "",
   publicAudienceLabel: "",
 };
+
+/**
+ * Width of the pinned actions column, and therefore the left offset of the
+ * pinned name column beside it. One constant because they cannot disagree:
+ * if they do, the name column overlaps the icons or floats away from them.
+ */
+const ACTIONS_WIDTH = 88;
 
 type RowState = "saving" | "saved" | "error";
 type StatusFilter = "active" | "archived" | "all" | string;
@@ -1007,7 +1015,10 @@ export function DemandSourceSpreadsheet() {
         <div className="overflow-x-auto max-h-[70vh] overflow-y-auto">
           <table className="border-collapse text-xs" style={{ minWidth: "max-content" }}>
             <colgroup>
-              <col style={{ width: 64 }} />
+              {/* State dot plus two icon buttons. Sized so nothing wraps —
+                  a wrapped action cell is the one thing that would make the
+                  rows taller. */}
+              <col style={{ width: ACTIONS_WIDTH }} />
               {COLUMNS.map((c) => (
                 <col key={c.key} style={{ width: c.width }} />
               ))}
@@ -1024,11 +1035,12 @@ export function DemandSourceSpreadsheet() {
                   <th
                     key={column.key}
                     scope="col"
+                    style={index === 0 ? { left: ACTIONS_WIDTH } : undefined}
                     className={cn(
                       "bg-muted border-b border-border px-2 py-2 text-left font-medium whitespace-nowrap",
                       // The name column stays put while the rest scrolls, so a
                       // row 20 columns wide is still identifiable.
-                      index === 0 && "sticky left-16 z-30 border-r",
+                      index === 0 && "sticky z-30 border-r",
                       column.numeric && "text-right"
                     )}
                   >
@@ -1090,14 +1102,16 @@ export function DemandSourceSpreadsheet() {
                             <Trash2 className="w-3.5 h-3.5" />
                           )}
                         </button>
+                        <RowHeroImageButton source={source} onSaved={load} />
                       </div>
                     </td>
                     {COLUMNS.map((column, index) => (
                       <td
                         key={column.key}
+                        style={index === 0 ? { left: ACTIONS_WIDTH } : undefined}
                         className={cn(
                           "border-r border-border/40 p-0 align-middle",
-                          index === 0 && "sticky left-16 z-10 bg-card border-r-border"
+                          index === 0 && "sticky z-10 bg-card border-r-border"
                         )}
                       >
                         {renderCell(source, column)}
