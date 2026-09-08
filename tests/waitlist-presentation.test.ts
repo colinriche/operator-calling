@@ -8,6 +8,7 @@ import {
   resolveWaitlistMode,
   waitlistContextFrom,
   waitlistOgImageUrl,
+  waitlistOgImageVersion,
   type PublicSourceFields,
 } from "@/lib/waitlist/presentation";
 
@@ -48,8 +49,12 @@ describe("the page and its Open Graph tags", () => {
     for (const fields of modes) {
       const p = buildWaitlistPresentation(contextFor(fields));
 
-      // The description is the opening paragraph verbatim, not a summary of it.
-      expect(p.og.description).toBe(p.lead);
+      // Deliberately NOT the opening paragraph. A messaging app gives the
+      // description two lines and cuts the rest, so repeating a 200-character
+      // paragraph there loses its point mid-sentence.
+      expect(p.og.description).not.toBe(p.lead);
+      expect(p.og.description.length).toBeLessThan(p.lead.length);
+      expect(p.og.description.length).toBeLessThanOrEqual(140);
       // The title is the heading, optionally with the source line the page
       // prints directly above it — never anything invented for the preview.
       expect(p.og.title.startsWith(p.heading)).toBe(true);
@@ -348,10 +353,13 @@ describe("connection type", () => {
     }
   });
 
-  it("still mirrors the page in the preview for both types", () => {
+  it("names the same audience in the preview as on the page, in fewer words", () => {
     for (const fields of [COMMUNITY, KNOWN]) {
       const p = buildWaitlistPresentation(contextFor(fields));
-      expect(p.og.description).toBe(p.lead);
+      // Whatever this page is about, the preview says so too — the shared
+      // interest for one type, the group's own name for the other.
+      expect(p.og.description).toContain(p.interestLabel);
+      expect(p.og.description.length).toBeLessThan(p.lead.length);
     }
   });
 });
@@ -387,6 +395,32 @@ describe("the family prompt", () => {
   });
 });
 
+// What a shared link actually says about itself. The platform renders the
+// title and description in its own type underneath the card, so these have to
+// arrive whole and the card must not repeat them.
+describe("what a link preview says", () => {
+  it("names the family, briefly, on a family page", () => {
+    const p = buildWaitlistPresentation(
+      contextFor({ waitlistMode: "family", familyName: "the Okonkwo family" })
+    );
+    expect(p.og.description).toBe(
+      "The Operator keeps the Okonkwo family in touch by occasionally bringing two members together for a private one-to-one call."
+    );
+  });
+
+  it("names the topic on a shared-interest page", () => {
+    const p = buildWaitlistPresentation(contextFor(COMMUNITY));
+    expect(p.og.description).toContain("live poker");
+    expect(p.og.description.length).toBeLessThanOrEqual(140);
+  });
+
+  it("says nothing about a shared interest on a global page", () => {
+    const p = buildWaitlistPresentation(globalContext(null));
+    expect(p.og.description.toLowerCase()).not.toContain("interest");
+    expect(p.og.description.length).toBeLessThanOrEqual(140);
+  });
+});
+
 describe("the preview image URL", () => {
   it("is absolute and carries the source code", () => {
     expect(waitlistOgImageUrl("https://operatorcalling.com", "K7P4MX")).toBe(
@@ -395,6 +429,61 @@ describe("the preview image URL", () => {
     expect(waitlistOgImageUrl("https://operatorcalling.com/", null)).toBe(
       "https://operatorcalling.com/api/og/waitlist"
     );
+  });
+
+  it("carries a version when given one", () => {
+    expect(
+      waitlistOgImageUrl("https://operatorcalling.com", "K7P4MX", "abc123")
+    ).toBe("https://operatorcalling.com/api/og/waitlist?s=k7p4mx&v=abc123");
+  });
+});
+
+// Facebook and WhatsApp cache a preview against its image URL. If the URL does
+// not move when the picture does, a card can outlive the photograph it shows —
+// which is worse than no preview, because an admin took that picture down.
+describe("the preview image version", () => {
+  const family = (over: PublicSourceFields = {}) =>
+    buildWaitlistPresentation(
+      contextFor({
+        waitlistMode: "family",
+        familyName: "the Okonkwo family",
+        heroImageUrl: "https://storage.example/a.jpg",
+        ...over,
+      })
+    );
+
+  it("moves when the photograph is replaced", () => {
+    expect(waitlistOgImageVersion(family())).not.toBe(
+      waitlistOgImageVersion(family({ heroImageUrl: "https://storage.example/b.jpg" }))
+    );
+  });
+
+  it("moves when the artwork changes", () => {
+    const art = (topicArtId: string) =>
+      waitlistOgImageVersion(
+        buildWaitlistPresentation(contextFor({ ...COMMUNITY, topicArtId }))
+      );
+    expect(art("cards")).not.toBe(art("chess"));
+  });
+
+  it("moves when the wording changes", () => {
+    expect(waitlistOgImageVersion(family())).not.toBe(
+      waitlistOgImageVersion(family({ familyName: "the Bello family" }))
+    );
+  });
+
+  // Otherwise every unrelated admin edit would cost every shared link its card.
+  it("holds still when nothing the card shows has changed", () => {
+    expect(waitlistOgImageVersion(family())).toBe(waitlistOgImageVersion(family()));
+    expect(waitlistOgImageVersion(family())).toBe(
+      // Linking a group changes plenty about the page and nothing about the
+      // card, so it must not cost every shared link its preview.
+      waitlistOgImageVersion(family({ groupId: "group-1" }))
+    );
+  });
+
+  it("is short enough to sit in a URL", () => {
+    expect(waitlistOgImageVersion(family())).toMatch(/^[0-9a-z]{1,8}$/);
   });
 });
 

@@ -18,6 +18,7 @@ import { GroupsSection } from "@/components/marketing/GroupsSection";
 import {
   buildWaitlistPresentation,
   waitlistOgImageUrl,
+  waitlistOgImageVersion,
 } from "@/lib/waitlist/presentation";
 import { resolveWaitlistContext } from "@/lib/waitlist/server";
 import { urlSourceCode } from "@/lib/waitlist/tracked-url";
@@ -59,7 +60,14 @@ export async function generateMetadata({
   const context = await contextFor(first(params, "s"), first(params, "share"));
   const p = buildWaitlistPresentation(context);
   const site = await origin();
-  const image = waitlistOgImageUrl(site, context.sourceCode);
+  // Versioned, so replacing a family photograph or changing the artwork gives
+  // the scrapers an address they have not already cached. Without it a stale
+  // card can outlive the picture it shows by weeks.
+  const image = waitlistOgImageUrl(
+    site,
+    context.sourceCode,
+    waitlistOgImageVersion(p)
+  );
 
   // The canonical address of this page. Only `s` is carried: `t` is cosmetic
   // and `share`/`preview` describe how someone arrived, not what they are

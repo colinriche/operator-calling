@@ -243,6 +243,33 @@ function existingConnectionsCopy(group: string): { lead: string; body: string } 
   };
 }
 
+// ─── What a link preview says ────────────────────────────────────────────────
+//
+// Deliberately not `lead`, which the preview used to repeat verbatim.
+//
+// A messaging app gives a description two lines and cuts the rest, and it
+// prints that under a title and a card image it has already shown. So the job
+// here is not to summarise the page: it is one sentence saying what this is,
+// with the name the page is actually about inside it, short enough to arrive
+// whole. The page's own opening paragraph is three times too long for that and
+// loses its point mid-sentence.
+//
+// Built from the same names the page uses, so it cannot describe a different
+// audience from the one on the other side of the link.
+
+function socialDescriptionForKnownGroup(group: string): string {
+  return `The Operator keeps ${group} in touch by occasionally bringing two members together for a private one-to-one call.`;
+}
+
+function socialDescriptionForInterest(topic: string): string {
+  return topic
+    ? `One-to-one voice calls with others who share an interest in ${topic}. Say when you're free and the call comes to you.`
+    : "One-to-one voice calls with people who enjoy the same things you do. Say when you're free and the call comes to you.";
+}
+
+const GLOBAL_SOCIAL_DESCRIPTION =
+  "One-to-one voice calls with people you haven't met. Say when you're free and the call comes to you.";
+
 /**
  * Offered on every page that is not already about a family.
  *
@@ -311,7 +338,10 @@ export function buildWaitlistPresentation(
       shareText: `Voice calls for ${family} on The Operator — you say when you're free and the call comes to you.`,
       interestLabel: family,
       hero: heroFor(context, heading),
-      og: { title: heading, description: lead },
+      og: {
+        title: heading,
+        description: socialDescriptionForKnownGroup(family),
+      },
     };
   }
 
@@ -378,7 +408,12 @@ export function buildWaitlistPresentation(
           : "This might interest people who like one-to-one voice calls. You make yourself available and The Operator arranges the call.",
       interestLabel: topic || context.audienceLabel,
       hero: heroFor(context, heading),
-      og: { title: eyebrow ? `${heading} — ${eyebrow}` : heading, description: lead },
+      og: {
+        title: eyebrow ? `${heading} — ${eyebrow}` : heading,
+        description: known
+          ? socialDescriptionForKnownGroup(group)
+          : socialDescriptionForInterest(topic),
+      },
     };
   }
 
@@ -408,7 +443,7 @@ export function buildWaitlistPresentation(
       "This might interest someone who'd rather talk than type. You make yourself available and The Operator arranges the call.",
     interestLabel: "talking with new people",
     hero: heroFor(context, heading),
-    og: { title: heading, description: lead },
+    og: { title: heading, description: GLOBAL_SOCIAL_DESCRIPTION },
   };
 }
 
@@ -487,7 +522,52 @@ export function demandSourcePresentation(
  * carrying the source code because the image is built from the same context the
  * page is — pass the code, get that page's image.
  */
-export function waitlistOgImageUrl(origin: string, sourceCode: string | null): string {
+export function waitlistOgImageUrl(
+  origin: string,
+  sourceCode: string | null,
+  version?: string
+): string {
   const base = `${origin.replace(/\/+$/, "")}/api/og/waitlist`;
-  return sourceCode ? `${base}?s=${encodeURIComponent(urlSourceCode(sourceCode))}` : base;
+  const params = new URLSearchParams();
+  if (sourceCode) params.set("s", urlSourceCode(sourceCode));
+  if (version) params.set("v", version);
+  const query = params.toString();
+  return query ? `${base}?${query}` : base;
+}
+
+/**
+ * A token that changes when the card would.
+ *
+ * Facebook and WhatsApp cache a preview against its image URL and re-fetch on
+ * their own schedule, which for a URL that never changes is somewhere between
+ * "eventually" and "never". Replacing a family photograph or picking different
+ * artwork would leave the old card in circulation indefinitely — worse than a
+ * plain miss, because the link then shows a picture the admin deliberately
+ * took down.
+ *
+ * So the version is derived from exactly what the card is built out of. Change
+ * the image, the artwork, the mode or the wording and the og:image URL changes
+ * with it, which every scraper treats as a different image. Change anything
+ * else and it does not, so an unrelated edit costs nobody a re-fetch.
+ *
+ * FNV-1a rather than a crypto hash: this is a cache key, not a signature, and
+ * it has to be computable in the browser as well as on the server.
+ */
+export function waitlistOgImageVersion(p: WaitlistPresentation): string {
+  const material = [
+    p.mode,
+    p.hero.kind,
+    p.hero.src,
+    p.og.title,
+    p.og.description,
+  // A separator no field can contain, so two different value sets cannot
+  // concatenate into the same string.
+  ].join("\u0000");
+
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < material.length; i++) {
+    hash ^= material.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash.toString(36);
 }
