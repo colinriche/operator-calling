@@ -550,6 +550,15 @@ export function waitlistOgImageUrl(
  * with it, which every scraper treats as a different image. Change anything
  * else and it does not, so an unrelated edit costs nobody a re-fetch.
  *
+ * What it does NOT do is refresh an already-shared link. Facebook and WhatsApp
+ * cache the *page* URL and the metadata they scraped from it, so a link posted
+ * yesterday keeps yesterday's card — including yesterday's og:image address —
+ * until they re-scrape, which is on their schedule and not ours. This only
+ * guarantees that a re-scrape, whenever it happens, cannot be served a stale
+ * image. Forcing one is a manual act: Facebook's Sharing Debugger has a Scrape
+ * Again button, and for WhatsApp the practical answer is to share a link it has
+ * not seen before.
+ *
  * FNV-1a rather than a crypto hash: this is a cache key, not a signature, and
  * it has to be computable in the browser as well as on the server.
  */
