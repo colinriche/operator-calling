@@ -1,7 +1,15 @@
 import { ImageResponse } from "next/og";
 import type { NextRequest } from "next/server";
 import { FALLBACK_PNG } from "@/lib/waitlist/og-fallback";
-import { buildWaitlistPresentation } from "@/lib/waitlist/presentation";
+import {
+  readWaitlistCard,
+  storeWaitlistCard,
+  waitlistCardPath,
+} from "@/lib/waitlist/og-store";
+import {
+  buildWaitlistPresentation,
+  waitlistOgImageVersion,
+} from "@/lib/waitlist/presentation";
 import { resolveWaitlistContext } from "@/lib/waitlist/server";
 import { BRAND_ART_DATA_URI } from "@/lib/waitlist/topic-art";
 
@@ -227,6 +235,15 @@ async function render(req: NextRequest): Promise<Response> {
   );
   const p = buildWaitlistPresentation(context);
 
+  // Rendered once per version, then read back. The `v` in the URL is not
+  // trusted for this — the path is keyed on the version of the presentation
+  // actually resolved here, so a stale or invented `v` cannot make one card be
+  // stored under another's address.
+  const path = waitlistCardPath(context.sourceCode, waitlistOgImageVersion(p));
+
+  const stored = await readWaitlistCard(path);
+  if (stored && isPng(stored)) return imageResponse(stored, { cache: true });
+
   const [headingFont, bodyFont, uploaded] = await Promise.all([
     loadFont("Sora", 700),
     loadFont("Inter", 400),
@@ -379,6 +396,10 @@ async function render(req: NextRequest): Promise<Response> {
     );
     return imageResponse(FALLBACK_PNG, { cache: false });
   }
+
+  // Stored for next time, and — more to the point — so the page can hand
+  // Facebook the file's own URL instead of this endpoint.
+  await storeWaitlistCard(path, png);
 
   return imageResponse(png, { cache: true });
 }

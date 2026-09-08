@@ -16,6 +16,12 @@ import {
 } from "@/components/marketing/FeatureSections";
 import { GroupsSection } from "@/components/marketing/GroupsSection";
 import {
+  cardBucketName,
+  waitlistCardExists,
+  waitlistCardPath,
+  waitlistCardUrl,
+} from "@/lib/waitlist/og-store";
+import {
   buildWaitlistPresentation,
   waitlistOgImageUrl,
   waitlistOgImageVersion,
@@ -51,6 +57,43 @@ async function origin(): Promise<string> {
   return host ? `${proto}://${host}` : "https://operatorcalling.com";
 }
 
+/**
+ * Where Facebook is sent for the card.
+ *
+ * The stored file whenever there is one, and the renderer only until then.
+ *
+ * This is the fix for a published Facebook post showing a blank image where its
+ * composer preview had shown the card. The renderer is fine for a plain GET and
+ * wrong for everything else a second fetch might do: asked for a byte range it
+ * answers 200 with a truncated body rather than 206, a HEAD costs a full render
+ * whose output is discarded, and a cold edge takes seconds. Storage answers all
+ * three the way a file does, because it is one.
+ *
+ * The first scrape of a new version still gets the renderer — nothing has been
+ * stored yet — and that request is what stores it. Every later scrape, the
+ * publish-time one included, gets the file. Neither URL ever returns different
+ * bytes for the same version, which is the property that actually matters.
+ *
+ * No render happens here. One existence check, and the page never waits on
+ * satori to answer a visitor.
+ */
+async function ogImageUrl(
+  site: string,
+  sourceCode: string | null,
+  version: string
+): Promise<string> {
+  try {
+    const path = waitlistCardPath(sourceCode, version);
+    if (await waitlistCardExists(path)) {
+      return waitlistCardUrl(cardBucketName(), path);
+    }
+  } catch (err) {
+    // Storage being unreachable must not cost the page its preview.
+    console.error("[waitlist] card lookup failed:", err);
+  }
+  return waitlistOgImageUrl(site, sourceCode, version);
+}
+
 export async function generateMetadata({
   searchParams,
 }: {
@@ -63,11 +106,8 @@ export async function generateMetadata({
   // Versioned, so replacing a family photograph or changing the artwork gives
   // the scrapers an address they have not already cached. Without it a stale
   // card can outlive the picture it shows by weeks.
-  const image = waitlistOgImageUrl(
-    site,
-    context.sourceCode,
-    waitlistOgImageVersion(p)
-  );
+  const version = waitlistOgImageVersion(p);
+  const image = await ogImageUrl(site, context.sourceCode, version);
 
   // The canonical address of this page. Only `s` is carried: `t` is cosmetic
   // and `share`/`preview` describe how someone arrived, not what they are
