@@ -34,16 +34,25 @@ function scrollToForm(event: React.MouseEvent<HTMLAnchorElement>) {
 
 interface Props {
   label?: string;
+  /**
+   * "dark" is for sitting on a gold panel. It is a tone rather than override
+   * classes because `.gradient-gold` sets the `background` shorthand, which
+   * beats any bg-* class passed in and left gold text on a gold button.
+   */
+  tone?: "gold" | "dark";
   className?: string;
 }
 
-export function JoinWaitlistButton({ label = "Join the waitlist", className }: Props) {
+export function JoinWaitlistButton({ label = "Join the waitlist", tone = "gold", className }: Props) {
   return (
     <a
       href={`#${WAITLIST_FORM_ANCHOR}`}
       onClick={scrollToForm}
       className={cn(
-        "inline-flex items-center justify-center gap-2 h-12 px-8 rounded-xl gradient-gold border-0 text-primary-foreground font-heading font-semibold text-base hover:opacity-90 transition-opacity",
+        "inline-flex items-center justify-center gap-2 h-12 px-8 rounded-xl border-0 font-heading font-semibold text-base hover:opacity-90 transition-opacity",
+        tone === "gold"
+          ? "gradient-gold text-primary-foreground"
+          : "bg-primary-foreground text-primary",
         className
       )}
     >
@@ -81,7 +90,7 @@ export function JoinWaitlistFinalCta({ heading, body }: { heading: string; body:
           <p className="text-primary-foreground/80 text-lg mb-8 max-w-xl mx-auto text-balance">
             {body}
           </p>
-          <JoinWaitlistButton className="bg-primary-foreground text-primary hover:bg-primary-foreground/90 bg-none" />
+          <JoinWaitlistButton tone="dark" />
         </div>
       </div>
     </section>
