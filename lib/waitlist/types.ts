@@ -207,8 +207,10 @@ export interface WaitlistPresentation {
   lead: string;
   /** Longer explanation shown only on the page. */
   body: string;
+  /** Family pages only: the second half of `body`, after the sign-off line. */
+  bodyContinued: string | null;
   tagline: string | null;
-  /** Closing strapline under the tagline. Family pages only. */
+  /** Strapline between `body` and `bodyContinued`. Family pages only. */
   signoff: string | null;
   bullets: Array<{ id: "availability" | "incoming" | "privacy"; text: string }>;
   /** Shown prominently, above the form. Null where it would be meaningless. */

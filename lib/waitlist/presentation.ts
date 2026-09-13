@@ -250,7 +250,8 @@ function existingConnectionsCopy(group: string): { lead: string; body: string } 
  */
 const FAMILY_COPY = {
   lead: "Keep in touch in a different way. Let The Operator bring family members together for one-to-one calls as and when the time suits.",
-  body: "Families stay connected in all sorts of ways. The Operator adds something different: every so often, it pairs members and makes the call between them. It can pair together those who speak regularly, create a chance to catch up with someone you haven't spoken to for a while, you may even chat with family you never knew you had. You stay in control, with privacy settings that let you choose who you do and don't want to be connected with. It creates more opportunities to talk, helping keep family relationships active without anyone having to decide who should call whom. The app is for those that like to chat the old fashioned way, not by typing but by actual talking, if you want your phone to ring more often then this app is for you.",
+  body: "Families stay connected in all sorts of ways. The Operator adds something different: every so often, it pairs members and makes the call between them. It can pair together those who speak regularly, create a chance to catch up with someone you haven't spoken to for a while, you may even chat with family you never knew you had.",
+  bodyContinued: "You stay in control, with privacy settings that let you choose who you do and don't want to be connected with. It creates more opportunities to talk, helping keep family relationships active without anyone having to decide who should call whom. The app is for those that like to chat the old fashioned way, not by typing but by actual talking, if you want your phone to ring more often then this app is for you.",
   tagline: "The Operator makes the call, so you don't have to.",
   signoff: "The Operator app, for families, groups and communities",
 };
@@ -317,6 +318,7 @@ export function buildWaitlistPresentation(
     formHeading: "Register your interest",
     tagline: TAGLINE as string | null,
     signoff: null as string | null,
+    bodyContinued: null as string | null,
     // Asking a family page whether you would also like a family page is asking
     // something the visitor has already answered by being here.
     familyPrompt: context.mode === "family" ? null : FAMILY_PROMPT,
@@ -339,6 +341,7 @@ export function buildWaitlistPresentation(
       heading,
       lead: FAMILY_COPY.lead,
       body: FAMILY_COPY.body,
+      bodyContinued: FAMILY_COPY.bodyContinued,
       tagline: FAMILY_COPY.tagline,
       signoff: FAMILY_COPY.signoff,
       disclaimer: NEUTRAL_DISCLAIMER,

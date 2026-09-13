@@ -206,6 +206,7 @@ describe("family mode", () => {
       "Keep in touch in a different way. Let The Operator bring family members together for one-to-one calls as and when the time suits."
     );
     expect(p.body).toContain("Families stay connected in all sorts of ways.");
+    expect(p.bodyContinued).toMatch(/^You stay in control/);
     expect(p.tagline).toBe("The Operator makes the call, so you don't have to.");
     expect(p.signoff).toBe("The Operator app, for families, groups and communities");
   });

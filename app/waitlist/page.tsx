@@ -197,15 +197,21 @@ export default async function WaitlistPage({
         {p.body}
       </p>
 
-      {p.tagline && (
-        <p className={`font-heading text-base text-foreground/80 ${p.signoff ? "mb-2" : "mb-8"}`}>
-          {p.tagline}
+      {p.signoff && (
+        <p className="font-heading text-sm font-semibold text-primary mb-4">
+          {p.signoff}
         </p>
       )}
 
-      {p.signoff && (
-        <p className="font-heading text-sm font-semibold text-primary mb-8">
-          {p.signoff}
+      {p.bodyContinued && (
+        <p className="text-base text-muted-foreground leading-relaxed mb-4">
+          {p.bodyContinued}
+        </p>
+      )}
+
+      {p.tagline && (
+        <p className="font-heading text-base text-foreground/80 mb-8">
+          {p.tagline}
         </p>
       )}
 
