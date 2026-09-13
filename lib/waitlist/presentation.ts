@@ -223,7 +223,7 @@ function sharedInterestCopy(topic: string): { lead: string; body: string } {
 }
 
 /**
- * Type 1: a family, a year group, an old team.
+ * Type 1: a year group, an old team. Family pages have their own wording below.
  *
  * The argument is not "we save you the admin". People in these groups can
  * already reach each other; what they have lost is the everyday reason to —
@@ -242,6 +242,18 @@ function existingConnectionsCopy(group: string): { lead: string; body: string } 
     body: `When the everyday reasons for calling disappear, people can gradually drift apart. The Operator gives those connections a reason to talk again, occasionally bringing two members together for a one-to-one call. You stay in control, with privacy settings that let you choose who you do and who you don't want to be connected with. It helps keep relationships alive and strengthen the bond, rather than letting them dwindle into messages and social-media reactions.`,
   };
 }
+
+/**
+ * A family page's own wording. Still Type 1 in substance — the call arrives
+ * rather than being arranged — but written for families specifically, so it
+ * names no one: the family's name is already the heading directly above.
+ */
+const FAMILY_COPY = {
+  lead: "Keep in touch in a different way. Let The Operator bring family members together for one-to-one calls as and when the time suits.",
+  body: "Families stay connected in all sorts of ways. The Operator adds something different: every so often, it pairs members and makes the call between them. It can pair together those who speak regularly, create a chance to catch up with someone you haven't spoken to for a while, you may even chat with family you never knew you had. You stay in control, with privacy settings that let you choose who you do and don't want to be connected with. It creates more opportunities to talk, helping keep family relationships active without anyone having to decide who should call whom. The app is for those that like to chat the old fashioned way, not by typing but by actual talking, if you want your phone to ring more often then this app is for you.",
+  tagline: "The Operator makes the call, so you don't have to.",
+  signoff: "The Operator app, for families, groups and communities",
+};
 
 // ─── What a link preview says ────────────────────────────────────────────────
 //
@@ -304,6 +316,7 @@ export function buildWaitlistPresentation(
     bullets: bulletsFor(context.connectionType),
     formHeading: "Register your interest",
     tagline: TAGLINE as string | null,
+    signoff: null as string | null,
     // Asking a family page whether you would also like a family page is asking
     // something the visitor has already answered by being here.
     familyPrompt: context.mode === "family" ? null : FAMILY_PROMPT,
@@ -320,18 +333,14 @@ export function buildWaitlistPresentation(
     // name has not been filled in yet still has to render something truthful.
     const family = context.familyName || context.publicDisplayName || "your family";
     const heading = leadingCapital(family);
-    // A family is the clearest case of people who already know each other, so
-    // it uses the same Type 1 wording as an old year group or former
-    // colleagues rather than a bespoke variant that says the same thing
-    // differently.
-    const { lead, body } = existingConnectionsCopy(family);
-
     return {
       ...common,
       eyebrow: "A private calling group",
       heading,
-      lead,
-      body,
+      lead: FAMILY_COPY.lead,
+      body: FAMILY_COPY.body,
+      tagline: FAMILY_COPY.tagline,
+      signoff: FAMILY_COPY.signoff,
       disclaimer: NEUTRAL_DISCLAIMER,
       independenceNote: null,
       formIntro: `Register your interest in joining calls with ${family}.`,

@@ -202,7 +202,12 @@ describe("family mode", () => {
     expect(p.heading).toBe("The Okonkwo family");
     expect(p.og.title).toBe("The Okonkwo family");
     expect(p.hero).toMatchObject({ kind: "image", src: fields.heroImageUrl });
-    expect(p.lead).toContain("the Okonkwo family");
+    expect(p.lead).toBe(
+      "Keep in touch in a different way. Let The Operator bring family members together for one-to-one calls as and when the time suits."
+    );
+    expect(p.body).toContain("Families stay connected in all sorts of ways.");
+    expect(p.tagline).toBe("The Operator makes the call, so you don't have to.");
+    expect(p.signoff).toBe("The Operator app, for families, groups and communities");
   });
 
   it("renders without an image, and without a hole where one would be", () => {
@@ -339,7 +344,7 @@ describe("connection type", () => {
     );
 
     expect(p.connectionType).toBe("existing_connections");
-    expect(p.lead).toContain("Keep in contact with the Okonkwo family");
+    expect(p.lead).toContain("bring family members together");
     expect(p.lead).not.toContain("share an interest");
   });
 
