@@ -895,7 +895,7 @@ export function OutreachSourcesPanel() {
                 <input
                   value={form.familyName}
                   onChange={(e) => setForm({ ...form, familyName: e.target.value })}
-                  placeholder="e.g. the Okonkwo family"
+                  placeholder="e.g. the Smith family"
                   className={inputClass}
                 />
                 <p className="text-xs text-muted-foreground mt-1.5">

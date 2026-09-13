@@ -196,7 +196,7 @@ export function WaitlistPagePanel({ source, onSaved }: Props) {
               id={`family-${source.id}`}
               value={familyName}
               onChange={(e) => setFamilyName(e.target.value)}
-              placeholder="e.g. the Okonkwo family"
+              placeholder="e.g. the Smith family"
               className="w-full h-9 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
             />
             <p className="text-xs text-muted-foreground mt-1.5">
