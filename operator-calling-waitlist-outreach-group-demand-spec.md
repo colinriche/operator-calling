@@ -29,7 +29,7 @@ When a user makes themselves available for a scheduled calling period, an inboun
 
 The central idea is:
 
-> The operator makes the call, so you do not have to.
+> The Operator makes the call, so you do not have to.
 
 Operator can help people who already share an interest through a forum, group, discussion, social media page or other online audience move beyond written messages and have optional one-to-one voice conversations.
 
@@ -895,7 +895,7 @@ When enough people register, an Operator calling group may be created for this i
 ## Optional product line
 
 ```text
-The operator makes the call, so you do not have to.
+The Operator makes the call, so you do not have to.
 ```
 
 This line may be used as:
