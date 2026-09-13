@@ -44,7 +44,10 @@ export function waitlistCardPath(
   version: string
 ): string {
   const safe = /^[a-z0-9]{1,16}$/.test(version) ? version : "0";
-  return `${folder(sourceCode)}/${safe}.png`;
+  // .jpg: the card is stored as JPEG to stay under WhatsApp's size limit. The
+  // extension also keeps these paths clear of the oversized .png cards that
+  // came before, which are deleted as each source's new card is stored.
+  return `${folder(sourceCode)}/${safe}.jpg`;
 }
 
 /**
@@ -119,9 +122,9 @@ export async function storeWaitlistCard(
   try {
     const bucket = getAdminBucket();
     await bucket.file(path).save(bytes, {
-      contentType: "image/png",
+      contentType: "image/jpeg",
       metadata: {
-        contentType: "image/png",
+        contentType: "image/jpeg",
         // A year: the path already carries the version, so these bytes can
         // never legitimately change. A new card is a new address.
         cacheControl: "public, max-age=31536000, immutable",

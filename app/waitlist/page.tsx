@@ -144,9 +144,9 @@ export async function generateMetadata({
           url: image,
           width: 1200,
           height: 630,
-          // Must match what the route actually serves. It renders PNG and
-          // checks the magic bytes before sending, so this cannot drift.
-          type: "image/png",
+          // Must match what the route actually serves: JPEG, read off the
+          // bytes. Only a failed encode serves PNG, and that is never stored.
+          type: "image/jpeg",
           alt: p.og.title,
         },
       ],

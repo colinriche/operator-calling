@@ -1,5 +1,6 @@
 import { ImageResponse } from "next/og";
 import type { NextRequest } from "next/server";
+import { isJpeg, pngToJpeg } from "@/lib/waitlist/card-encode";
 import { FALLBACK_PNG } from "@/lib/waitlist/og-fallback";
 import {
   readWaitlistCard,
@@ -69,9 +70,9 @@ import { BRAND_ART_DATA_URI } from "@/lib/waitlist/topic-art";
 // image". Adding sharp to serverExternalPackages did not change the emitted
 // specifier.
 //
-// So: nothing is imported here that cannot be bundled. Getting the file size
-// down is worth doing, but with a pure-JavaScript encoder that has no platform
-// binary to resolve — not by reaching for a native module again.
+// So: nothing is imported here that cannot be bundled. The size is now brought
+// down by a pure-JavaScript JPEG encoder (lib/waitlist/card-encode.ts), which
+// has no platform binary to resolve.
 //
 // The layout helps on its own. The picture occupies 434 of the 630 rows and the
 // title band beneath it is flat colour, which measured 583KB for a realistic
@@ -186,7 +187,7 @@ function imageResponse(bytes: Buffer, { cache }: { cache: boolean }): Response {
   return new Response(new Uint8Array(bytes), {
     status: 200,
     headers: {
-      "content-type": "image/png",
+      "content-type": isJpeg(bytes) ? "image/jpeg" : "image/png",
       "content-length": String(bytes.byteLength),
       // A scraper fetches this twice — once to build the composer preview and
       // again when the post is submitted — and the second fetch has a tighter
@@ -242,7 +243,7 @@ async function render(req: NextRequest): Promise<Response> {
   const path = waitlistCardPath(context.sourceCode, waitlistOgImageVersion(p));
 
   const stored = await readWaitlistCard(path);
-  if (stored && isPng(stored)) return imageResponse(stored, { cache: true });
+  if (stored && isJpeg(stored)) return imageResponse(stored, { cache: true });
 
   const [headingFont, bodyFont, uploaded] = await Promise.all([
     loadFont("Sora", 700),
@@ -397,9 +398,21 @@ async function render(req: NextRequest): Promise<Response> {
     return imageResponse(FALLBACK_PNG, { cache: false });
   }
 
+  // JPEG, or WhatsApp drops a photograph card for being too big. If the encode
+  // fails the PNG is served, since a large image beats no image — but neither
+  // stored nor cached, so the next scrape tries the encode again rather than
+  // pinning a card WhatsApp will refuse.
+  let card: Buffer;
+  try {
+    card = pngToJpeg(png);
+  } catch (err) {
+    console.error("[og/waitlist] JPEG encode failed, serving PNG:", err);
+    return imageResponse(png, { cache: false });
+  }
+
   // Stored for next time, and — more to the point — so the page can hand
   // Facebook the file's own URL instead of this endpoint.
-  await storeWaitlistCard(path, png);
+  await storeWaitlistCard(path, card);
 
-  return imageResponse(png, { cache: true });
+  return imageResponse(card, { cache: true });
 }

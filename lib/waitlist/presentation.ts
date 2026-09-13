@@ -579,6 +579,9 @@ export function waitlistOgImageUrl(
  */
 export function waitlistOgImageVersion(p: WaitlistPresentation): string {
   const material = [
+    // The encoding. Moving from PNG to JPEG had to move every address, or the
+    // edge would keep serving the oversized PNG under the old one for a day.
+    "jpeg",
     p.mode,
     p.hero.kind,
     p.hero.src,
