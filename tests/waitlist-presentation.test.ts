@@ -399,12 +399,12 @@ describe("the family prompt", () => {
 // title and description in its own type underneath the card, so these have to
 // arrive whole and the card must not repeat them.
 describe("what a link preview says", () => {
-  it("names the family, briefly, on a family page", () => {
+  it("uses the family wording on a family page", () => {
     const p = buildWaitlistPresentation(
       contextFor({ waitlistMode: "family", familyName: "the Okonkwo family" })
     );
     expect(p.og.description).toBe(
-      "The Operator keeps the Okonkwo family in touch by occasionally bringing two members together for a private one-to-one call."
+      "The Operator app brings family members together through unexpected one-to-one calls."
     );
   });
 

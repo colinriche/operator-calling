@@ -257,6 +257,11 @@ function existingConnectionsCopy(group: string): { lead: string; body: string } 
 // Built from the same names the page uses, so it cannot describe a different
 // audience from the one on the other side of the link.
 
+// The one exception to naming the audience: a family preview uses fixed
+// wording chosen for it, since the family's name is already the title above.
+const FAMILY_SOCIAL_DESCRIPTION =
+  "The Operator app brings family members together through unexpected one-to-one calls.";
+
 function socialDescriptionForKnownGroup(group: string): string {
   return `The Operator keeps ${group} in touch by occasionally bringing two members together for a private one-to-one call.`;
 }
@@ -340,7 +345,7 @@ export function buildWaitlistPresentation(
       hero: heroFor(context, heading),
       og: {
         title: heading,
-        description: socialDescriptionForKnownGroup(family),
+        description: FAMILY_SOCIAL_DESCRIPTION,
       },
     };
   }
