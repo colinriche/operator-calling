@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { requireAdmin } from "@/lib/admin-auth";
+import { warmWaitlistCardsForSource } from "@/lib/waitlist/og-card";
 import {
   COLLECTIONS,
   CONNECTION_TYPE_IDS,
@@ -251,6 +252,10 @@ export async function PATCH(
     }
 
     await ref.set(update, { merge: true });
+    // Any edit can change the card — the family name, the mode, the artwork —
+    // so make it now rather than on the first share, which WhatsApp will not
+    // wait for. After the response, so saving is not slowed by a render.
+    after(() => warmWaitlistCardsForSource(id));
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error("[admin/demand-sources PATCH]", err);

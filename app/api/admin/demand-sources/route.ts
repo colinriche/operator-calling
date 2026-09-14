@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { requireAdmin } from "@/lib/admin-auth";
 import { groupsDb } from "@/lib/waitlist/group-linking";
+import { warmWaitlistCard } from "@/lib/waitlist/og-card";
 import {
   COLLECTIONS,
   CONNECTION_TYPE_IDS,
@@ -373,6 +374,10 @@ export async function POST(req: NextRequest) {
       organiserInterestCount: 0,
       shareClickCount: 0,
     });
+
+    // A new link has no card yet. Made now, so it is ready before anyone can
+    // paste the link into WhatsApp.
+    after(() => warmWaitlistCard(sourceCode));
 
     return NextResponse.json({
       id: sourceRef.id,

@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { requireAdmin } from "@/lib/admin-auth";
+import { warmWaitlistCardsForSource } from "@/lib/waitlist/og-card";
 import { getAdminServices } from "@/lib/firebase-admin";
 import { COLLECTIONS } from "@/lib/waitlist/constants";
 import {
@@ -206,6 +207,10 @@ export async function POST(
       },
       { merge: true }
     );
+
+    // The status just changed, which decides whether the links still serve
+    // this page or fall back to the global one — either way, a different card.
+    after(() => warmWaitlistCardsForSource(id));
 
     return NextResponse.json({
       success: true,

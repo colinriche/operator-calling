@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { requireAdmin } from "@/lib/admin-auth";
+import { warmWaitlistCardsForSource } from "@/lib/waitlist/og-card";
 import { getAdminBucket } from "@/lib/firebase-admin";
 import {
   COLLECTIONS,
@@ -170,6 +171,10 @@ export async function POST(
 
     await removeObject(previousPath);
 
+    // The new photograph is a new card. Made now, so the first share of the
+    // link is not the request that has to wait for it.
+    after(() => warmWaitlistCardsForSource(id));
+
     return NextResponse.json({ heroImageUrl });
   } catch (err) {
     console.error("[admin/demand-sources image POST]", err);
@@ -212,6 +217,8 @@ export async function DELETE(
     );
 
     await removeObject(snap.data()?.heroImagePath as string | undefined);
+
+    after(() => warmWaitlistCardsForSource(id));
 
     return NextResponse.json({ success: true });
   } catch (err) {

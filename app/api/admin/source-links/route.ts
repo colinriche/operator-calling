@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { requireAdmin } from "@/lib/admin-auth";
+import { warmWaitlistCard } from "@/lib/waitlist/og-card";
 import { COLLECTIONS, LINK_STATUSES } from "@/lib/waitlist/constants";
 import { createUniqueSourceCode, waitlistDb } from "@/lib/waitlist/server";
 import { buildTrackedUrl } from "@/lib/waitlist/tracked-url";
@@ -74,6 +75,10 @@ export async function POST(req: NextRequest) {
       shareClickCount: 0,
     });
 
+    // A new link has no card yet. Made now, so it is ready before anyone can
+    // paste the link into WhatsApp.
+    after(() => warmWaitlistCard(sourceCode));
+
     return NextResponse.json({
       id: ref.id,
       sourceCode,
@@ -119,7 +124,18 @@ export async function PATCH(req: NextRequest) {
 
   try {
     const db = waitlistDb();
-    await db.collection(COLLECTIONS.sourceLinks).doc(id).set(update, { merge: true });
+    const ref = db.collection(COLLECTIONS.sourceLinks).doc(id);
+    await ref.set(update, { merge: true });
+
+    // A link switched back on serves its page again, and its card may have
+    // been replaced while it was paused.
+    if (update.status === "active") {
+      after(async () => {
+        const code = (await ref.get()).data()?.sourceCode;
+        if (typeof code === "string" && code) await warmWaitlistCard(code);
+      });
+    }
+
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error("[admin/source-links PATCH]", err);
