@@ -355,6 +355,7 @@ export function buildWaitlistPresentation(
       hero: heroFor(context, heading),
       og: {
         title: heading,
+        facebookTitle: `${heading} · Keep in touch on The Operator`,
         description: FAMILY_SOCIAL_DESCRIPTION,
       },
     };
@@ -425,6 +426,7 @@ export function buildWaitlistPresentation(
       hero: heroFor(context, heading),
       og: {
         title: eyebrow ? `${heading} — ${eyebrow}` : heading,
+        facebookTitle: eyebrow ? `${heading} — ${eyebrow}` : heading,
         description: known
           ? socialDescriptionForKnownGroup(group)
           : socialDescriptionForInterest(topic),
@@ -458,7 +460,11 @@ export function buildWaitlistPresentation(
       "This might interest someone who'd rather talk than type. You make yourself available and The Operator arranges the call.",
     interestLabel: "talking with new people",
     hero: heroFor(context, heading),
-    og: { title: heading, description: GLOBAL_SOCIAL_DESCRIPTION },
+    og: {
+      title: heading,
+      facebookTitle: heading,
+      description: GLOBAL_SOCIAL_DESCRIPTION,
+    },
   };
 }
 

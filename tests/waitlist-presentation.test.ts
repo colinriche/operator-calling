@@ -414,6 +414,26 @@ describe("what a link preview says", () => {
     );
   });
 
+  // Facebook hides the description and prints the title under a card that
+  // already shows the name, so it gets a title that says something more.
+  it("gives Facebook a longer title on a family page, and no one else", () => {
+    const p = buildWaitlistPresentation(
+      contextFor({ waitlistMode: "family", familyName: "the Okonkwo family" })
+    );
+    expect(p.og.title).toBe("The Okonkwo family");
+    expect(p.og.facebookTitle).toBe(
+      "The Okonkwo family · Keep in touch on The Operator"
+    );
+  });
+
+  it("keeps the card's address the same whichever title is sent", () => {
+    const p = buildWaitlistPresentation(
+      contextFor({ waitlistMode: "family", familyName: "the Okonkwo family" })
+    );
+    const plain = { ...p, og: { ...p.og, facebookTitle: p.og.title } };
+    expect(waitlistOgImageVersion(p)).toBe(waitlistOgImageVersion(plain));
+  });
+
   it("names the topic on a shared-interest page", () => {
     const p = buildWaitlistPresentation(contextFor(COMMUNITY));
     expect(p.og.description).toContain("live poker");

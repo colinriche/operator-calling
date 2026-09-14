@@ -231,7 +231,17 @@ export interface WaitlistPresentation {
    */
   interestLabel: string;
   hero: WaitlistHero;
-  og: { title: string; description: string };
+  og: {
+    title: string;
+    /**
+     * The title sent to Facebook's link fetcher only. Facebook prints the title
+     * under a card that already shows the name, and hides the description, so
+     * a bare name arrives twice and says nothing else. WhatsApp shows the
+     * description and keeps `title`. Not part of the card's version.
+     */
+    facebookTitle: string;
+    description: string;
+  };
 }
 
 // ─── Registration ────────────────────────────────────────────────────────────
