@@ -222,7 +222,9 @@ export function WaitlistPagePanel({ source, onSaved }: Props) {
                 "object-cover rounded-md border border-border/60",
                 preview.hero.kind === "brand"
                   ? "w-10 h-10"
-                  : "w-full aspect-[16/9]"
+                  : preview.hero.kind === "default"
+                    ? "w-full aspect-[16/9] object-contain bg-[#020202]"
+                    : "w-full aspect-[16/9]"
               )}
             />
             {preview.eyebrow && (
@@ -253,7 +255,12 @@ export function WaitlistPagePanel({ source, onSaved }: Props) {
               <img
                 src={preview.hero.src}
                 alt=""
-                className="w-full aspect-[1.91/1] object-cover bg-muted"
+                className={cn(
+                  "w-full aspect-[1.91/1] bg-muted",
+                  preview.hero.kind === "default"
+                    ? "object-contain bg-[#020202]"
+                    : "object-cover"
+                )}
               />
               <div className="p-2.5">
                 <p className="text-xs font-semibold text-foreground leading-snug">

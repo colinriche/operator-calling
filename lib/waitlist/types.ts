@@ -185,6 +185,8 @@ export interface WaitlistContext {
 
 export type WaitlistHero =
   | { kind: "brand"; src: string; alt: string }
+  /** The incoming-call picture the global page shows. See default-hero.ts. */
+  | { kind: "default"; src: string; alt: string }
   | { kind: "art"; src: string; alt: string }
   | { kind: "image"; src: string; alt: string };
 

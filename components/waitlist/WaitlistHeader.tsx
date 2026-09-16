@@ -9,8 +9,8 @@ import type { WaitlistPresentation } from "@/lib/waitlist/types";
 // file: every string comes from lib/waitlist/presentation.ts, which is also
 // what the Open Graph tags and the preview image are built from.
 
-// The hero is a data URI (curated artwork) or a Firebase Storage download URL
-// (an uploaded family image). next/image would buy nothing for the first and
+// The hero is a data URI (curated artwork), a Firebase Storage download URL
+// (an uploaded family image) or a small file in /public (the default picture). next/image would buy nothing for the first and
 // need remotePatterns for the second, so this is a plain <img> deliberately.
 /* eslint-disable @next/next/no-img-element */
 
@@ -28,6 +28,14 @@ export function WaitlistHeader({ p }: { p: WaitlistPresentation }) {
           src={p.hero.src}
           alt={p.hero.alt}
           className="w-full aspect-[16/9] object-cover rounded-2xl border border-border/60 mb-6 bg-muted"
+        />
+      ) : p.hero.kind === "default" ? (
+        // A portrait phone, so it is contained rather than cropped, on the
+        // same near-black the picture itself is composed on.
+        <img
+          src={p.hero.src}
+          alt={p.hero.alt}
+          className="w-full h-64 sm:h-80 object-contain rounded-2xl bg-[#020202] mb-6"
         />
       ) : (
         <img

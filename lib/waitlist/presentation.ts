@@ -34,6 +34,7 @@ import {
   sourceDescriptor,
   sourceLine,
 } from "./copy";
+import { DEFAULT_HERO_ALT, DEFAULT_HERO_SRC } from "./default-hero";
 import { BRAND_ART_DATA_URI, isTopicArtId, topicArtDataUri } from "./topic-art";
 import { urlSourceCode } from "./tracked-url";
 import type {
@@ -483,6 +484,12 @@ function heroFor(context: WaitlistContext, heading: string): WaitlistHero {
       src: topicArtDataUri(context.topicArtId),
       alt: "",
     };
+  }
+
+  // The global page has no family and no topic to picture, so it gets the
+  // product itself: a call from The Operator arriving.
+  if (context.mode === "global") {
+    return { kind: "default", src: DEFAULT_HERO_SRC, alt: DEFAULT_HERO_ALT };
   }
 
   return { kind: "brand", src: BRAND_ART_DATA_URI, alt: "" };

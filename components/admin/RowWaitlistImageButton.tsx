@@ -143,7 +143,9 @@ export function RowWaitlistImageButton({ source, onSaved }: Props) {
       ? "uploaded hero image"
       : hero.kind === "art"
         ? `artwork: ${topicArtLabel(source.topicArtId)}`
-        : "no image — the page uses the brand mark";
+        : hero.kind === "default"
+          ? "global mode — the default incoming-call image"
+          : "no image — the page uses the brand mark";
 
   return (
     <>
@@ -223,7 +225,9 @@ export function RowWaitlistImageButton({ source, onSaved }: Props) {
                   ? "the uploaded image"
                   : hero.kind === "art"
                     ? `the ${topicArtLabel(source.topicArtId)} artwork`
-                    : "the Operator brand mark"}
+                    : hero.kind === "default"
+                      ? "the default incoming-call image"
+                      : "the Operator brand mark"}
               </span>
               .
             </p>
