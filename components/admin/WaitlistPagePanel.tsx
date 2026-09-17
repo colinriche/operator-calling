@@ -56,7 +56,8 @@ export function heroThumbClass(hero: WaitlistHero): string {
       ? "object-contain bg-[#020202]"
       : "object-contain bg-[#FBF7EF]";
   }
-  return "object-cover";
+  // Uploads can be any shape; a thumbnail shows them whole, as the page does.
+  return hero.kind === "image" ? "object-contain" : "object-cover";
 }
 
 export function WaitlistPagePanel({ source, onSaved }: Props) {
@@ -323,9 +324,13 @@ export function WaitlistPagePanel({ source, onSaved }: Props) {
               alt=""
               className={cn(
                 "rounded-md border border-border/60",
-                preview.hero.kind === "brand" || preview.hero.kind === "art"
+                preview.hero.kind === "brand"
                   ? "w-10 h-10 object-cover"
-                  : cn("w-full aspect-[16/9]", heroThumbClass(preview.hero))
+                  : preview.hero.kind === "art"
+                    ? "w-14 h-[42px] object-cover"
+                    : preview.hero.kind === "image"
+                      ? "block w-full h-auto max-h-56 object-contain bg-muted"
+                      : cn("w-full aspect-[16/9]", heroThumbClass(preview.hero))
               )}
             />
             {preview.eyebrow && (

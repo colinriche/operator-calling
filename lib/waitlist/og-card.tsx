@@ -14,6 +14,7 @@ import {
 } from "@/lib/waitlist/presentation";
 import { resolveWaitlistContext, waitlistDb } from "@/lib/waitlist/server";
 import { BUILTIN_CARDS } from "@/lib/waitlist/builtin-card-data";
+import { imageSize, type ImageSize } from "@/lib/waitlist/image-size";
 import { BRAND_ART_DATA_URI } from "@/lib/waitlist/topic-art";
 import type { WaitlistPresentation } from "@/lib/waitlist/types";
 
@@ -117,7 +118,9 @@ async function loadFont(
  * No resizing: that needs an image codec, and an image codec here is what broke
  * the endpoint. satori scales it into the frame instead.
  */
-async function inlineImage(url: string): Promise<string | null> {
+async function inlineImage(
+  url: string
+): Promise<{ dataUri: string; size: ImageSize | null } | null> {
   try {
     const res = await fetch(url, { signal: AbortSignal.timeout(4000) });
     if (!res.ok) return null;
@@ -130,7 +133,10 @@ async function inlineImage(url: string): Promise<string | null> {
     // enormous should not be pulled into memory.
     if (buffer.byteLength > 8 * 1024 * 1024) return null;
 
-    return `data:${type};base64,${buffer.toString("base64")}`;
+    return {
+      dataUri: `data:${type};base64,${buffer.toString("base64")}`,
+      size: imageSize(buffer),
+    };
   } catch {
     return null;
   }
@@ -245,7 +251,7 @@ async function render(p: WaitlistPresentation, path: string): Promise<WaitlistCa
 
   // An uploaded image that could not be fetched falls back to the brand mark
   // rather than a blank panel.
-  const photograph = p.hero.kind === "image" ? uploaded : null;
+  const photograph = p.hero.kind === "image" ? (uploaded?.dataUri ?? null) : null;
   const builtinCard =
     p.hero.kind === "builtin" ? (BUILTIN_CARDS[p.hero.builtinId] ?? null) : null;
   const src =
@@ -255,8 +261,15 @@ async function render(p: WaitlistPresentation, path: string): Promise<WaitlistCa
 
   // Two treatments, because the two kinds of picture want opposite things.
   //
-  // A photograph is cropped to fill the frame — losing its edges costs nothing,
-  // and inlineImage has already done the crop, on the subject.
+  // An uploaded picture is never cropped at the sides. Filling the frame
+  // regardless used to cut the ends off any wide picture — the words on a
+  // banner, the people at a photograph's edges. So it is fitted to the card's
+  // full width: a banner wider than the strip keeps every edge on cream bands,
+  // and a landscape photograph loses a little of its top and bottom, evenly.
+  //
+  // A portrait picture is the exception. At full width only a slice of its
+  // middle would show, so past 1.5× the strip's height it is fitted to the
+  // height instead, whole, on dark bands.
   //
   // An illustration is not cropped to the frame. Every piece is a composed
   // 400×300 scene, and squeezing it into a 1200×434 letterbox would cut
@@ -273,6 +286,19 @@ async function render(p: WaitlistPresentation, path: string): Promise<WaitlistCa
   // from the embedded strip, since the page's src is a relative path satori
   // cannot load.
   const isPhotograph = photograph !== null || builtinCard !== null;
+  // Full width, at the picture's own proportions. Unknown proportions (a header
+  // the reader does not understand) are contained instead, which cannot crop.
+  const uploadedSize = photograph ? (uploaded?.size ?? null) : null;
+  const fullWidthHeight = uploadedSize
+    ? Math.round(WIDTH * (uploadedSize.height / uploadedSize.width))
+    : VISUAL_HEIGHT;
+  const isPortrait = fullWidthHeight > VISUAL_HEIGHT * 1.5;
+  const photoWidth =
+    uploadedSize && isPortrait
+      ? Math.round(VISUAL_HEIGHT * (uploadedSize.width / uploadedSize.height))
+      : WIDTH;
+  const photoHeight = isPortrait ? VISUAL_HEIGHT : fullWidthHeight;
+  const isWide = photograph !== null && photoHeight < VISUAL_HEIGHT;
   const artHeight = 520;
   const artWidth = Math.round(artHeight * (400 / 300));
 
@@ -300,7 +326,7 @@ async function render(p: WaitlistPresentation, path: string): Promise<WaitlistCa
             height: VISUAL_HEIGHT,
             alignItems: "center",
             justifyContent: "center",
-            backgroundColor: isPhotograph ? INK : SAND,
+            backgroundColor: isWide ? CREAM : isPhotograph ? INK : SAND,
             overflow: "hidden",
           }}
         >
@@ -308,12 +334,13 @@ async function render(p: WaitlistPresentation, path: string): Promise<WaitlistCa
           <img
             src={src}
             alt=""
-            width={isPhotograph ? WIDTH : artWidth}
-            height={isPhotograph ? VISUAL_HEIGHT : artHeight}
+            width={photograph ? photoWidth : isPhotograph ? WIDTH : artWidth}
+            height={photograph ? photoHeight : isPhotograph ? VISUAL_HEIGHT : artHeight}
             style={{
-              width: isPhotograph ? WIDTH : artWidth,
-              height: isPhotograph ? VISUAL_HEIGHT : artHeight,
-              objectFit: "cover",
+              width: photograph ? photoWidth : isPhotograph ? WIDTH : artWidth,
+              height: photograph ? photoHeight : isPhotograph ? VISUAL_HEIGHT : artHeight,
+              flexShrink: 0,
+              objectFit: photograph && !uploadedSize ? "contain" : "cover",
             }}
           />
         </div>

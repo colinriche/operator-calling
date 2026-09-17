@@ -25,10 +25,13 @@ export function WaitlistHeader({ p }: { p: WaitlistPresentation }) {
           16/9 pushed the heading and the independence note below the fold on a
           phone, which is exactly where they must not be. */}
       {p.hero.kind === "image" ? (
+        // Never cropped. Full width at the picture's own proportions, so a wide
+        // banner shows every edge; a tall picture is capped in height and shown
+        // whole within it rather than cut down to a slice.
         <img
           src={p.hero.src}
           alt={p.hero.alt}
-          className="w-full aspect-[16/9] object-cover rounded-2xl border border-border/60 mb-6 bg-muted"
+          className="block w-full h-auto max-h-[28rem] object-contain rounded-2xl border border-border/60 mb-6 bg-muted"
         />
       ) : p.hero.kind === "builtin" &&
         builtinImage(p.hero.builtinId)?.display === "dark" ? (
@@ -50,7 +53,9 @@ export function WaitlistHeader({ p }: { p: WaitlistPresentation }) {
           src={p.hero.src}
           alt={p.hero.alt}
           aria-hidden={p.hero.alt === "" || undefined}
-          className="w-16 h-16 rounded-2xl object-cover mb-5"
+          // 4:3, the proportions every illustration is drawn at. A square
+          // crop cut off both sides of the scene.
+          className="w-20 h-15 rounded-2xl object-cover mb-5"
         />
       )}
 

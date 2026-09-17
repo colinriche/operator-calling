@@ -763,6 +763,9 @@ export function waitlistOgImageVersion(p: WaitlistPresentation): string {
     // The encoding. Moving from PNG to JPEG had to move every address, or the
     // edge would keep serving the oversized PNG under the old one for a day.
     "jpeg",
+    // How uploads are fitted. Cards stored before pictures stopped being
+    // cropped at the sides must not be served again under the same address.
+    "fit-width",
     p.mode,
     p.hero.kind,
     p.hero.src,
