@@ -1,9 +1,9 @@
-import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse, after } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { requireAdmin } from "@/lib/admin-auth";
 import { warmWaitlistCardsForSource } from "@/lib/waitlist/og-card";
 import { getAdminBucket } from "@/lib/firebase-admin";
+import { sniffImageType, storePublicImage } from "@/lib/waitlist/image-upload";
 import {
   COLLECTIONS,
   HERO_IMAGE_MAX_BYTES,
@@ -25,42 +25,6 @@ import { waitlistDb } from "@/lib/waitlist/server";
 // a request made any other way faces the same requirement.
 
 export const runtime = "nodejs";
-
-const EXTENSIONS: Record<string, string> = {
-  "image/jpeg": "jpg",
-  "image/png": "png",
-  "image/webp": "webp",
-};
-
-/**
- * The real type of the bytes, not the type the browser claimed.
- *
- * A declared content-type is caller-supplied. Storing whatever arrives under an
- * image/* label and then serving it from a public URL is how an "image upload"
- * quietly becomes file hosting.
- */
-function sniff(bytes: Uint8Array): string | null {
-  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
-    return "image/jpeg";
-  }
-  if (
-    bytes.length >= 8 &&
-    bytes[0] === 0x89 &&
-    bytes[1] === 0x50 &&
-    bytes[2] === 0x4e &&
-    bytes[3] === 0x47
-  ) {
-    return "image/png";
-  }
-  if (
-    bytes.length >= 12 &&
-    String.fromCharCode(...bytes.slice(0, 4)) === "RIFF" &&
-    String.fromCharCode(...bytes.slice(8, 12)) === "WEBP"
-  ) {
-    return "image/webp";
-  }
-  return null;
-}
 
 /** Best-effort removal of a replaced or deleted object. */
 async function removeObject(path: string | null | undefined): Promise<void> {
@@ -116,7 +80,7 @@ export async function POST(
   }
 
   const bytes = new Uint8Array(await file.arrayBuffer());
-  const contentType = sniff(bytes);
+  const contentType = sniffImageType(bytes);
   if (!contentType || !(HERO_IMAGE_TYPES as readonly string[]).includes(contentType)) {
     return NextResponse.json(
       { error: "That file is not a JPEG, PNG or WebP image." },
@@ -132,25 +96,11 @@ export async function POST(
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
-    const bucket = getAdminBucket();
-    // A random name per upload rather than a stable one: replacing the image
-    // must produce a new URL, or every crawler that cached the old preview
-    // would keep serving the picture the admin just took down.
-    const path = `waitlist-hero/${id}/${randomUUID()}.${EXTENSIONS[contentType]}`;
-    const downloadToken = randomUUID();
-
-    await bucket.file(path).save(Buffer.from(bytes), {
-      contentType,
-      metadata: {
-        contentType,
-        cacheControl: "public, max-age=3600",
-        // The download token is what makes the object readable without a
-        // signed request, and without touching the shared Storage ruleset.
-        metadata: { firebaseStorageDownloadTokens: downloadToken },
-      },
-    });
-
-    const heroImageUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(path)}?alt=media&token=${downloadToken}`;
+    const { path, url: heroImageUrl } = await storePublicImage(
+      `waitlist-hero/${id}`,
+      bytes,
+      contentType
+    );
 
     const previousPath = snap.data()?.heroImagePath as string | undefined;
 
@@ -164,6 +114,11 @@ export async function POST(
         // public, and when, is worth being able to answer later.
         heroImagePublicConfirmedAt: FieldValue.serverTimestamp(),
         heroImagePublicConfirmedBy: caller.uid,
+        // Uploading a family's photograph is choosing it. Without this, a page
+        // whose picture had been set explicitly would keep that and hide the
+        // photograph just uploaded.
+        imageChoice: "own",
+        imageChoiceUrl: null,
         updatedAt: FieldValue.serverTimestamp(),
       },
       { merge: true }
@@ -211,6 +166,9 @@ export async function DELETE(
         heroImageUploadedBy: null,
         heroImagePublicConfirmedAt: null,
         heroImagePublicConfirmedBy: null,
+        // A page pointing at the photograph just removed goes back to the
+        // default rather than pointing at nothing.
+        ...(snap.data()?.imageChoice === "own" ? { imageChoice: "", imageChoiceUrl: null } : {}),
         updatedAt: FieldValue.serverTimestamp(),
       },
       { merge: true }

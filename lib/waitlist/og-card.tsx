@@ -13,7 +13,7 @@ import {
   waitlistOgImageVersion,
 } from "@/lib/waitlist/presentation";
 import { resolveWaitlistContext, waitlistDb } from "@/lib/waitlist/server";
-import { DEFAULT_CARD_DATA_URI } from "@/lib/waitlist/default-hero";
+import { BUILTIN_CARDS } from "@/lib/waitlist/builtin-card-data";
 import { BRAND_ART_DATA_URI } from "@/lib/waitlist/topic-art";
 import type { WaitlistPresentation } from "@/lib/waitlist/types";
 
@@ -246,10 +246,12 @@ async function render(p: WaitlistPresentation, path: string): Promise<WaitlistCa
   // An uploaded image that could not be fetched falls back to the brand mark
   // rather than a blank panel.
   const photograph = p.hero.kind === "image" ? uploaded : null;
-  const isDefault = p.hero.kind === "default";
-  const src = isDefault
-    ? DEFAULT_CARD_DATA_URI
-    : (photograph ?? (p.hero.kind === "image" ? BRAND_ART_DATA_URI : p.hero.src));
+  const builtinCard =
+    p.hero.kind === "builtin" ? (BUILTIN_CARDS[p.hero.builtinId] ?? null) : null;
+  const src =
+    builtinCard ??
+    photograph ??
+    (p.hero.kind === "image" ? BRAND_ART_DATA_URI : p.hero.src);
 
   // Two treatments, because the two kinds of picture want opposite things.
   //
@@ -266,11 +268,11 @@ async function render(p: WaitlistPresentation, path: string): Promise<WaitlistCa
   // Because every scene is drawn on the same SAND field, the bands either side
   // read as part of the artwork rather than as letterboxing.
   //
-  // The default picture is neither: it is already composed at exactly the
+  // A built-in picture is neither: its strip is already composed at exactly the
   // visual area's size, so it is drawn edge to edge like a photograph. It comes
   // from the embedded strip, since the page's src is a relative path satori
   // cannot load.
-  const isPhotograph = photograph !== null || isDefault;
+  const isPhotograph = photograph !== null || builtinCard !== null;
   const artHeight = 520;
   const artWidth = Math.round(artHeight * (400 / 300));
 

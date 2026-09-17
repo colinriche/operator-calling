@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { DemandSourceSpreadsheet } from "@/components/admin/DemandSourceSpreadsheet";
+import { WaitlistDefaultsPanel } from "@/components/admin/WaitlistDefaultsPanel";
 
 // A second view of the demand sources the outreach page manages — the same
 // records, the same API routes, the same validation. Built for editing forty of
@@ -23,6 +24,10 @@ export default function AdminOutreachSpreadsheetPage() {
           Removing a source means archiving it, which keeps its registrations,
           tracked links and history.
         </p>
+      </div>
+
+      <div className="mb-6 max-w-5xl">
+        <WaitlistDefaultsPanel />
       </div>
 
       <DemandSourceSpreadsheet />

@@ -13,10 +13,16 @@ import {
   SHARE_CHANNELS,
   TESTER_CONSENT_VERSION,
   TESTER_STATUSES,
+  WAITLIST_DEFAULTS_DOC,
   type ShareChannel,
   type TesterStatus,
 } from "./constants";
 import { canonicalEmail, normaliseEmail } from "./email";
+import {
+  EMPTY_WAITLIST_DEFAULTS,
+  sanitiseDefaults,
+  type WaitlistDefaults,
+} from "./library";
 import {
   buildWaitlistPresentation,
   globalContext,
@@ -85,6 +91,23 @@ export async function getGlobalThreshold(db: Firestore): Promise<number> {
   return DEFAULT_DEMAND_THRESHOLD;
 }
 
+/**
+ * The default waitlist image and wording. A failed read costs the page its
+ * admin-edited defaults, never the page: the built-ins stand in.
+ */
+export async function getWaitlistDefaults(db: Firestore): Promise<WaitlistDefaults> {
+  try {
+    const snap = await db
+      .collection(COLLECTIONS.settings)
+      .doc(WAITLIST_DEFAULTS_DOC)
+      .get();
+    return sanitiseDefaults(snap.data());
+  } catch (err) {
+    console.error("[waitlist] defaults read failed:", err);
+    return EMPTY_WAITLIST_DEFAULTS;
+  }
+}
+
 // ─── Source-code resolution ──────────────────────────────────────────────────
 
 interface ResolvedSource {
@@ -147,29 +170,47 @@ export async function resolveWaitlistContext(
 ): Promise<WaitlistContext> {
   const shareChannel = normaliseShareChannel(rawShareChannel);
   const code = normaliseSourceCode(rawCode);
-  if (!code) return globalContext(shareChannel);
+
+  let db: Firestore;
+  try {
+    db = waitlistDb();
+  } catch (err) {
+    console.error("[waitlist] context resolution failed:", err);
+    return globalContext(shareChannel);
+  }
+
+  // Started before the source lookup rather than after it: every page needs
+  // them. getWaitlistDefaults never rejects.
+  const defaultsRead = getWaitlistDefaults(db);
+  if (!code) return globalContext(shareChannel, await defaultsRead);
 
   try {
-    const db = waitlistDb();
-    const resolved = await resolveSource(db, code);
+    const [resolved, defaults] = await Promise.all([
+      resolveSource(db, code),
+      defaultsRead,
+    ]);
     if (!resolved) {
       // Record the miss for debugging without exposing anything to the visitor.
       console.warn(`[waitlist] unresolved source code: ${code}`);
-      return globalContext(shareChannel);
+      return globalContext(shareChannel, defaults);
     }
 
     const { linkId, sourceId, sourceData } = resolved;
 
-    return waitlistContextFrom(sourceData, {
-      sourceCode: code,
-      demandSourceId: sourceId,
-      sourceLinkId: linkId,
-      shareChannel,
-      attributed: true,
-    });
+    return waitlistContextFrom(
+      sourceData,
+      {
+        sourceCode: code,
+        demandSourceId: sourceId,
+        sourceLinkId: linkId,
+        shareChannel,
+        attributed: true,
+      },
+      defaults
+    );
   } catch (err) {
     console.error("[waitlist] context resolution failed:", err);
-    return globalContext(shareChannel);
+    return globalContext(shareChannel, await defaultsRead);
   }
 }
 

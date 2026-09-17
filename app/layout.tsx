@@ -35,7 +35,7 @@ export const metadata: Metadata = {
         width: 1200,
         height: 630,
         type: "image/jpeg",
-        alt: "An incoming call from The Operator",
+        alt: "A phone showing an incoming call from Operator Calling",
       },
     ],
   },

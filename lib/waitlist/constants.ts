@@ -363,7 +363,14 @@ export const COLLECTIONS = {
   shareEvents: "shareEvents",
   rateLimits: "rateLimits",
   settings: "settings",
+  /** Uploaded pictures any source can choose. See lib/waitlist/library.ts. */
+  waitlistImages: "waitlistImages",
+  /** Saved wording a source can be started from. */
+  waitlistWordingTemplates: "waitlistWordingTemplates",
 } as const;
+
+/** Doc id under `settings` holding the default waitlist image and wording. */
+export const WAITLIST_DEFAULTS_DOC = "waitlistDefaults";
 
 /** Doc id under `settings` holding the global threshold configuration. */
 export const DEMAND_SETTINGS_DOC = "waitlistDemand";

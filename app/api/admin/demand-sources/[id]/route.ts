@@ -16,6 +16,8 @@ import {
   blockingDuplicates,
   findSimilarDemandSources,
 } from "@/lib/waitlist/duplicate-sources";
+import { sanitiseWording } from "@/lib/waitlist/library";
+import { resolveImageChoice } from "@/lib/waitlist/library-server";
 import { isTopicArtId } from "@/lib/waitlist/topic-art";
 
 // PATCH /api/admin/demand-sources/[id] — edit a demand source.
@@ -150,6 +152,27 @@ export async function PATCH(
         : Math.floor(body.demandThreshold as number);
   }
 
+  // The source's own wording: an object to set it, null to follow the default
+  // again. A template choice arrives here as the copied text, with the
+  // template's name kept only so the panel can say where it came from.
+  if (body.wording === null) {
+    update.wording = null;
+    update.wordingTemplateLabel = null;
+  } else if (body.wording !== undefined) {
+    const wording = sanitiseWording(body.wording);
+    if (!wording) {
+      return NextResponse.json(
+        { error: "The wording needs a heading, an opening paragraph and a main paragraph" },
+        { status: 400 }
+      );
+    }
+    update.wording = wording;
+    update.wordingTemplateLabel =
+      typeof body.wordingTemplateLabel === "string" && body.wordingTemplateLabel.trim()
+        ? body.wordingTemplateLabel.trim().slice(0, 120)
+        : null;
+  }
+
   try {
     const db = waitlistDb();
     const ref = db.collection(COLLECTIONS.demandSources).doc(id);
@@ -158,6 +181,17 @@ export async function PATCH(
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
     const existing = snap.data() ?? {};
+
+    // The picture. A library image's URL is looked up and copied here, never
+    // taken from the request — see resolveImageChoice.
+    if (body.imageChoice !== undefined) {
+      const resolved = await resolveImageChoice(db, body.imageChoice, { allowUnset: true });
+      if (!resolved.ok) {
+        return NextResponse.json({ error: resolved.error }, { status: 400 });
+      }
+      update.imageChoice = resolved.imageChoice;
+      update.imageChoiceUrl = resolved.imageChoiceUrl;
+    }
 
     // Editing a name or URL onto another source's is the same mistake as
     // creating a duplicate, arrived at from the other direction — the same

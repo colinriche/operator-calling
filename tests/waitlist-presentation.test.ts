@@ -91,7 +91,7 @@ describe("global mode", () => {
   it("names no source, because there isn't one", () => {
     expect(p.eyebrow).toBeNull();
     expect(p.independenceNote).toBeNull();
-    expect(p.hero.kind).toBe("brand");
+    expect(p.hero.kind).toBe("builtin");
   });
 
   it("does not carry the relationship disclaimer about a link nobody followed", () => {
@@ -215,7 +215,7 @@ describe("family mode", () => {
     const p = buildWaitlistPresentation(
       contextFor({ ...fields, heroImageUrl: "" })
     );
-    expect(p.hero.kind).toBe("brand");
+    expect(p.hero.kind).toBe("builtin");
     expect(p.hero.src.length).toBeGreaterThan(0);
   });
 
@@ -268,7 +268,7 @@ describe("connection type", () => {
     expect(p.lead).toContain("let The Operator decide when it's time to talk");
     expect(p.body).toContain("When the everyday reasons for calling disappear");
     expect(p.body).toContain(
-      "privacy settings that let you choose who you don't want to be connected with"
+      "privacy settings that let you choose who you do and who you don't want to be connected with"
     );
     expect(p.body).toContain(
       "rather than letting them dwindle into messages and social-media reactions"

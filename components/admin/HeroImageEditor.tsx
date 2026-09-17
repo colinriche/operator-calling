@@ -142,7 +142,7 @@ export function HeroImageEditor({ source, onSaved }: Props) {
         </div>
       ) : (
         <p className="text-xs text-muted-foreground">
-          No image. The page uses the Operator brand mark.
+          No photograph uploaded for this family.
         </p>
       )}
 

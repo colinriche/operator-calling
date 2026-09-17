@@ -18,6 +18,7 @@ import {
   blockingDuplicates,
   findSimilarDemandSources,
 } from "@/lib/waitlist/duplicate-sources";
+import { sanitiseWording } from "@/lib/waitlist/library";
 import { isTopicArtId } from "@/lib/waitlist/topic-art";
 import {
   createUniqueSourceCode,
@@ -183,6 +184,10 @@ export async function GET(req: NextRequest) {
         heroImagePath: data.heroImagePath ?? null,
         heroImageUploadedAt: toIso(data.heroImageUploadedAt),
         heroImageUploadedBy: data.heroImageUploadedBy ?? null,
+        imageChoice: typeof data.imageChoice === "string" ? data.imageChoice : "",
+        imageChoiceUrl: data.imageChoiceUrl ?? null,
+        wording: sanitiseWording(data.wording),
+        wordingTemplateLabel: data.wordingTemplateLabel ?? null,
         internalNotes: data.internalNotes ?? "",
         postingRules: data.postingRules ?? "",
         relationshipStatus:
@@ -335,6 +340,12 @@ export async function POST(req: NextRequest) {
       // confirmation. It must not be settable by a plain create or edit.
       heroImageUrl: null,
       heroImagePath: null,
+      // Unset: the page follows the default picture and wording until someone
+      // chooses otherwise.
+      imageChoice: "",
+      imageChoiceUrl: null,
+      wording: null,
+      wordingTemplateLabel: null,
       internalNotes: str(body.internalNotes, 4000),
       postingRules: str(body.postingRules, 2000),
       relationshipStatus,

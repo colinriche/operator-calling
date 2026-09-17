@@ -9,6 +9,7 @@ import type {
   TimezoneSource,
   WaitlistMode,
 } from "./constants";
+import type { WaitlistDefaults, WaitlistWording } from "./library";
 import type { TopicArtId } from "./topic-art";
 
 // ─── Wire shapes ─────────────────────────────────────────────────────────────
@@ -42,6 +43,14 @@ export interface DemandSourceRow {
   heroImagePath: string | null;
   heroImageUploadedAt: string | null;
   heroImageUploadedBy: string | null;
+  /** The chosen picture. See parseImageChoice in lib/waitlist/library.ts. */
+  imageChoice: string;
+  /** The library image's URL, when imageChoice is one. */
+  imageChoiceUrl: string | null;
+  /** This source's own copy of the main wording; null follows the default. */
+  wording: WaitlistWording | null;
+  /** The template the wording was last copied from, for display only. */
+  wordingTemplateLabel: string | null;
   internalNotes: string;
   postingRules: string;
   relationshipStatus: RelationshipStatus | string;
@@ -174,6 +183,12 @@ export interface WaitlistContext {
   topicArtId: string;
   familyName: string;
   heroImageUrl: string | null;
+  imageChoice: string;
+  imageChoiceUrl: string | null;
+  /** The source's own wording, or null to follow the default. */
+  wording: WaitlistWording | null;
+  /** The defaults in force when this was resolved. */
+  defaults: WaitlistDefaults;
 }
 
 // ─── Presentation ────────────────────────────────────────────────────────────
@@ -185,8 +200,8 @@ export interface WaitlistContext {
 
 export type WaitlistHero =
   | { kind: "brand"; src: string; alt: string }
-  /** The incoming-call picture the global page shows. See default-hero.ts. */
-  | { kind: "default"; src: string; alt: string }
+  /** A picture shipped with the site. See builtin-images.ts. */
+  | { kind: "builtin"; src: string; alt: string; builtinId: string }
   | { kind: "art"; src: string; alt: string }
   | { kind: "image"; src: string; alt: string };
 

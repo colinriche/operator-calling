@@ -40,6 +40,10 @@ function source(over: Partial<DemandSourceRow> = {}): DemandSourceRow {
     heroImagePath: null,
     heroImageUploadedAt: null,
     heroImageUploadedBy: null,
+    imageChoice: "",
+    imageChoiceUrl: null,
+    wording: null,
+    wordingTemplateLabel: null,
     internalNotes: "",
     postingRules: "",
     relationshipStatus: "unverified",
@@ -243,10 +247,10 @@ describe("demandSourcePresentation hero", () => {
     expect(hero.src).toBe("https://example.com/a.jpg");
   });
 
-  it("falls back to the brand mark on a family page with no upload", () => {
+  it("falls back to the default image on a family page with no upload", () => {
     expect(
       demandSourcePresentation(source({ waitlistMode: "family" })).hero.kind
-    ).toBe("brand");
+    ).toBe("builtin");
   });
 
   it("shows the chosen artwork on a community page", () => {
@@ -269,7 +273,7 @@ describe("demandSourcePresentation hero", () => {
           heroImageUrl: "https://example.com/old.jpg",
         })
       ).hero.kind
-    ).toBe("brand");
+    ).toBe("builtin");
   });
 
   it("shows neither on a global page, whatever the record holds", () => {
@@ -281,6 +285,6 @@ describe("demandSourcePresentation hero", () => {
           heroImageUrl: "https://example.com/a.jpg",
         })
       ).hero.kind
-    ).toBe("brand");
+    ).toBe("builtin");
   });
 });

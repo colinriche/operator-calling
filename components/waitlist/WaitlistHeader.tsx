@@ -1,4 +1,5 @@
 import { Info } from "lucide-react";
+import { builtinImage } from "@/lib/waitlist/builtin-images";
 import type { WaitlistPresentation } from "@/lib/waitlist/types";
 
 // ─── The top of the waitlist page ────────────────────────────────────────────
@@ -10,7 +11,7 @@ import type { WaitlistPresentation } from "@/lib/waitlist/types";
 // what the Open Graph tags and the preview image are built from.
 
 // The hero is a data URI (curated artwork), a Firebase Storage download URL
-// (an uploaded family image) or a small file in /public (the default picture). next/image would buy nothing for the first and
+// (an uploaded image) or a small file in /public (a built-in picture). next/image would buy nothing for the first and
 // need remotePatterns for the second, so this is a plain <img> deliberately.
 /* eslint-disable @next/next/no-img-element */
 
@@ -29,14 +30,21 @@ export function WaitlistHeader({ p }: { p: WaitlistPresentation }) {
           alt={p.hero.alt}
           className="w-full aspect-[16/9] object-cover rounded-2xl border border-border/60 mb-6 bg-muted"
         />
-      ) : p.hero.kind === "default" ? (
-        // A portrait phone, so it is contained rather than cropped, on the
-        // same near-black the picture itself is composed on.
+      ) : p.hero.kind === "builtin" &&
+        builtinImage(p.hero.builtinId)?.display === "dark" ? (
+        // A whole portrait phone, contained rather than cropped, on the same
+        // near-black the picture is composed on.
         <img
           src={p.hero.src}
           alt={p.hero.alt}
           className="w-full h-64 sm:h-80 object-contain rounded-2xl bg-[#020202] mb-6"
         />
+      ) : p.hero.kind === "builtin" ? (
+        // The top of a phone, cut off at its bottom edge, so it rises out of
+        // the bottom of its panel rather than floating in it.
+        <div className="rounded-2xl border border-border/60 bg-card overflow-hidden px-4 pt-5 sm:px-8 sm:pt-7 mb-6">
+          <img src={p.hero.src} alt={p.hero.alt} className="block w-full h-auto" />
+        </div>
       ) : (
         <img
           src={p.hero.src}

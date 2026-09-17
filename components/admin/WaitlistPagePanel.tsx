@@ -1,10 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Library, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
+import { useWaitlistLibrary } from "@/hooks/useWaitlistLibrary";
 import { cn } from "@/lib/utils";
 import {
   canNameSourcePublicly,
@@ -15,14 +16,24 @@ import {
   type ConnectionType,
   type WaitlistMode,
 } from "@/lib/waitlist/constants";
-import { demandSourcePresentation } from "@/lib/waitlist/presentation";
+import { builtinImage } from "@/lib/waitlist/builtin-images";
+import {
+  sameWording,
+  wordingVariantFor,
+  type WaitlistWording,
+} from "@/lib/waitlist/library";
+import {
+  demandSourcePresentation,
+  effectiveImageChoice,
+} from "@/lib/waitlist/presentation";
 import { HeroImageEditor } from "@/components/admin/HeroImageEditor";
-import { TopicArtPicker } from "@/components/admin/TopicArtPicker";
-import type { DemandSourceRow } from "@/lib/waitlist/types";
+import { WaitlistImagePicker } from "@/components/admin/WaitlistImagePicker";
+import { WaitlistWordingEditor } from "@/components/admin/WaitlistWordingEditor";
+import type { DemandSourceRow, WaitlistHero } from "@/lib/waitlist/types";
 
 // ─── What this source's waitlist page looks like ─────────────────────────────
 //
-// Mode, artwork and family name, plus a preview.
+// Mode, picture, wording and family name, plus a preview.
 //
 // The preview is not a mock-up. It is built by calling the same
 // buildWaitlistPresentation the page and the Open Graph route call, on a
@@ -38,8 +49,19 @@ interface Props {
   onSaved: () => Promise<void> | void;
 }
 
+/** Thumbnail treatment for a hero, matching how the page itself frames it. */
+export function heroThumbClass(hero: WaitlistHero): string {
+  if (hero.kind === "builtin") {
+    return builtinImage(hero.builtinId)?.display === "dark"
+      ? "object-contain bg-[#020202]"
+      : "object-contain bg-[#FBF7EF]";
+  }
+  return "object-cover";
+}
+
 export function WaitlistPagePanel({ source, onSaved }: Props) {
   const { user } = useAuth();
+  const { library, reload: reloadLibrary } = useWaitlistLibrary();
 
   const [mode, setMode] = useState<WaitlistMode>(
     (WAITLIST_MODES.find((m) => m.id === source.waitlistMode)?.id ??
@@ -49,28 +71,53 @@ export function WaitlistPagePanel({ source, onSaved }: Props) {
     (CONNECTION_TYPES.find((c) => c.id === source.connectionType)?.id ??
       DEFAULT_CONNECTION_TYPE) as ConnectionType
   );
-  const [topicArtId, setTopicArtId] = useState(source.topicArtId ?? "");
   const [familyName, setFamilyName] = useState(source.familyName ?? "");
-  const [saving, setSaving] = useState(false);
 
+  const savedChoice = effectiveImageChoice(source);
+  const [imageChoice, setImageChoice] = useState(savedChoice);
+  const [wording, setWording] = useState<WaitlistWording | null>(source.wording);
+  const [templateLabel, setTemplateLabel] = useState<string | null>(
+    source.wordingTemplateLabel
+  );
+  const [saving, setSaving] = useState(false);
+  const [addingToLibrary, setAddingToLibrary] = useState(false);
+
+  const imageDirty = imageChoice !== savedChoice;
+  const wordingDirty = !sameWording(wording, source.wording);
   const dirty =
     mode !== (source.waitlistMode || "community") ||
     connectionType !== (source.connectionType || DEFAULT_CONNECTION_TYPE) ||
-    topicArtId !== (source.topicArtId ?? "") ||
-    familyName !== (source.familyName ?? "");
+    familyName !== (source.familyName ?? "") ||
+    imageDirty ||
+    wordingDirty;
+
+  // A choice the library can no longer render (an image deleted elsewhere, say)
+  // is still previewed, as whatever the page would fall back to.
+  const imageChoiceUrl = imageChoice.startsWith("library:")
+    ? (library.images.find((i) => `library:${i.id}` === imageChoice)?.url ??
+      (imageChoice === source.imageChoice ? source.imageChoiceUrl : null))
+    : null;
 
   // Exactly what the page will render, from exactly the same code — with the
   // unsaved edits applied, which is the whole point of a preview.
   const preview = useMemo(
     () =>
-      demandSourcePresentation(source, {
-        waitlistMode: mode,
-        connectionType,
-        topicArtId,
-        familyName,
-      }),
-    [source, mode, connectionType, topicArtId, familyName]
+      demandSourcePresentation(
+        source,
+        {
+          waitlistMode: mode,
+          connectionType,
+          familyName,
+          imageChoice,
+          imageChoiceUrl,
+          wording,
+        },
+        library.defaults
+      ),
+    [source, mode, connectionType, familyName, imageChoice, imageChoiceUrl, wording, library.defaults]
   );
+
+  const variant = wordingVariantFor(mode, mode === "family" ? "existing_connections" : connectionType);
 
   async function save() {
     if (!user) return;
@@ -86,8 +133,9 @@ export function WaitlistPagePanel({ source, onSaved }: Props) {
         body: JSON.stringify({
           waitlistMode: mode,
           connectionType,
-          topicArtId,
           familyName,
+          ...(imageDirty ? { imageChoice } : {}),
+          ...(wordingDirty ? { wording, wordingTemplateLabel: templateLabel } : {}),
         }),
       });
       const data = await res.json();
@@ -99,6 +147,33 @@ export function WaitlistPagePanel({ source, onSaved }: Props) {
       toast.error(err instanceof Error ? err.message : "Failed to save");
     } finally {
       setSaving(false);
+    }
+  }
+
+  /** Copies the family's photograph into the shared library, by choice. */
+  async function addPhotoToLibrary() {
+    if (!user) return;
+    setAddingToLibrary(true);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch("/api/admin/waitlist-library/images", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          fromSourceId: source.id,
+          label: familyName || source.sourceName,
+          category: "family",
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to add to the library");
+      await reloadLibrary();
+      toast.success("Copied into the library — other pages can now choose it");
+    } catch (err) {
+      console.error(err);
+      toast.error(err instanceof Error ? err.message : "Failed to add to the library");
+    } finally {
+      setAddingToLibrary(false);
     }
   }
 
@@ -167,25 +242,6 @@ export function WaitlistPagePanel({ source, onSaved }: Props) {
         </div>
       )}
 
-      {mode === "community" && (
-        <div>
-          <label className={labelClass}>Topic imagery</label>
-          <TopicArtPicker value={topicArtId} onChange={setTopicArtId} />
-          <p className="text-xs text-muted-foreground mt-2">
-            A fixed set, so nothing on a public page depends on who owns a
-            picture. The heading is the source&apos;s topic
-            {source.topicName ? (
-              <>
-                {" — currently "}
-                <span className="text-foreground">{source.topicName}</span>.
-              </>
-            ) : (
-              ", which is not set on this source yet."
-            )}
-          </p>
-        </div>
-      )}
-
       {mode === "family" && (
         <div className="space-y-4">
           <div>
@@ -204,9 +260,56 @@ export function WaitlistPagePanel({ source, onSaved }: Props) {
             </p>
           </div>
 
+          {/* The family's own photograph stays private to this page. Adding it
+              to the library is a separate, deliberate act. */}
           <HeroImageEditor source={source} onSaved={onSaved} />
+          {source.heroImageUrl && (
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={addingToLibrary}
+                onClick={() => void addPhotoToLibrary()}
+              >
+                {addingToLibrary ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Library className="w-3.5 h-3.5" />
+                )}
+                Add this photograph to the library
+              </Button>
+              <span className="text-xs text-muted-foreground">
+                Only if other pages should be able to use it. It stays private to
+                this family otherwise.
+              </span>
+            </div>
+          )}
         </div>
       )}
+
+      <div>
+        <label className={labelClass}>Picture</label>
+        <WaitlistImagePicker
+          value={imageChoice}
+          onChange={setImageChoice}
+          ownImageUrl={mode === "family" ? source.heroImageUrl : null}
+          suggestedCategory={mode === "family" ? "family" : "all"}
+        />
+      </div>
+
+      <div>
+        <label className={labelClass}>Wording</label>
+        <WaitlistWordingEditor
+          variant={variant}
+          scope="source"
+          value={wording}
+          templateLabel={templateLabel}
+          onChange={(next, label) => {
+            setWording(next);
+            setTemplateLabel(label);
+          }}
+        />
+      </div>
 
       {/* Preview — the page and the link preview, from the same object */}
       <div className="grid lg:grid-cols-2 gap-3">
@@ -219,12 +322,10 @@ export function WaitlistPagePanel({ source, onSaved }: Props) {
               src={preview.hero.src}
               alt=""
               className={cn(
-                "object-cover rounded-md border border-border/60",
-                preview.hero.kind === "brand"
-                  ? "w-10 h-10"
-                  : preview.hero.kind === "default"
-                    ? "w-full aspect-[16/9] object-contain bg-[#020202]"
-                    : "w-full aspect-[16/9]"
+                "rounded-md border border-border/60",
+                preview.hero.kind === "brand" || preview.hero.kind === "art"
+                  ? "w-10 h-10 object-cover"
+                  : cn("w-full aspect-[16/9]", heroThumbClass(preview.hero))
               )}
             />
             {preview.eyebrow && (
@@ -255,12 +356,7 @@ export function WaitlistPagePanel({ source, onSaved }: Props) {
               <img
                 src={preview.hero.src}
                 alt=""
-                className={cn(
-                  "w-full aspect-[1.91/1] bg-muted",
-                  preview.hero.kind === "default"
-                    ? "object-contain bg-[#020202]"
-                    : "object-cover"
-                )}
+                className={cn("w-full aspect-[1.91/1] bg-muted", heroThumbClass(preview.hero))}
               />
               <div className="p-2.5">
                 <p className="text-xs font-semibold text-foreground leading-snug">

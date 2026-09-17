@@ -34,7 +34,17 @@ import {
   sourceDescriptor,
   sourceLine,
 } from "./copy";
-import { DEFAULT_HERO_ALT, DEFAULT_HERO_SRC } from "./default-hero";
+import { builtinImage, FALLBACK_DEFAULT_IMAGE_CHOICE } from "./builtin-images";
+import {
+  EMPTY_WAITLIST_DEFAULTS,
+  parseImageChoice,
+  sanitiseWording,
+  wordingVariantFor,
+  type ParsedImageChoice,
+  type WaitlistDefaults,
+  type WaitlistWording,
+  type WordingVariant,
+} from "./library";
 import { BRAND_ART_DATA_URI, isTopicArtId, topicArtDataUri } from "./topic-art";
 import { urlSourceCode } from "./tracked-url";
 import type {
@@ -64,6 +74,9 @@ export interface PublicSourceFields {
   topicArtId?: unknown;
   familyName?: unknown;
   heroImageUrl?: unknown;
+  imageChoice?: unknown;
+  imageChoiceUrl?: unknown;
+  wording?: unknown;
   groupId?: unknown;
 }
 
@@ -113,7 +126,8 @@ export function resolveConnectionType(
 
 export function waitlistContextFrom(
   fields: PublicSourceFields,
-  meta: ContextMeta
+  meta: ContextMeta,
+  defaults: WaitlistDefaults = EMPTY_WAITLIST_DEFAULTS
 ): WaitlistContext {
   const relationshipStatus =
     text(fields.relationshipStatus) || DEFAULT_RELATIONSHIP_STATUS;
@@ -143,11 +157,18 @@ export function waitlistContextFrom(
     topicArtId: isTopicArtId(fields.topicArtId) ? fields.topicArtId : "",
     familyName: text(fields.familyName),
     heroImageUrl: text(fields.heroImageUrl) || null,
+    imageChoice: parseImageChoice(fields.imageChoice) ? text(fields.imageChoice) : "",
+    imageChoiceUrl: text(fields.imageChoiceUrl) || null,
+    wording: sanitiseWording(fields.wording),
+    defaults,
   };
 }
 
 /** The context for a visitor who arrived with no usable tracked link. */
-export function globalContext(shareChannel: ShareChannel | null): WaitlistContext {
+export function globalContext(
+  shareChannel: ShareChannel | null,
+  defaults: WaitlistDefaults = EMPTY_WAITLIST_DEFAULTS
+): WaitlistContext {
   return waitlistContextFrom(
     { waitlistMode: "global" },
     {
@@ -156,7 +177,8 @@ export function globalContext(shareChannel: ShareChannel | null): WaitlistContex
       sourceLinkId: null,
       shareChannel,
       attributed: false,
-    }
+    },
+    defaults
   );
 }
 
@@ -204,89 +226,159 @@ function bulletsFor(
 // interchangeable. For strangers the promise is that you never have to find
 // anyone. For people who already know each other, finding each other was never
 // the problem — remembering to actually call is.
-
-/** Type 2: people who don't know each other but share something. */
-function sharedInterestCopy(topic: string): { lead: string; body: string } {
-  // Substituted as a whole clause rather than a bare noun: with no topic the
-  // fallback replaces the "who share an interest in ___" construction instead
-  // of filling its blank. Plural and singular differ only in agreement.
-  const plural = topic
-    ? `who share an interest in ${topic}`
-    : "interested in The Operator Calling project";
-  const singular = topic
-    ? `who shares an interest in ${topic}`
-    : "interested in The Operator Calling project";
-
-  return {
-    lead: `Enjoy voice calls with others ${plural}. Tell us when you're available, and The Operator will schedule a one-to-one call for you.`,
-    body: `You don't need to search for people, send connection requests or arrange calls yourself. Tell us when you're available, and when someone else ${singular} is also available, The Operator will schedule a one-to-one call and ring you both when it's time.`,
-  };
-}
-
-/**
- * Type 1: a year group, an old team. Family pages have their own wording below.
- *
- * The argument is not "we save you the admin". People in these groups can
- * already reach each other; what they have lost is the everyday reason to —
- * the shared job, the school run, the club night. So The Operator is the one
- * that decides when it is time, and the call arrives rather than being
- * arranged.
- *
- * That is why nothing here frames the visitor as the scheduler, mentions
- * overlapping availability, or reads like an appointment. Those phrasings turn
- * a warm, occasional thing into a standing commitment, which is the opposite
- * of what this audience is being offered.
- */
-function existingConnectionsCopy(group: string): { lead: string; body: string } {
-  return {
-    lead: `Keep in contact with ${group}, and let The Operator decide when it's time to talk. It occasionally brings two members together for a one-to-one call, helping keep the connection strong.`,
-    body: `When the everyday reasons for calling disappear, people can gradually drift apart. The Operator gives those connections a reason to talk again, occasionally bringing two members together for a one-to-one call. You stay in control, with privacy settings that let you choose who you do and who you don't want to be connected with. It helps keep relationships alive and strengthen the bond, rather than letting them dwindle into messages and social-media reactions.`,
-  };
-}
-
-/**
- * A family page's own wording. Still Type 1 in substance — the call arrives
- * rather than being arranged — but written for families specifically, so it
- * names no one: the family's name is already the heading directly above.
- */
-const FAMILY_COPY = {
-  lead: "Keep in touch in a different way. Let The Operator bring family members together for one-to-one calls as and when the time suits.",
-  body: "Families stay connected in all sorts of ways. The Operator adds something different: every so often, it pairs members and makes the call between them. It can pair together those who speak regularly, create a chance to catch up with someone you haven't spoken to for a while, you may even chat with family you never knew you had.",
-  bodyContinued: "You stay in control, with privacy settings that let you choose who you do and don't want to be connected with. It creates more opportunities to talk, helping keep family relationships active without anyone having to decide who should call whom. The app is for those that like to chat the old fashioned way, not by typing but by actual talking, if you want your phone to ring more often then this app is for you.",
-  signoff: "The Operator app, for families, groups and communities",
-};
-
+//
+// Type 2, shared interest: people who don't know each other but share
+// something.
+//
+// Type 1, existing connections: a year group, an old team. The argument is not
+// "we save you the admin". People in these groups can already reach each
+// other; what they have lost is the everyday reason to — the shared job, the
+// school run, the club night. So The Operator is the one that decides when it
+// is time, and the call arrives rather than being arranged. That is why nothing
+// in it frames the visitor as the scheduler, mentions overlapping availability,
+// or reads like an appointment.
+//
+// Family pages are still Type 1 in substance, but written for families
+// specifically, so the text names no one: the family's name is the heading.
+//
 // ─── What a link preview says ────────────────────────────────────────────────
 //
-// Deliberately not `lead`, which the preview used to repeat verbatim.
+// `ogDescription` is deliberately not the opening paragraph, which the preview
+// used to repeat verbatim. A messaging app gives a description two lines and
+// prints it under a title and card it has already shown, so the job is one
+// sentence saying what this is, with the name the page is about inside it.
 //
-// A messaging app gives a description two lines and cuts the rest, and it
-// prints that under a title and a card image it has already shown. So the job
-// here is not to summarise the page: it is one sentence saying what this is,
-// with the name the page is actually about inside it, short enough to arrive
-// whole. The page's own opening paragraph is three times too long for that and
-// loses its point mid-sentence.
+// ─── Built-in wording ────────────────────────────────────────────────────────
 //
-// Built from the same names the page uses, so it cannot describe a different
-// audience from the one on the other side of the link.
+// The text every page used before wording was editable, written with the
+// placeholders an admin edits with. Admins can replace any variant's default
+// (settings/waitlistDefaults) or give a source its own copy; this is what is
+// shown when neither exists, and what "reset to built-in" goes back to.
 
-// The one exception to naming the audience: a family preview uses fixed
-// wording chosen for it, since the family's name is already the title above.
-const FAMILY_SOCIAL_DESCRIPTION =
-  "The Operator app brings family members together through unexpected one-to-one calls.";
+export const BUILTIN_WORDING: Record<WordingVariant, WaitlistWording> = {
+  global: {
+    heading: "Like talking on the phone with new people?",
+    lead: "One-to-one voice calls with people you haven't met. You make yourself available and The Operator makes the call.",
+    body: "You do not need to search for people, send connection requests or arrange the call yourself. Make yourself available and, when a suitable call is scheduled, The Operator makes the connection and the call comes to you.",
+    bodyContinued: "",
+    signoff: "",
+    ogDescription:
+      "One-to-one voice calls with people you haven't met. Say when you're free and the call comes to you.",
+  },
+  community_interest: {
+    heading: "{topic}",
+    lead: "Enjoy voice calls with others who share an interest in {topic}. Tell us when you're available, and The Operator will schedule a one-to-one call for you.",
+    body: "You don't need to search for people, send connection requests or arrange calls yourself. Tell us when you're available, and when someone else who shares an interest in {topic} is also available, The Operator will schedule a one-to-one call and ring you both when it's time.",
+    bodyContinued: "",
+    signoff: "",
+    ogDescription:
+      "One-to-one voice calls with others who share an interest in {topic}. Say when you're free and the call comes to you.",
+  },
+  community_known: {
+    heading: "{group}",
+    lead: "Keep in contact with {group}, and let The Operator decide when it's time to talk. It occasionally brings two members together for a one-to-one call, helping keep the connection strong.",
+    body: "When the everyday reasons for calling disappear, people can gradually drift apart. The Operator gives those connections a reason to talk again, occasionally bringing two members together for a one-to-one call. You stay in control, with privacy settings that let you choose who you do and who you don't want to be connected with. It helps keep relationships alive and strengthen the bond, rather than letting them dwindle into messages and social-media reactions.",
+    bodyContinued: "",
+    signoff: "",
+    ogDescription:
+      "The Operator keeps {group} in touch by occasionally bringing two members together for a private one-to-one call.",
+  },
+  family: {
+    heading: "{family}",
+    lead: "Keep in touch in a different way. Let The Operator bring family members together for one-to-one calls as and when the time suits.",
+    body: "Families stay connected in all sorts of ways. The Operator adds something different: every so often, it pairs members and makes the call between them. It can pair together those who speak regularly, create a chance to catch up with someone you haven't spoken to for a while, you may even chat with family you never knew you had.",
+    bodyContinued:
+      "You stay in control, with privacy settings that let you choose who you do and don't want to be connected with. It creates more opportunities to talk, helping keep family relationships active without anyone having to decide who should call whom. The app is for those that like to chat the old fashioned way, not by typing but by actual talking, if you want your phone to ring more often then this app is for you.",
+    signoff: "The Operator app, for families, groups and communities",
+    ogDescription:
+      "The Operator app brings family members together through unexpected one-to-one calls.",
+  },
+};
 
-function socialDescriptionForKnownGroup(group: string): string {
-  return `The Operator keeps ${group} in touch by occasionally bringing two members together for a private one-to-one call.`;
+/** The default wording for a variant: an admin's edit if there is one. */
+export function defaultWording(
+  variant: WordingVariant,
+  defaults: WaitlistDefaults
+): WaitlistWording {
+  return defaults.wording[variant] ?? BUILTIN_WORDING[variant];
 }
 
-function socialDescriptionForInterest(topic: string): string {
-  return topic
-    ? `One-to-one voice calls with others who share an interest in ${topic}. Say when you're free and the call comes to you.`
-    : "One-to-one voice calls with people who enjoy the same things you do. Say when you're free and the call comes to you.";
+interface WordingValues {
+  /** "" when the source has no topic. */
+  topic: string;
+  group: string;
+  family: string;
 }
 
-const GLOBAL_SOCIAL_DESCRIPTION =
-  "One-to-one voice calls with people you haven't met. Say when you're free and the call comes to you.";
+/** Headings used when a heading is only a placeholder with nothing to fill it. */
+const EMPTY_TOPIC_HEADINGS: Partial<Record<WordingVariant, string>> = {
+  community_interest: "Talking with people who share your interests",
+  community_known: "Keeping your group in contact",
+};
+
+/**
+ * Put the page's names into a piece of wording.
+ *
+ * Built so the built-in text renders exactly as it did before it was editable.
+ * With no topic, "who share(s) an interest in {topic}" is replaced as a whole
+ * clause rather than having its blank filled with a filler noun, and a heading
+ * that is nothing but the placeholder falls back to a real sentence.
+ */
+function fillWording(
+  wording: WaitlistWording,
+  variant: WordingVariant,
+  values: WordingValues
+): WaitlistWording {
+  const fill = (value: string) => {
+    let out = value;
+    if (!values.topic) {
+      out = out.replace(
+        /who shares? an interest in \{topic\}/g,
+        "interested in The Operator Calling project"
+      );
+    }
+    return out
+      .replace(/\{topic\}/g, values.topic || "this interest")
+      .replace(/\{group\}/g, values.group)
+      .replace(/\{family\}/g, values.family);
+  };
+
+  const emptyHeading = EMPTY_TOPIC_HEADINGS[variant];
+  const heading =
+    emptyHeading && !values.topic && /^\{(topic|group)\}$/.test(wording.heading.trim())
+      ? emptyHeading
+      : leadingCapital(fill(wording.heading));
+
+  // The one piece of the old wording the clause swap does not reproduce.
+  const ogDescription =
+    variant === "community_interest" &&
+    !values.topic &&
+    wording.ogDescription === BUILTIN_WORDING.community_interest.ogDescription
+      ? "One-to-one voice calls with people who enjoy the same things you do. Say when you're free and the call comes to you."
+      : fill(wording.ogDescription);
+
+  return {
+    heading,
+    lead: fill(wording.lead),
+    body: fill(wording.body),
+    bodyContinued: fill(wording.bodyContinued),
+    signoff: fill(wording.signoff),
+    ogDescription,
+  };
+}
+
+/** The wording a page renders: its own copy, else the default, filled in. */
+function wordingFor(
+  context: WaitlistContext,
+  values: WordingValues
+): WaitlistWording {
+  const variant = wordingVariantFor(context.mode, context.connectionType);
+  return fillWording(
+    context.wording ?? defaultWording(variant, context.defaults),
+    variant,
+    values
+  );
+}
 
 /**
  * Offered on every page that is not already about a family.
@@ -334,15 +426,16 @@ export function buildWaitlistPresentation(
     // Falls back rather than printing an empty heading: a family source whose
     // name has not been filled in yet still has to render something truthful.
     const family = context.familyName || context.publicDisplayName || "your family";
-    const heading = leadingCapital(family);
+    const w = wordingFor(context, { topic: family, group: family, family });
+    const heading = w.heading;
     return {
       ...common,
       eyebrow: "A private calling group",
       heading,
-      lead: FAMILY_COPY.lead,
-      body: FAMILY_COPY.body,
-      bodyContinued: FAMILY_COPY.bodyContinued,
-      signoff: FAMILY_COPY.signoff,
+      lead: w.lead,
+      body: w.body,
+      bodyContinued: w.bodyContinued || null,
+      signoff: w.signoff || null,
       disclaimer: NEUTRAL_DISCLAIMER,
       independenceNote: null,
       formIntro: `Register your interest in joining calls with ${family}.`,
@@ -357,7 +450,7 @@ export function buildWaitlistPresentation(
       og: {
         title: heading,
         facebookTitle: `${heading} · Keep in touch on The Operator`,
-        description: FAMILY_SOCIAL_DESCRIPTION,
+        description: w.ogDescription,
       },
     };
   }
@@ -379,19 +472,16 @@ export function buildWaitlistPresentation(
         : context.audienceLabel);
     const known = context.connectionType === "existing_connections";
 
-    const heading = topic
-      ? leadingCapital(topic)
-      : known
-        ? "Keeping your group in contact"
-        : "Talking with people who share your interests";
-
     // The group's own name where there is one. "your group" rather than a
     // topic-shaped filler, because Type 1 sentences read "keep in touch
     // with ___" and a topic noun does not fit there.
     const group = topic || "your group";
-    const { lead, body } = known
-      ? existingConnectionsCopy(group)
-      : sharedInterestCopy(topic);
+    const w = wordingFor(context, {
+      topic,
+      group,
+      family: context.familyName || group,
+    });
+    const { heading, lead, body } = w;
 
     const label = topic || context.audienceLabel;
 
@@ -428,26 +518,26 @@ export function buildWaitlistPresentation(
       og: {
         title: eyebrow ? `${heading} — ${eyebrow}` : heading,
         facebookTitle: eyebrow ? `${heading} — ${eyebrow}` : heading,
-        description: known
-          ? socialDescriptionForKnownGroup(group)
-          : socialDescriptionForInterest(topic),
+        description: w.ogDescription,
       },
     };
   }
 
   // ─── Global ───────────────────────────────────────────────────────────────
   // No topic, no source, no shared-interest wording anywhere.
-  const heading = "Like talking on the phone with new people?";
-  const lead =
-    "One-to-one voice calls with people you haven't met. You make yourself available and The Operator makes the call.";
+  const w = wordingFor(context, {
+    topic: "",
+    group: "your group",
+    family: "your family",
+  });
+  const heading = w.heading;
 
   return {
     ...common,
     eyebrow: null,
     heading,
-    lead,
-    body:
-      "You do not need to search for people, send connection requests or arrange the call yourself. Make yourself available and, when a suitable call is scheduled, The Operator makes the connection and the call comes to you.",
+    lead: w.lead,
+    body: w.body,
     disclaimer: NEUTRAL_DISCLAIMER,
     independenceNote: null,
     formIntro: "Register your interest in talking with new people by voice.",
@@ -464,35 +554,109 @@ export function buildWaitlistPresentation(
     og: {
       title: heading,
       facebookTitle: heading,
-      description: GLOBAL_SOCIAL_DESCRIPTION,
+      description: w.ogDescription,
     },
   };
 }
 
 // ─── Hero ────────────────────────────────────────────────────────────────────
 
+/**
+ * The choice a source is effectively making, for a picker to highlight.
+ *
+ * An unset choice is not "default" when the source still shows what it showed
+ * before the library existed. Mirrors heroFor, so the tile a picker highlights
+ * is the picture the page shows.
+ */
+export function effectiveImageChoice(fields: {
+  imageChoice: string;
+  waitlistMode: string;
+  heroImageUrl: string | null;
+  topicArtId: string;
+}): string {
+  if (parseImageChoice(fields.imageChoice)) return fields.imageChoice;
+  const mode = resolveWaitlistMode(fields.waitlistMode, true);
+  if (mode === "family" && fields.heroImageUrl) return "own";
+  if (mode === "community" && isTopicArtId(fields.topicArtId)) {
+    return `art:${fields.topicArtId}`;
+  }
+  return "default";
+}
+
+/**
+ * Which picture a page shows.
+ *
+ * An explicit choice wins. With none, a source keeps what it showed before the
+ * library existed — a family's photograph, a community's artwork — and
+ * everything else gets the default.
+ */
 function heroFor(context: WaitlistContext, heading: string): WaitlistHero {
-  // An uploaded image belongs to family mode only. A community source that once
-  // had one and was switched back must not keep showing it.
-  if (context.mode === "family" && context.heroImageUrl) {
-    return { kind: "image", src: context.heroImageUrl, alt: heading };
+  const chosen = parseImageChoice(context.imageChoice);
+  if (chosen && chosen.type !== "default") {
+    const hero = heroFromChoice(chosen, context.imageChoiceUrl, context, heading);
+    if (hero) return hero;
   }
 
-  if (context.mode === "community" && context.topicArtId) {
-    return {
-      kind: "art",
-      src: topicArtDataUri(context.topicArtId),
+  if (!chosen) {
+    // An uploaded image belongs to family mode only. A community source that
+    // once had one and was switched back must not keep showing it.
+    if (context.mode === "family" && context.heroImageUrl) {
+      return { kind: "image", src: context.heroImageUrl, alt: heading };
+    }
+    if (context.mode === "community" && context.topicArtId) {
+      return { kind: "art", src: topicArtDataUri(context.topicArtId), alt: "" };
+    }
+  }
+
+  return defaultHero(context, heading);
+}
+
+function defaultHero(context: WaitlistContext, heading: string): WaitlistHero {
+  const stored = parseImageChoice(context.defaults.imageChoice);
+  if (stored && stored.type !== "default" && stored.type !== "own") {
+    const hero = heroFromChoice(stored, context.defaults.imageChoiceUrl, context, heading);
+    if (hero) return hero;
+  }
+  const fallback = parseImageChoice(FALLBACK_DEFAULT_IMAGE_CHOICE);
+  return (
+    (fallback && heroFromChoice(fallback, null, context, heading)) || {
+      kind: "brand",
+      src: BRAND_ART_DATA_URI,
       alt: "",
-    };
-  }
+    }
+  );
+}
 
-  // The global page has no family and no topic to picture, so it gets the
-  // product itself: a call from The Operator arriving.
-  if (context.mode === "global") {
-    return { kind: "default", src: DEFAULT_HERO_SRC, alt: DEFAULT_HERO_ALT };
+/** A choice as a picture, or null when it no longer points at one. */
+function heroFromChoice(
+  choice: ParsedImageChoice,
+  url: string | null,
+  context: WaitlistContext,
+  heading: string
+): WaitlistHero | null {
+  switch (choice.type) {
+    case "builtin": {
+      const image = builtinImage(choice.id);
+      return image
+        ? { kind: "builtin", src: image.pageSrc, alt: image.alt, builtinId: image.id }
+        : null;
+    }
+    case "art":
+      return isTopicArtId(choice.id)
+        ? { kind: "art", src: topicArtDataUri(choice.id), alt: "" }
+        : null;
+    case "library":
+      return url ? { kind: "image", src: url, alt: heading } : null;
+    case "own":
+      // Private to its family: never shown once the page is not a family page.
+      return context.mode === "family" && context.heroImageUrl
+        ? { kind: "image", src: context.heroImageUrl, alt: heading }
+        : null;
+    case "brand":
+      return { kind: "brand", src: BRAND_ART_DATA_URI, alt: "" };
+    default:
+      return null;
   }
-
-  return { kind: "brand", src: BRAND_ART_DATA_URI, alt: "" };
 }
 
 // ─── Admin preview ───────────────────────────────────────────────────────────
@@ -511,7 +675,8 @@ function heroFor(context: WaitlistContext, heading: string): WaitlistHero {
  */
 export function demandSourcePresentation(
   source: DemandSourceRow,
-  overrides: PublicSourceFields = {}
+  overrides: PublicSourceFields = {},
+  defaults: WaitlistDefaults = EMPTY_WAITLIST_DEFAULTS
 ): WaitlistPresentation {
   return buildWaitlistPresentation(
     waitlistContextFrom(
@@ -528,6 +693,9 @@ export function demandSourcePresentation(
         topicArtId: source.topicArtId,
         familyName: source.familyName,
         heroImageUrl: source.heroImageUrl,
+        imageChoice: source.imageChoice,
+        imageChoiceUrl: source.imageChoiceUrl,
+        wording: source.wording,
         ...overrides,
       },
       {
