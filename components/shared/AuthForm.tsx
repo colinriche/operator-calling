@@ -15,6 +15,7 @@ import { auth, db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { markSignedIn } from "@/lib/session-cookie";
 
 interface AuthFormProps {
   mode: "login" | "signup";
@@ -168,13 +169,11 @@ export function AuthForm({ mode, inviteRef = "", inviteGid = "", nextPath = "/da
       let uid: string;
       if (mode === "login") {
         const cred = await signInWithEmailAndPassword(auth, email, password);
-        const idToken = await getIdToken(cred.user);
-        document.cookie = `__session=${idToken}; path=/; SameSite=Lax; max-age=3600`;
+        markSignedIn();
         uid = cred.user.uid;
       } else {
         const cred = await createUserWithEmailAndPassword(auth, email, password);
-        const idToken = await getIdToken(cred.user);
-        document.cookie = `__session=${idToken}; path=/; SameSite=Lax; max-age=3600`;
+        markSignedIn();
         uid = cred.user.uid;
         // Non-fatal — user is already authenticated if this fails
         try {
@@ -222,8 +221,7 @@ export function AuthForm({ mode, inviteRef = "", inviteGid = "", nextPath = "/da
     setLoading(true);
     try {
       const cred = await signInWithPopup(auth, new GoogleAuthProvider());
-      const idToken = await getIdToken(cred.user);
-      document.cookie = `__session=${idToken}; path=/; SameSite=Lax; max-age=3600`;
+      markSignedIn();
       await writeGoogleProfile(cred.user.uid, cred.user.displayName, cred.user.email, cred.user.photoURL);
       await handlePostSignIn(cred.user.uid);
     } catch (err: unknown) {

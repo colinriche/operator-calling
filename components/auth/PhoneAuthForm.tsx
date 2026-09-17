@@ -13,6 +13,7 @@ import { auth, db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { markSignedIn } from "@/lib/session-cookie";
 
 type Step = "phone" | "otp" | "email_prompt";
 
@@ -109,7 +110,7 @@ export function PhoneAuthForm() {
     try {
       const result = await confirmationRef.current.confirm(otp);
       const idToken = await getIdToken(result.user);
-      document.cookie = `__session=${idToken}; path=/; SameSite=Lax; max-age=3600`;
+      markSignedIn();
 
       if (await resolveLinkedAccount(idToken)) {
         router.push("/dashboard");

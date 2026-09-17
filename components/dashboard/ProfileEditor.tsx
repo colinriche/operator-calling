@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { getIdToken, signOut } from "firebase/auth";
+import { markSignedOut } from "@/lib/session-cookie";
 import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
@@ -185,6 +186,7 @@ export function ProfileEditor() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to delete account");
       await signOut(auth);
+      markSignedOut();
       toast.success("Your account has been archived and deleted.");
       router.replace("/");
     } catch (error) {

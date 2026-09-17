@@ -46,13 +46,13 @@ import {
   signInWithEmailAndPassword,
   GoogleAuthProvider,
   signInWithPopup,
-  getIdToken,
 } from "firebase/auth";
 import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { markSignedIn } from "@/lib/session-cookie";
 
 function firebaseErrorMessage(err: unknown): string {
   const code = (err as { code?: string }).code ?? "";
@@ -134,8 +134,7 @@ function AuthFormInline({ mode, nextPath }: { mode: "login" | "signup"; nextPath
     setLoading(true);
     try {
       const cred = await signInWithEmailAndPassword(auth, email, password);
-      const idToken = await getIdToken(cred.user);
-      document.cookie = `__session=${idToken}; path=/; SameSite=Lax; max-age=3600`;
+      markSignedIn();
       await handlePostSignIn(cred.user.uid);
     } catch (err) {
       setError(firebaseErrorMessage(err));
@@ -149,8 +148,7 @@ function AuthFormInline({ mode, nextPath }: { mode: "login" | "signup"; nextPath
     setLoading(true);
     try {
       const cred = await signInWithPopup(auth, new GoogleAuthProvider());
-      const idToken = await getIdToken(cred.user);
-      document.cookie = `__session=${idToken}; path=/; SameSite=Lax; max-age=3600`;
+      markSignedIn();
       await handlePostSignIn(cred.user.uid);
     } catch (err) {
       setError(firebaseErrorMessage(err));

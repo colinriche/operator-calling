@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { signOut } from "firebase/auth";
+import { markSignedOut } from "@/lib/session-cookie";
 import { auth } from "@/lib/firebase";
 import { Phone, LayoutDashboard, User, Users, Bell, Settings, LogOut, Calendar, PhoneCall, Lock, Megaphone, Shield, Menu } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -45,7 +46,7 @@ export function DashboardNav() {
 
   async function handleSignOut() {
     await signOut(auth);
-    document.cookie = "__session=; path=/; SameSite=Lax; max-age=0";
+    markSignedOut();
     router.push("/");
   }
 

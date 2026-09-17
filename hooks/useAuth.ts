@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { onAuthStateChanged, signOut, User } from "firebase/auth";
 import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
+import { markSignedIn, markSignedOut } from "@/lib/session-cookie";
 import type { UserProfile } from "@/types";
 
 interface AuthState {
@@ -152,6 +153,11 @@ export function useAuth(): AuthState {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
       setUser(u);
+      // Set before anything below can redirect: a page that sends a signed-out
+      // visitor to /login must not find a stale marker there, or the proxy
+      // would bounce them straight back.
+      if (u) markSignedIn();
+      else markSignedOut();
       if (u) {
         await loadProfile(u);
         void claimWaitlistGroups(u);
