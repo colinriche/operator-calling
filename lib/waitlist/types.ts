@@ -9,7 +9,12 @@ import type {
   TimezoneSource,
   WaitlistMode,
 } from "./constants";
-import type { WaitlistDefaults, WaitlistWording } from "./library";
+import type {
+  SocialImages,
+  SocialImageUrls,
+  WaitlistDefaults,
+  WaitlistWording,
+} from "./library";
 import type { TopicArtId } from "./topic-art";
 
 // ─── Wire shapes ─────────────────────────────────────────────────────────────
@@ -47,6 +52,9 @@ export interface DemandSourceRow {
   imageChoice: string;
   /** The library image's URL, when imageChoice is one. */
   imageChoiceUrl: string | null;
+  /** Link-preview pictures for particular networks. Absent means the page's. */
+  socialImages: SocialImages;
+  socialImageUrls: SocialImageUrls;
   /** This source's own copy of the main wording; null follows the default. */
   wording: WaitlistWording | null;
   /** The template the wording was last copied from, for display only. */
@@ -185,6 +193,8 @@ export interface WaitlistContext {
   heroImageUrl: string | null;
   imageChoice: string;
   imageChoiceUrl: string | null;
+  socialImages: SocialImages;
+  socialImageUrls: SocialImageUrls;
   /** The source's own wording, or null to follow the default. */
   wording: WaitlistWording | null;
   /** The defaults in force when this was resolved. */

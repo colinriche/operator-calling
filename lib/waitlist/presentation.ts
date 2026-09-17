@@ -38,9 +38,12 @@ import { builtinImage, FALLBACK_DEFAULT_IMAGE_CHOICE } from "./builtin-images";
 import {
   EMPTY_WAITLIST_DEFAULTS,
   parseImageChoice,
+  sanitiseSocialImages,
+  sanitiseSocialImageUrls,
   sanitiseWording,
   wordingVariantFor,
   type ParsedImageChoice,
+  type SocialNetwork,
   type WaitlistDefaults,
   type WaitlistWording,
   type WordingVariant,
@@ -76,6 +79,8 @@ export interface PublicSourceFields {
   heroImageUrl?: unknown;
   imageChoice?: unknown;
   imageChoiceUrl?: unknown;
+  socialImages?: unknown;
+  socialImageUrls?: unknown;
   wording?: unknown;
   groupId?: unknown;
 }
@@ -159,6 +164,8 @@ export function waitlistContextFrom(
     heroImageUrl: text(fields.heroImageUrl) || null,
     imageChoice: parseImageChoice(fields.imageChoice) ? text(fields.imageChoice) : "",
     imageChoiceUrl: text(fields.imageChoiceUrl) || null,
+    socialImages: sanitiseSocialImages(fields.socialImages),
+    socialImageUrls: sanitiseSocialImageUrls(fields.socialImageUrls),
     wording: sanitiseWording(fields.wording),
     defaults,
   };
@@ -401,7 +408,12 @@ const FAMILY_PROMPT =
  * and the source. Family leads with the family's own name.
  */
 export function buildWaitlistPresentation(
-  context: WaitlistContext
+  context: WaitlistContext,
+  /**
+   * The network whose link preview this is for. Changes only the picture, and
+   * only where one was chosen for that network; the page itself passes none.
+   */
+  network: SocialNetwork | null = null
 ): WaitlistPresentation {
   const common = {
     mode: context.mode,
@@ -446,7 +458,7 @@ export function buildWaitlistPresentation(
         "I may be interested in helping organise or schedule these calls.",
       shareText: `Voice calls for ${family} on The Operator — you say when you're free and the call comes to you.`,
       interestLabel: family,
-      hero: heroFor(context, heading),
+      hero: heroFor(context, heading, network),
       og: {
         title: heading,
         facebookTitle: `${heading} · Keep in touch on The Operator`,
@@ -514,7 +526,7 @@ export function buildWaitlistPresentation(
           ? `This might interest people who like one-to-one voice calls about ${topic}. You make yourself available and The Operator arranges the call.`
           : "This might interest people who like one-to-one voice calls. You make yourself available and The Operator arranges the call.",
       interestLabel: topic || context.audienceLabel,
-      hero: heroFor(context, heading),
+      hero: heroFor(context, heading, network),
       og: {
         title: eyebrow ? `${heading} — ${eyebrow}` : heading,
         facebookTitle: eyebrow ? `${heading} — ${eyebrow}` : heading,
@@ -550,7 +562,7 @@ export function buildWaitlistPresentation(
     shareText:
       "This might interest someone who'd rather talk than type. You make yourself available and The Operator arranges the call.",
     interestLabel: "talking with new people",
-    hero: heroFor(context, heading),
+    hero: heroFor(context, heading, network),
     og: {
       title: heading,
       facebookTitle: heading,
@@ -590,7 +602,27 @@ export function effectiveImageChoice(fields: {
  * library existed — a family's photograph, a community's artwork — and
  * everything else gets the default.
  */
-function heroFor(context: WaitlistContext, heading: string): WaitlistHero {
+function heroFor(
+  context: WaitlistContext,
+  heading: string,
+  network: SocialNetwork | null
+): WaitlistHero {
+  // A picture chosen for this network wins over the page's. "default" means
+  // the default as it applies to this network.
+  if (network) {
+    const override = parseImageChoice(context.socialImages[network]);
+    if (override?.type === "default") return defaultHero(context, heading, network);
+    if (override) {
+      const hero = heroFromChoice(
+        override,
+        context.socialImageUrls[network] ?? null,
+        context,
+        heading
+      );
+      if (hero) return hero;
+    }
+  }
+
   const chosen = parseImageChoice(context.imageChoice);
   if (chosen && chosen.type !== "default") {
     const hero = heroFromChoice(chosen, context.imageChoiceUrl, context, heading);
@@ -608,10 +640,28 @@ function heroFor(context: WaitlistContext, heading: string): WaitlistHero {
     }
   }
 
-  return defaultHero(context, heading);
+  return defaultHero(context, heading, network);
 }
 
-function defaultHero(context: WaitlistContext, heading: string): WaitlistHero {
+function defaultHero(
+  context: WaitlistContext,
+  heading: string,
+  network: SocialNetwork | null
+): WaitlistHero {
+  // The default's own picture for this network, where one was set.
+  if (network) {
+    const forNetwork = parseImageChoice(context.defaults.socialImages[network]);
+    if (forNetwork && forNetwork.type !== "default" && forNetwork.type !== "own") {
+      const hero = heroFromChoice(
+        forNetwork,
+        context.defaults.socialImageUrls[network] ?? null,
+        context,
+        heading
+      );
+      if (hero) return hero;
+    }
+  }
+
   const stored = parseImageChoice(context.defaults.imageChoice);
   if (stored && stored.type !== "default" && stored.type !== "own") {
     const hero = heroFromChoice(stored, context.defaults.imageChoiceUrl, context, heading);
@@ -695,6 +745,8 @@ export function demandSourcePresentation(
         heroImageUrl: source.heroImageUrl,
         imageChoice: source.imageChoice,
         imageChoiceUrl: source.imageChoiceUrl,
+        socialImages: source.socialImages,
+        socialImageUrls: source.socialImageUrls,
         wording: source.wording,
         ...overrides,
       },
@@ -712,6 +764,25 @@ export function demandSourcePresentation(
 // ─── Open Graph image URL ────────────────────────────────────────────────────
 
 /**
+ * The network a card is for, or null when that network's card would be the
+ * page's own card.
+ *
+ * Deliberately collapsed: a network with no picture of its own shares the
+ * page's card — its address, its stored file, its cache — rather than getting
+ * an identical copy under a different name. The page, the image route and the
+ * warm-up all ask this, so they agree on which file a network is served.
+ */
+export function cardNetwork(
+  context: WaitlistContext,
+  network: SocialNetwork | null
+): SocialNetwork | null {
+  if (!network) return null;
+  const page = buildWaitlistPresentation(context);
+  const forNetwork = buildWaitlistPresentation(context, network);
+  return forNetwork.hero.src === page.hero.src ? null : network;
+}
+
+/**
  * Absolute URL of the generated preview image for a tracked link.
  *
  * Absolute because crawlers do not resolve relative `og:image` values, and
@@ -721,11 +792,13 @@ export function demandSourcePresentation(
 export function waitlistOgImageUrl(
   origin: string,
   sourceCode: string | null,
-  version?: string
+  version?: string,
+  network?: SocialNetwork | null
 ): string {
   const base = `${origin.replace(/\/+$/, "")}/api/og/waitlist`;
   const params = new URLSearchParams();
   if (sourceCode) params.set("s", urlSourceCode(sourceCode));
+  if (network) params.set("n", network);
   if (version) params.set("v", version);
   const query = params.toString();
   return query ? `${base}?${query}` : base;

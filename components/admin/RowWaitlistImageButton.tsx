@@ -16,12 +16,14 @@ import { useAuth } from "@/hooks/useAuth";
 import { useWaitlistLibrary } from "@/hooks/useWaitlistLibrary";
 import { cn } from "@/lib/utils";
 import { HeroImageEditor } from "@/components/admin/HeroImageEditor";
+import { SocialImageOverrides } from "@/components/admin/SocialImageOverrides";
 import { WaitlistImagePicker, describeImageChoice } from "@/components/admin/WaitlistImagePicker";
 import { heroThumbClass } from "@/components/admin/WaitlistPagePanel";
 import { WaitlistWordingEditor } from "@/components/admin/WaitlistWordingEditor";
 import {
   sameWording,
   wordingVariantFor,
+  type SocialImages,
   type WaitlistWording,
 } from "@/lib/waitlist/library";
 import {
@@ -66,6 +68,7 @@ export function RowWaitlistImageButton({ source, onSaved }: Props) {
   );
   const [mounted, setMounted] = useState(false);
   const [savingImage, setSavingImage] = useState(false);
+  const [savingSocial, setSavingSocial] = useState(false);
   const [wording, setWording] = useState<WaitlistWording | null>(source.wording);
   const [templateLabel, setTemplateLabel] = useState<string | null>(
     source.wordingTemplateLabel
@@ -155,6 +158,21 @@ export function RowWaitlistImageButton({ source, onSaved }: Props) {
       toast.error(err instanceof Error ? err.message : "Failed to save");
     } finally {
       setSavingImage(false);
+    }
+  }
+
+  /** Saves on every choice, like the page's own picture. */
+  async function saveSocialImages(next: SocialImages) {
+    setSavingSocial(true);
+    try {
+      await patch({ socialImages: next });
+      toast.success("Link preview pictures updated");
+      await onSaved();
+    } catch (err) {
+      console.error(err);
+      toast.error(err instanceof Error ? err.message : "Failed to save");
+    } finally {
+      setSavingSocial(false);
     }
   }
 
@@ -250,6 +268,21 @@ export function RowWaitlistImageButton({ source, onSaved }: Props) {
               disabled={savingImage}
               ownImageUrl={mode === "family" ? source.heroImageUrl : null}
               suggestedCategory={mode === "family" ? "family" : "all"}
+            />
+          </section>
+
+          <section className="space-y-2 border-t border-border/60 pt-4">
+            <p className="text-xs font-medium text-foreground flex items-center gap-1.5">
+              Link preview on each network
+              {savingSocial && <Loader2 className="w-3 h-3 animate-spin" />}
+            </p>
+            <SocialImageOverrides
+              value={source.socialImages}
+              onChange={(next) => void saveSocialImages(next)}
+              baseChoice={choice}
+              platformId={source.platformId}
+              ownImageUrl={mode === "family" ? source.heroImageUrl : null}
+              disabled={savingSocial}
             />
           </section>
 

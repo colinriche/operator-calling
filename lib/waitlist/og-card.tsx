@@ -10,8 +10,14 @@ import {
 } from "@/lib/waitlist/og-store";
 import {
   buildWaitlistPresentation,
+  cardNetwork,
   waitlistOgImageVersion,
 } from "@/lib/waitlist/presentation";
+import {
+  isSocialNetwork,
+  SOCIAL_NETWORK_IDS,
+  type SocialNetwork,
+} from "@/lib/waitlist/library";
 import { resolveWaitlistContext, waitlistDb } from "@/lib/waitlist/server";
 import { BUILTIN_CARDS } from "@/lib/waitlist/builtin-card-data";
 import { imageSize, type ImageSize } from "@/lib/waitlist/image-size";
@@ -178,17 +184,24 @@ export interface WaitlistCard {
  * the version of the presentation actually resolved here, so a stale or
  * invented `v` cannot make one card be stored under another's address.
  */
-async function locate(rawCode: string | null) {
+async function locate(rawCode: string | null, rawNetwork: unknown = null) {
   const context = await resolveWaitlistContext(rawCode, null);
-  const p = buildWaitlistPresentation(context);
-  const path = waitlistCardPath(context.sourceCode, waitlistOgImageVersion(p));
-  return { p, path };
+  const network = cardNetwork(context, isSocialNetwork(rawNetwork) ? rawNetwork : null);
+  const p = buildWaitlistPresentation(context, network);
+  const path = waitlistCardPath(context.sourceCode, waitlistOgImageVersion(p), network);
+  return { p, path, context };
 }
 
-/** The card for a code: the stored file if there is one, else rendered and stored. */
-export async function waitlistCard(rawCode: string | null): Promise<WaitlistCard> {
+/**
+ * The card for a code, and for a network when one has its own picture: the
+ * stored file if there is one, else rendered and stored.
+ */
+export async function waitlistCard(
+  rawCode: string | null,
+  rawNetwork: unknown = null
+): Promise<WaitlistCard> {
   try {
-    const { p, path } = await locate(rawCode);
+    const { p, path } = await locate(rawCode, rawNetwork);
     const stored = await readWaitlistCard(path);
     if (stored && isJpeg(stored)) return { bytes: stored, cache: true };
     return await render(p, path);
@@ -207,9 +220,22 @@ export async function waitlistCard(rawCode: string | null): Promise<WaitlistCard
  */
 export async function warmWaitlistCard(rawCode: string | null): Promise<void> {
   try {
-    const { p, path } = await locate(rawCode);
-    if (await waitlistCardExists(path)) return;
-    await render(p, path);
+    const { p, path, context } = await locate(rawCode);
+    if (!(await waitlistCardExists(path))) await render(p, path);
+
+    // Then every network that has a picture of its own. The rest share the
+    // card just made.
+    for (const id of SOCIAL_NETWORK_IDS) {
+      const network = cardNetwork(context, id as SocialNetwork);
+      if (!network) continue;
+      const forNetwork = buildWaitlistPresentation(context, network);
+      const networkPath = waitlistCardPath(
+        context.sourceCode,
+        waitlistOgImageVersion(forNetwork),
+        network
+      );
+      if (!(await waitlistCardExists(networkPath))) await render(forNetwork, networkPath);
+    }
   } catch (err) {
     console.error(`[og/waitlist] could not make the card in advance for ${rawCode}:`, err);
   }

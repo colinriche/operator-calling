@@ -86,6 +86,104 @@ export function parseImageChoice(raw: unknown): ParsedImageChoice | null {
   return null;
 }
 
+// ─── Per-network pictures ────────────────────────────────────────────────────
+//
+// The page's picture is the link preview everywhere. A network can be given a
+// different one, and only the networks someone chose to change carry an entry:
+// { whatsapp: "library:abc" }. Nothing else needs setting up.
+//
+// Which network is asking is read off the preview fetcher's user agent when it
+// requests the page, so one tracked link serves every network its own card —
+// nobody has to post a different URL to each.
+//
+// Some previews cannot be told apart. Messenger and Instagram use Facebook's
+// fetcher, and iMessage announces itself as Facebook and X at once, so all of
+// those get Facebook's picture. Signal builds its preview on the sender's
+// phone with no identifying agent, so it gets the page's picture.
+
+export const SOCIAL_NETWORKS = [
+  { id: "facebook", label: "Facebook", hint: "Also Messenger, Instagram and iMessage", agent: /facebookexternalhit|facebot/i },
+  { id: "whatsapp", label: "WhatsApp", hint: "", agent: /whatsapp/i },
+  { id: "x", label: "X", hint: "", agent: /twitterbot/i },
+  { id: "linkedin", label: "LinkedIn", hint: "", agent: /linkedinbot/i },
+  { id: "reddit", label: "Reddit", hint: "", agent: /redditbot/i },
+  { id: "discord", label: "Discord", hint: "", agent: /discordbot/i },
+  { id: "telegram", label: "Telegram", hint: "", agent: /telegrambot/i },
+  { id: "slack", label: "Slack", hint: "", agent: /slackbot/i },
+] as const;
+
+export type SocialNetwork = (typeof SOCIAL_NETWORKS)[number]["id"];
+
+export const SOCIAL_NETWORK_IDS = SOCIAL_NETWORKS.map((n) => n.id) as readonly string[];
+
+export function isSocialNetwork(value: unknown): value is SocialNetwork {
+  return typeof value === "string" && SOCIAL_NETWORK_IDS.includes(value);
+}
+
+/**
+ * The order agents are tested in, which is not the display order: fetchers
+ * borrow each other's names. Telegram's is "TelegramBot (like TwitterBot)", so
+ * X is tested last; iMessage's names Facebook and X, and gets Facebook's.
+ */
+const AGENT_MATCH_ORDER: readonly SocialNetwork[] = [
+  "telegram",
+  "slack",
+  "discord",
+  "linkedin",
+  "reddit",
+  "whatsapp",
+  "facebook",
+  "x",
+];
+
+/** Which network's preview fetcher sent this request, if any. */
+export function socialNetworkFromUserAgent(userAgent: string): SocialNetwork | null {
+  for (const id of AGENT_MATCH_ORDER) {
+    if (SOCIAL_NETWORKS.find((n) => n.id === id)!.agent.test(userAgent)) return id;
+  }
+  return null;
+}
+
+/** Network id → image choice. */
+export type SocialImages = Partial<Record<SocialNetwork, string>>;
+
+/** Network id → a library image's copied URL, for the entries that are one. */
+export type SocialImageUrls = Partial<Record<SocialNetwork, string>>;
+
+/** Keep only known networks with a valid choice. */
+export function sanitiseSocialImages(raw: unknown): SocialImages {
+  const out: SocialImages = {};
+  if (!raw || typeof raw !== "object") return out;
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (isSocialNetwork(key) && parseImageChoice(value)) out[key] = String(value).trim();
+  }
+  return out;
+}
+
+export function sanitiseSocialImageUrls(raw: unknown): SocialImageUrls {
+  const out: SocialImageUrls = {};
+  if (!raw || typeof raw !== "object") return out;
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (isSocialNetwork(key) && typeof value === "string" && value) out[key] = value;
+  }
+  return out;
+}
+
+/** Two per-network maps hold the same choices. */
+export function sameSocialImages(a: SocialImages, b: SocialImages): boolean {
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)]) as Set<SocialNetwork>;
+  return [...keys].every((k) => a[k] === b[k]);
+}
+
+/**
+ * The networks worth offering first for a source: the one its links are posted
+ * on, then the two every link ends up forwarded through.
+ */
+export function suggestedNetworks(platformId: string | null | undefined): SocialNetwork[] {
+  const first = isSocialNetwork(platformId) ? [platformId] : [];
+  return [...new Set<SocialNetwork>([...first, "whatsapp", "facebook"])];
+}
+
 // ─── Wording ─────────────────────────────────────────────────────────────────
 
 export const WORDING_VARIANTS = [
@@ -205,18 +303,28 @@ export interface WaitlistDefaults {
   imageChoiceUrl: string | null;
   /** Admin edits of the built-in wording. A missing variant uses the built-in. */
   wording: Partial<Record<WordingVariant, WaitlistWording>>;
+  /** Per-network pictures for pages that use the default picture. */
+  socialImages: SocialImages;
+  socialImageUrls: SocialImageUrls;
 }
 
 export const EMPTY_WAITLIST_DEFAULTS: WaitlistDefaults = {
   imageChoice: "",
   imageChoiceUrl: null,
   wording: {},
+  socialImages: {},
+  socialImageUrls: {},
 };
 
 /** Parse a stored defaults document, discarding anything malformed. */
 export function sanitiseDefaults(raw: unknown): WaitlistDefaults {
   if (!raw || typeof raw !== "object") return EMPTY_WAITLIST_DEFAULTS;
   const data = raw as Record<string, unknown>;
+  // "default" would point at itself and "own" belongs to a family.
+  const socialImages = sanitiseSocialImages(data.socialImages);
+  for (const [network, choice] of Object.entries(socialImages)) {
+    if (choice === "default" || choice === "own") delete socialImages[network as SocialNetwork];
+  }
   const choice = parseImageChoice(data.imageChoice);
   const wording: WaitlistDefaults["wording"] = {};
   if (data.wording && typeof data.wording === "object") {
@@ -232,6 +340,8 @@ export function sanitiseDefaults(raw: unknown): WaitlistDefaults {
         ? data.imageChoiceUrl
         : null,
     wording,
+    socialImages,
+    socialImageUrls: sanitiseSocialImageUrls(data.socialImageUrls),
   };
 }
 

@@ -42,6 +42,8 @@ function source(over: Partial<DemandSourceRow> = {}): DemandSourceRow {
     heroImageUploadedBy: null,
     imageChoice: "",
     imageChoiceUrl: null,
+    socialImages: {},
+    socialImageUrls: {},
     wording: null,
     wordingTemplateLabel: null,
     internalNotes: "",

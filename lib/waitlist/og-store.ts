@@ -41,13 +41,17 @@ function folder(sourceCode: string | null): string {
 
 export function waitlistCardPath(
   sourceCode: string | null,
-  version: string
+  version: string,
+  network: string | null = null
 ): string {
   const safe = /^[a-z0-9]{1,16}$/.test(version) ? version : "0";
+  // A network's own card lives in its own subfolder, so storing one network's
+  // new card only replaces that network's old one — see storeWaitlistCard.
+  const sub = network && /^[a-z]{1,16}$/.test(network) ? `/${network}` : "";
   // .jpg: the card is stored as JPEG to stay under WhatsApp's size limit. The
   // extension also keeps these paths clear of the oversized .png cards that
   // came before, which are deleted as each source's new card is stored.
-  return `${folder(sourceCode)}/${safe}.jpg`;
+  return `${folder(sourceCode)}${sub}/${safe}.jpg`;
 }
 
 /**
@@ -134,11 +138,15 @@ export async function storeWaitlistCard(
 
     // Only the current version survives. Without this every edit to a family
     // name would leave another 1MB card behind for good.
+    //
+    // Only files directly in this folder: a prefix listing is recursive, and
+    // the networks' own cards sit in subfolders beneath the page's card.
+    // Deleting those would leave a network's preview pointing at nothing.
     const prefix = `${path.slice(0, path.lastIndexOf("/"))}/`;
     const [stale] = await bucket.getFiles({ prefix });
     await Promise.all(
       stale
-        .filter((f) => f.name !== path)
+        .filter((f) => f.name !== path && !f.name.slice(prefix.length).includes("/"))
         .map((f) => f.delete({ ignoreNotFound: true }).catch(() => undefined))
     );
     return true;

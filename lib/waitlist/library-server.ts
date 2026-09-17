@@ -1,10 +1,13 @@
 import type { DocumentSnapshot, Firestore } from "firebase-admin/firestore";
 import { COLLECTIONS } from "./constants";
 import {
+  isSocialNetwork,
   isWordingVariant,
   parseImageChoice,
   sanitiseWording,
   type LibraryImageRow,
+  type SocialImages,
+  type SocialImageUrls,
   type WordingTemplateRow,
 } from "./library";
 import { toIso } from "./server";
@@ -70,4 +73,40 @@ export async function resolveImageChoice(
   }
 
   return { ok: true, imageChoice: String(raw).trim(), imageChoiceUrl: null };
+}
+
+export type ResolvedSocialImages =
+  | { ok: true; socialImages: SocialImages; socialImageUrls: SocialImageUrls }
+  | { ok: false; error: string };
+
+/**
+ * Validate a whole { network: imageChoice } map, resolving library images to
+ * their URLs the same way a single choice is. An empty choice drops that
+ * network, so it goes back to the page's picture.
+ */
+export async function resolveSocialImages(
+  db: Firestore,
+  raw: unknown,
+  { forDefaults }: { forDefaults: boolean }
+): Promise<ResolvedSocialImages> {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return { ok: false, error: "Expected a picture per network" };
+  }
+
+  const socialImages: SocialImages = {};
+  const socialImageUrls: SocialImageUrls = {};
+  for (const [network, choice] of Object.entries(raw as Record<string, unknown>)) {
+    if (!isSocialNetwork(network)) {
+      return { ok: false, error: `Unknown network: ${network}` };
+    }
+    if (choice === "" || choice === null) continue;
+    if (forDefaults && (choice === "default" || choice === "own")) {
+      return { ok: false, error: "Choose a specific image for each network" };
+    }
+    const resolved = await resolveImageChoice(db, choice, { allowUnset: false });
+    if (!resolved.ok) return resolved;
+    socialImages[network] = resolved.imageChoice;
+    if (resolved.imageChoiceUrl) socialImageUrls[network] = resolved.imageChoiceUrl;
+  }
+  return { ok: true, socialImages, socialImageUrls };
 }

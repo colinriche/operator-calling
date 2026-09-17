@@ -4,8 +4,9 @@ import { waitlistCard } from "@/lib/waitlist/og-card";
 
 // ─── The link preview image ──────────────────────────────────────────────────
 //
-// GET /api/og/waitlist?s=CODE&v=TOKEN — the image a messaging app shows when
-// this tracked link is pasted.
+// GET /api/og/waitlist?s=CODE&n=NETWORK&v=TOKEN — the image a messaging app
+// shows when this tracked link is pasted. `n` is present only for a network
+// given a picture of its own.
 //
 // It resolves the source exactly as the page does and renders from the same
 // presentation object, so the preview cannot describe a different page from the
@@ -84,7 +85,12 @@ function imageResponse(bytes: Buffer, { cache }: { cache: boolean }): Response {
 
 export async function GET(req: NextRequest) {
   // waitlistCard never throws: a failure comes back as the fallback image,
-  // marked not to be cached.
-  const { bytes, cache } = await waitlistCard(req.nextUrl.searchParams.get("s"));
+  // marked not to be cached. `n` names the network a card is for, resolved
+  // against the source rather than trusted: a network with no picture of its
+  // own gets the page's card.
+  const { bytes, cache } = await waitlistCard(
+    req.nextUrl.searchParams.get("s"),
+    req.nextUrl.searchParams.get("n")
+  );
   return imageResponse(bytes, { cache });
 }

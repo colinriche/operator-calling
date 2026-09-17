@@ -17,7 +17,7 @@ import {
   findSimilarDemandSources,
 } from "@/lib/waitlist/duplicate-sources";
 import { sanitiseWording } from "@/lib/waitlist/library";
-import { resolveImageChoice } from "@/lib/waitlist/library-server";
+import { resolveImageChoice, resolveSocialImages } from "@/lib/waitlist/library-server";
 import { isTopicArtId } from "@/lib/waitlist/topic-art";
 
 // PATCH /api/admin/demand-sources/[id] — edit a demand source.
@@ -191,6 +191,17 @@ export async function PATCH(
       }
       update.imageChoice = resolved.imageChoice;
       update.imageChoiceUrl = resolved.imageChoiceUrl;
+    }
+
+    // Pictures for particular networks, replaced as a whole. A network left out
+    // goes back to the page's picture.
+    if (body.socialImages !== undefined) {
+      const resolved = await resolveSocialImages(db, body.socialImages, { forDefaults: false });
+      if (!resolved.ok) {
+        return NextResponse.json({ error: resolved.error }, { status: 400 });
+      }
+      update.socialImages = resolved.socialImages;
+      update.socialImageUrls = resolved.socialImageUrls;
     }
 
     // Editing a name or URL onto another source's is the same mistake as

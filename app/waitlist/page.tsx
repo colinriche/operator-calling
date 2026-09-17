@@ -23,9 +23,11 @@ import {
 } from "@/lib/waitlist/og-store";
 import {
   buildWaitlistPresentation,
+  cardNetwork,
   waitlistOgImageUrl,
   waitlistOgImageVersion,
 } from "@/lib/waitlist/presentation";
+import { socialNetworkFromUserAgent, type SocialNetwork } from "@/lib/waitlist/library";
 import { resolveWaitlistContext } from "@/lib/waitlist/server";
 import { urlSourceCode } from "@/lib/waitlist/tracked-url";
 
@@ -48,9 +50,6 @@ const contextFor = cache(
   async (code: string | undefined, share: string | undefined) =>
     resolveWaitlistContext(code, share)
 );
-
-/** Facebook's link-preview fetcher, as it identifies itself. */
-const FACEBOOK_FETCHER = /facebookexternalhit|facebot/i;
 
 /** Absolute origin, which og:image requires and relative URLs cannot give. */
 async function origin(): Promise<string> {
@@ -83,10 +82,11 @@ async function origin(): Promise<string> {
 async function ogImageUrl(
   site: string,
   sourceCode: string | null,
-  version: string
+  version: string,
+  network: SocialNetwork | null
 ): Promise<string> {
   try {
-    const path = waitlistCardPath(sourceCode, version);
+    const path = waitlistCardPath(sourceCode, version, network);
     if (await waitlistCardExists(path)) {
       return waitlistCardUrl(cardBucketName(), path);
     }
@@ -94,7 +94,7 @@ async function ogImageUrl(
     // Storage being unreachable must not cost the page its preview.
     console.error("[waitlist] card lookup failed:", err);
   }
-  return waitlistOgImageUrl(site, sourceCode, version);
+  return waitlistOgImageUrl(site, sourceCode, version, network);
 }
 
 export async function generateMetadata({
@@ -106,18 +106,25 @@ export async function generateMetadata({
   const context = await contextFor(first(params, "s"), first(params, "share"));
   const p = buildWaitlistPresentation(context);
   const site = await origin();
+
+  // Which network's preview fetcher is asking. A network given a picture of its
+  // own is sent that card; every other request gets the page's. Safe to vary
+  // per request because the page is dynamic and never cached as HTML.
+  const ua = (await headers()).get("user-agent") ?? "";
+  const asking = socialNetworkFromUserAgent(ua);
+  const network = cardNetwork(context, asking);
+  const card = network ? buildWaitlistPresentation(context, network) : p;
+
   // Versioned, so replacing a family photograph or changing the artwork gives
   // the scrapers an address they have not already cached. Without it a stale
   // card can outlive the picture it shows by weeks.
-  const version = waitlistOgImageVersion(p);
-  const image = await ogImageUrl(site, context.sourceCode, version);
+  const version = waitlistOgImageVersion(card);
+  const image = await ogImageUrl(site, context.sourceCode, version, network);
 
   // Facebook's fetcher gets a longer og:title than everyone else. Only the
-  // title: the image, its address and its version are identical for both, so
-  // Facebook is still pointed at the stored card. Messenger and Instagram use
-  // the same fetcher and get the same title; WhatsApp identifies as WhatsApp.
-  const ua = (await headers()).get("user-agent") ?? "";
-  const ogTitle = FACEBOOK_FETCHER.test(ua) ? p.og.facebookTitle : p.og.title;
+  // title. Messenger and Instagram use the same fetcher and get the same
+  // title; WhatsApp identifies as WhatsApp.
+  const ogTitle = asking === "facebook" ? p.og.facebookTitle : p.og.title;
 
   // The canonical address of this page. Only `s` is carried: `t` is cosmetic
   // and `share`/`preview` describe how someone arrived, not what they are

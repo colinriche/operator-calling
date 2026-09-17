@@ -18,7 +18,11 @@ import {
   blockingDuplicates,
   findSimilarDemandSources,
 } from "@/lib/waitlist/duplicate-sources";
-import { sanitiseWording } from "@/lib/waitlist/library";
+import {
+  sanitiseSocialImages,
+  sanitiseSocialImageUrls,
+  sanitiseWording,
+} from "@/lib/waitlist/library";
 import { isTopicArtId } from "@/lib/waitlist/topic-art";
 import {
   createUniqueSourceCode,
@@ -186,6 +190,8 @@ export async function GET(req: NextRequest) {
         heroImageUploadedBy: data.heroImageUploadedBy ?? null,
         imageChoice: typeof data.imageChoice === "string" ? data.imageChoice : "",
         imageChoiceUrl: data.imageChoiceUrl ?? null,
+        socialImages: sanitiseSocialImages(data.socialImages),
+        socialImageUrls: sanitiseSocialImageUrls(data.socialImageUrls),
         wording: sanitiseWording(data.wording),
         wordingTemplateLabel: data.wordingTemplateLabel ?? null,
         internalNotes: data.internalNotes ?? "",
@@ -344,6 +350,8 @@ export async function POST(req: NextRequest) {
       // chooses otherwise.
       imageChoice: "",
       imageChoiceUrl: null,
+      socialImages: {},
+      socialImageUrls: {},
       wording: null,
       wordingTemplateLabel: null,
       internalNotes: str(body.internalNotes, 4000),

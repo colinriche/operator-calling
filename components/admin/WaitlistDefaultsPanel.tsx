@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Archive, ArchiveRestore, ChevronDown, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { SocialImageOverrides } from "@/components/admin/SocialImageOverrides";
 import { WaitlistImagePicker, describeImageChoice } from "@/components/admin/WaitlistImagePicker";
 import { WaitlistWordingEditor } from "@/components/admin/WaitlistWordingEditor";
 import { useAuth } from "@/hooks/useAuth";
@@ -14,6 +15,7 @@ import {
   LIBRARY_IMAGE_CATEGORIES,
   WORDING_VARIANTS,
   sameWording,
+  type SocialImages,
   type WaitlistWording,
   type WordingVariant,
 } from "@/lib/waitlist/library";
@@ -47,6 +49,22 @@ export function WaitlistDefaultsPanel() {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error ?? "Request failed");
     return data;
+  }
+
+  async function saveDefaultSocialImages(next: SocialImages) {
+    setSavingImage(true);
+    try {
+      await authed("/api/admin/waitlist-library/defaults", {
+        method: "PATCH",
+        body: JSON.stringify({ socialImages: next }),
+      });
+      await reload();
+      toast.success("Default link preview pictures updated");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to save");
+    } finally {
+      setSavingImage(false);
+    }
   }
 
   async function chooseDefaultImage(choice: string) {
@@ -168,6 +186,18 @@ export function WaitlistDefaultsPanel() {
               allowDefault={false}
               disabled={savingImage}
             />
+            <div className="mt-4">
+              <p className="text-xs font-medium text-foreground mb-1.5">
+                Default link preview on each network
+              </p>
+              <SocialImageOverrides
+                value={library.defaults.socialImages}
+                onChange={(next) => void saveDefaultSocialImages(next)}
+                baseChoice={library.defaults.imageChoice || FALLBACK_DEFAULT_IMAGE_CHOICE}
+                allowDefault={false}
+                disabled={savingImage}
+              />
+            </div>
           </section>
 
           <section>

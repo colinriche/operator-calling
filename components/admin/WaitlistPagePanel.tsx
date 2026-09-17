@@ -18,8 +18,10 @@ import {
 } from "@/lib/waitlist/constants";
 import { builtinImage } from "@/lib/waitlist/builtin-images";
 import {
+  sameSocialImages,
   sameWording,
   wordingVariantFor,
+  type SocialImages,
   type WaitlistWording,
 } from "@/lib/waitlist/library";
 import {
@@ -27,6 +29,7 @@ import {
   effectiveImageChoice,
 } from "@/lib/waitlist/presentation";
 import { HeroImageEditor } from "@/components/admin/HeroImageEditor";
+import { SocialImageOverrides } from "@/components/admin/SocialImageOverrides";
 import { WaitlistImagePicker } from "@/components/admin/WaitlistImagePicker";
 import { WaitlistWordingEditor } from "@/components/admin/WaitlistWordingEditor";
 import type { DemandSourceRow, WaitlistHero } from "@/lib/waitlist/types";
@@ -76,6 +79,7 @@ export function WaitlistPagePanel({ source, onSaved }: Props) {
 
   const savedChoice = effectiveImageChoice(source);
   const [imageChoice, setImageChoice] = useState(savedChoice);
+  const [socialImages, setSocialImages] = useState<SocialImages>(source.socialImages);
   const [wording, setWording] = useState<WaitlistWording | null>(source.wording);
   const [templateLabel, setTemplateLabel] = useState<string | null>(
     source.wordingTemplateLabel
@@ -84,12 +88,14 @@ export function WaitlistPagePanel({ source, onSaved }: Props) {
   const [addingToLibrary, setAddingToLibrary] = useState(false);
 
   const imageDirty = imageChoice !== savedChoice;
+  const socialDirty = !sameSocialImages(socialImages, source.socialImages);
   const wordingDirty = !sameWording(wording, source.wording);
   const dirty =
     mode !== (source.waitlistMode || "community") ||
     connectionType !== (source.connectionType || DEFAULT_CONNECTION_TYPE) ||
     familyName !== (source.familyName ?? "") ||
     imageDirty ||
+    socialDirty ||
     wordingDirty;
 
   // A choice the library can no longer render (an image deleted elsewhere, say)
@@ -136,6 +142,7 @@ export function WaitlistPagePanel({ source, onSaved }: Props) {
           connectionType,
           familyName,
           ...(imageDirty ? { imageChoice } : {}),
+          ...(socialDirty ? { socialImages } : {}),
           ...(wordingDirty ? { wording, wordingTemplateLabel: templateLabel } : {}),
         }),
       });
@@ -295,6 +302,17 @@ export function WaitlistPagePanel({ source, onSaved }: Props) {
           onChange={setImageChoice}
           ownImageUrl={mode === "family" ? source.heroImageUrl : null}
           suggestedCategory={mode === "family" ? "family" : "all"}
+        />
+      </div>
+
+      <div>
+        <label className={labelClass}>Link preview on each network</label>
+        <SocialImageOverrides
+          value={socialImages}
+          onChange={setSocialImages}
+          baseChoice={imageChoice}
+          platformId={source.platformId}
+          ownImageUrl={mode === "family" ? source.heroImageUrl : null}
         />
       </div>
 

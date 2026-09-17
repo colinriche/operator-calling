@@ -3,13 +3,14 @@ import { FieldValue } from "firebase-admin/firestore";
 import { requireAdmin } from "@/lib/admin-auth";
 import { COLLECTIONS, WAITLIST_DEFAULTS_DOC } from "@/lib/waitlist/constants";
 import { isWordingVariant, sanitiseWording } from "@/lib/waitlist/library";
-import { resolveImageChoice } from "@/lib/waitlist/library-server";
+import { resolveImageChoice, resolveSocialImages } from "@/lib/waitlist/library-server";
 import { warmWaitlistCard } from "@/lib/waitlist/og-card";
 import { waitlistDb } from "@/lib/waitlist/server";
 
 // PATCH /api/admin/waitlist-library/defaults
 //
 //   { imageChoice }                  the default picture
+//   { socialImages }                 the default picture for particular networks
 //   { variant, wording }             replace a variant's default wording
 //   { variant, wording: null }       go back to the built-in wording
 //
@@ -46,6 +47,15 @@ export async function PATCH(req: NextRequest) {
       }
       update.imageChoice = resolved.imageChoice;
       update.imageChoiceUrl = resolved.imageChoiceUrl;
+    }
+
+    if (body.socialImages !== undefined) {
+      const resolved = await resolveSocialImages(db, body.socialImages, { forDefaults: true });
+      if (!resolved.ok) {
+        return NextResponse.json({ error: resolved.error }, { status: 400 });
+      }
+      update.socialImages = resolved.socialImages;
+      update.socialImageUrls = resolved.socialImageUrls;
     }
 
     if (body.variant !== undefined) {
