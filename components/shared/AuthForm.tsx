@@ -15,6 +15,7 @@ import { auth, db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ForgotPasswordLink } from "@/components/auth/ForgotPasswordLink";
 import { markSignedIn } from "@/lib/session-cookie";
 
 interface AuthFormProps {
@@ -346,9 +347,7 @@ export function AuthForm({ mode, inviteRef = "", inviteGid = "", nextPath = "/da
         <div>
           <div className="flex items-center justify-between mb-1.5">
             <Label htmlFor="password" className="text-sm font-medium">Password</Label>
-            {mode === "login" && (
-              <a href="#" className="text-xs text-primary hover:underline">Forgot password?</a>
-            )}
+            {mode === "login" && <ForgotPasswordLink email={email} />}
           </div>
           <Input
             id="password"

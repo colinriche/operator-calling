@@ -52,6 +52,7 @@ import { auth, db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ForgotPasswordLink } from "@/components/auth/ForgotPasswordLink";
 import { markSignedIn } from "@/lib/session-cookie";
 
 function firebaseErrorMessage(err: unknown): string {
@@ -250,7 +251,7 @@ function AuthFormInline({ mode, nextPath }: { mode: "login" | "signup"; nextPath
         <div>
           <div className="flex items-center justify-between mb-1.5">
             <Label htmlFor="password-tab" className="text-sm font-medium">Password</Label>
-            <a href="#" className="text-xs text-primary hover:underline">Forgot password?</a>
+            <ForgotPasswordLink email={email} />
           </div>
           <Input
             id="password-tab"
