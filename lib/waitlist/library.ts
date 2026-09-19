@@ -243,6 +243,12 @@ export interface WaitlistWording {
   signoff: string;
   /** The link preview's description. */
   ogDescription: string;
+  /**
+   * The message the share buttons carry — the post on X, the Reddit title, the
+   * WhatsApp message, the email. "" follows the built-in wording, which is also
+   * what wording saved before this field existed does.
+   */
+  shareText: string;
 }
 
 export const WORDING_FIELDS: ReadonlyArray<{
@@ -259,6 +265,7 @@ export const WORDING_FIELDS: ReadonlyArray<{
   { key: "signoff", label: "Sign-off line", max: 160, rows: 1, familyOnly: true },
   { key: "bodyContinued", label: "Second paragraph", max: 1500, rows: 5, familyOnly: true },
   { key: "ogDescription", label: "Link preview description", max: 300, rows: 2 },
+  { key: "shareText", label: "Share message", max: 400, rows: 2 },
 ];
 
 /**

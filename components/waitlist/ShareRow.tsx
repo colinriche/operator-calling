@@ -15,6 +15,12 @@ import { urlSourceCode } from "@/lib/waitlist/tracked-url";
 // to the outreach that started it, and adds &share=<channel> so we can tell
 // second-hand traffic from the original post. A share never creates a new
 // demand source.
+//
+// It also carries the page's readable slug as &t= where the source opted in,
+// so a pasted link says what it is about rather than only a code. The page
+// ignores `t` entirely — see lib/waitlist/tracked-url.ts — and the canonical
+// URL in the page's metadata drops it, so the networks still treat every share
+// of a page as the same address.
 
 interface ShareRowProps {
   sourceCode: string | null;
@@ -23,10 +29,20 @@ interface ShareRowProps {
    * a global page must not be passed round as though it were about a topic.
    */
   shareText: string;
+  /** Subject line for email, and the title the native share sheet shows. */
+  shareSubject: string;
+  /** Readable slug for the link, or "" to leave it off. */
+  shareSlug: string;
   className?: string;
 }
 
-export function ShareRow({ sourceCode, shareText, className }: ShareRowProps) {
+export function ShareRow({
+  sourceCode,
+  shareText,
+  shareSubject,
+  shareSlug,
+  className,
+}: ShareRowProps) {
   const [origin, setOrigin] = useState("");
   const [copied, setCopied] = useState(false);
   const [canNativeShare, setCanNativeShare] = useState(false);
@@ -43,7 +59,10 @@ export function ShareRow({ sourceCode, shareText, className }: ShareRowProps) {
     // endpoint below stays as resolved, and that route normalises anyway.
     if (sourceCode) params.set("s", urlSourceCode(sourceCode));
     params.set("share", channel);
-    return `${base}?${params.toString()}`;
+    // topicSlug only ever emits [a-z0-9-], so appending it raw keeps the link
+    // readable where URLSearchParams would escape nothing anyway.
+    const slug = shareSlug ? `&t=${shareSlug}` : "";
+    return `${base}?${params.toString()}${slug}`;
   }
 
   /**
@@ -80,7 +99,7 @@ export function ShareRow({ sourceCode, shareText, className }: ShareRowProps) {
   async function handleNativeShare() {
     const link = urlFor("native");
     try {
-      await navigator.share({ title: "The Operator", text: shareText, url: link });
+      await navigator.share({ title: shareSubject, text: shareText, url: link });
       // navigator.share resolving means the sheet was used, not that anything
       // was posted — this is recorded as intent only.
       recordShare("native");
@@ -156,7 +175,7 @@ export function ShareRow({ sourceCode, shareText, className }: ShareRowProps) {
           onClick={() =>
             openShare(
               "email",
-              `mailto:?subject=${encodeURIComponent("Thought this might interest you")}&body=${encodeURIComponent(`${shareText}\n\n${urlFor("email")}`)}`
+              `mailto:?subject=${encodeURIComponent(shareSubject)}&body=${encodeURIComponent(`${shareText}\n\n${urlFor("email")}`)}`
             )
           }
           className={chipClass}

@@ -222,6 +222,8 @@ export function WaitlistForm({
         <ShareRow
           sourceCode={context.sourceCode}
           shareText={presentation.shareText}
+          shareSubject={presentation.shareSubject}
+          shareSlug={presentation.shareSlug}
         />
       </div>
     );
@@ -490,6 +492,8 @@ export function WaitlistForm({
       <ShareRow
         sourceCode={context.sourceCode}
         shareText={presentation.shareText}
+        shareSubject={presentation.shareSubject}
+        shareSlug={presentation.shareSlug}
       />
     </div>
   );

@@ -188,6 +188,8 @@ export interface WaitlistContext {
    */
   canNameSource: boolean;
   topicName: string;
+  /** Whether a shared link carries the readable topic slug. */
+  includeTopicInUrl: boolean;
   topicArtId: string;
   familyName: string;
   heroImageUrl: string | null;
@@ -251,6 +253,10 @@ export interface WaitlistPresentation {
   successNote: string;
   organiserLabel: string;
   shareText: string;
+  /** Subject line for an emailed share, and the native share sheet's title. */
+  shareSubject: string;
+  /** Readable slug appended to shared links, or "" when the source opted out. */
+  shareSlug: string;
   /**
    * What this registration is an interest *in*, in a form that can be dropped
    * into a sentence. Also what the confirmation email says, so the email and

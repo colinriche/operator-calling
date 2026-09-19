@@ -49,7 +49,7 @@ import {
   type WordingVariant,
 } from "./library";
 import { BRAND_ART_DATA_URI, isTopicArtId, topicArtDataUri } from "./topic-art";
-import { urlSourceCode } from "./tracked-url";
+import { topicSlug, urlSourceCode } from "./tracked-url";
 import type {
   DemandSourceRow,
   WaitlistContext,
@@ -72,6 +72,7 @@ export interface PublicSourceFields {
   publicDisplayName?: unknown;
   publicAudienceLabel?: unknown;
   topicName?: unknown;
+  includeTopicInUrl?: unknown;
   waitlistMode?: unknown;
   connectionType?: unknown;
   topicArtId?: unknown;
@@ -159,6 +160,7 @@ export function waitlistContextFrom(
     // a real community may be named.
     canNameSource: canNameSourcePublicly(relationshipStatus),
     topicName: text(fields.topicName),
+    includeTopicInUrl: fields.includeTopicInUrl === true,
     topicArtId: isTopicArtId(fields.topicArtId) ? fields.topicArtId : "",
     familyName: text(fields.familyName),
     heroImageUrl: text(fields.heroImageUrl) || null,
@@ -271,6 +273,8 @@ export const BUILTIN_WORDING: Record<WordingVariant, WaitlistWording> = {
     signoff: "",
     ogDescription:
       "One-to-one voice calls with people you haven't met. Say when you're free and the call comes to you.",
+    shareText:
+      "This might interest someone who'd rather talk than type. You make yourself available and The Operator arranges the call.",
   },
   community_interest: {
     heading: "{topic}",
@@ -280,6 +284,8 @@ export const BUILTIN_WORDING: Record<WordingVariant, WaitlistWording> = {
     signoff: "",
     ogDescription:
       "One-to-one voice calls with others who share an interest in {topic}. Say when you're free and the call comes to you.",
+    shareText:
+      "This might interest people who like one-to-one voice calls about {topic}. You make yourself available and The Operator arranges the call.",
   },
   community_known: {
     heading: "{group}",
@@ -289,6 +295,8 @@ export const BUILTIN_WORDING: Record<WordingVariant, WaitlistWording> = {
     signoff: "",
     ogDescription:
       "The Operator keeps {group} in touch by occasionally bringing two members together for a private one-to-one call.",
+    shareText:
+      "A way for {group} to keep in contact by voice — The Operator occasionally brings two members together for a one-to-one call.",
   },
   family: {
     heading: "{family}",
@@ -299,6 +307,8 @@ export const BUILTIN_WORDING: Record<WordingVariant, WaitlistWording> = {
     signoff: "The Operator app, for families, groups and communities",
     ogDescription:
       "The Operator app brings family members together through unexpected one-to-one calls.",
+    shareText:
+      "Voice calls for {family} on The Operator — you say when you're free and the call comes to you.",
   },
 };
 
@@ -343,6 +353,9 @@ function fillWording(
         /who shares? an interest in \{topic\}/g,
         "interested in The Operator Calling project"
       );
+      // "voice calls about ___" drops the clause rather than naming a filler
+      // subject, so a share message with no topic still reads properly.
+      out = out.replace(/ about \{topic\}/g, "");
     }
     return out
       .replace(/\{topic\}/g, values.topic || "this interest")
@@ -371,6 +384,10 @@ function fillWording(
     bodyContinued: fill(wording.bodyContinued),
     signoff: fill(wording.signoff),
     ogDescription,
+    // Empty means nobody has written one: wording saved before the share
+    // message was editable, or a field cleared. Either way the built-in stands
+    // in, rather than a share button carrying nothing.
+    shareText: fill(wording.shareText || BUILTIN_WORDING[variant].shareText),
   };
 }
 
@@ -456,7 +473,9 @@ export function buildWaitlistPresentation(
       successNote: `We'll keep your interest linked to ${family}. When the calling group is ready, we can let you know.`,
       organiserLabel:
         "I may be interested in helping organise or schedule these calls.",
-      shareText: `Voice calls for ${family} on The Operator — you say when you're free and the call comes to you.`,
+      shareText: w.shareText,
+      shareSubject: `${heading} on The Operator`,
+      shareSlug: shareSlugFor(context, family),
       interestLabel: family,
       hero: heroFor(context, heading, network),
       og: {
@@ -520,11 +539,9 @@ export function buildWaitlistPresentation(
       // Drops the "about ___" clause entirely with no topic, rather than
       // reaching for a filler noun — a share message naming no subject still
       // reads properly, which is not true of "voice calls about this topic".
-      shareText: known
-        ? `A way for ${group} to keep in contact by voice — The Operator occasionally brings two members together for a one-to-one call.`
-        : topic
-          ? `This might interest people who like one-to-one voice calls about ${topic}. You make yourself available and The Operator arranges the call.`
-          : "This might interest people who like one-to-one voice calls. You make yourself available and The Operator arranges the call.",
+      shareText: w.shareText,
+      shareSubject: `${heading} on The Operator`,
+      shareSlug: shareSlugFor(context, topic),
       interestLabel: topic || context.audienceLabel,
       hero: heroFor(context, heading, network),
       og: {
@@ -559,8 +576,10 @@ export function buildWaitlistPresentation(
       "We'll let you know when calls open up. Nothing is scheduled until you say you're available.",
     organiserLabel:
       "I may be interested in helping organise or schedule calls.",
-    shareText:
-      "This might interest someone who'd rather talk than type. You make yourself available and The Operator arranges the call.",
+    shareText: w.shareText,
+    // The global heading is a question, which reads badly as a subject line.
+    shareSubject: "Thought this might interest you",
+    shareSlug: "",
     interestLabel: "talking with new people",
     hero: heroFor(context, heading, network),
     og: {
@@ -569,6 +588,18 @@ export function buildWaitlistPresentation(
       description: w.ogDescription,
     },
   };
+}
+
+/**
+ * The readable slug a shared link carries, or "" for none.
+ *
+ * The same opt-in the admin panel's copyable link uses, so a source that was
+ * deliberately kept anonymous in its URLs stays that way when a visitor shares
+ * it. The page ignores the slug either way — see lib/waitlist/tracked-url.ts.
+ */
+function shareSlugFor(context: WaitlistContext, subject: string): string {
+  if (!context.sourceCode || !context.includeTopicInUrl) return "";
+  return topicSlug(subject);
 }
 
 // ─── Hero ────────────────────────────────────────────────────────────────────
@@ -737,6 +768,7 @@ export function demandSourcePresentation(
         publicDisplayName: source.publicDisplayName,
         publicAudienceLabel: source.publicAudienceLabel,
         topicName: source.topicName,
+        includeTopicInUrl: source.includeTopicInUrl,
         groupId: source.groupId,
         waitlistMode: source.waitlistMode,
         connectionType: source.connectionType,

@@ -41,6 +41,7 @@ const WORDING: WaitlistWording = {
   bodyContinued: "",
   signoff: "",
   ogDescription: "Voice calls about {topic}.",
+  shareText: "Fancy a {topic} chat?",
 };
 
 describe("parseImageChoice", () => {
@@ -178,6 +179,54 @@ describe("wording", () => {
     );
     expect(p.heading).not.toContain("{");
     expect(p.lead).toBe("Talk this interest with someone new.");
+  });
+
+  it("carries the share message into the share buttons", () => {
+    const p = buildWaitlistPresentation(
+      contextFor({ waitlistMode: "community", topicName: "chess", wording: WORDING })
+    );
+    expect(p.shareText).toBe("Fancy a chess chat?");
+  });
+
+  // Wording saved before the share message existed has no shareText at all.
+  it("falls back to the built-in share message when none was written", () => {
+    const p = buildWaitlistPresentation(
+      contextFor({
+        waitlistMode: "community",
+        topicName: "chess",
+        wording: { ...WORDING, shareText: "" },
+      })
+    );
+    expect(p.shareText).toBe(BUILTIN_WORDING.community_interest.shareText.replace("{topic}", "chess"));
+  });
+
+  it("drops the subject clause from a share message with no topic", () => {
+    const p = buildWaitlistPresentation(contextFor({ waitlistMode: "community", topicName: "" }));
+    expect(p.shareText).toBe(
+      "This might interest people who like one-to-one voice calls. You make yourself available and The Operator arranges the call."
+    );
+  });
+
+  it("gives email and the share sheet a subject that names the page", () => {
+    expect(
+      buildWaitlistPresentation(
+        contextFor({ waitlistMode: "family", familyName: "the Smith family" })
+      ).shareSubject
+    ).toBe("The Smith family on The Operator");
+    // The global heading is a question, so it keeps a plain subject line.
+    expect(buildWaitlistPresentation(globalContext(null)).shareSubject).toBe(
+      "Thought this might interest you"
+    );
+  });
+
+  it("puts the readable slug on shared links only where the source opted in", () => {
+    const fields = { waitlistMode: "community", topicName: "live poker" };
+    expect(buildWaitlistPresentation(contextFor(fields)).shareSlug).toBe("");
+    expect(
+      buildWaitlistPresentation(contextFor({ ...fields, includeTopicInUrl: true })).shareSlug
+    ).toBe("live-poker");
+    // No tracked link, nothing to make readable.
+    expect(buildWaitlistPresentation(globalContext(null)).shareSlug).toBe("");
   });
 
   it("refuses wording with no heading or paragraphs", () => {
