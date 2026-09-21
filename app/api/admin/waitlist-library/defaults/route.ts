@@ -14,7 +14,7 @@ import { waitlistDb } from "@/lib/waitlist/server";
 //   { variant, wording }             replace a variant's default wording
 //   { variant, wording: null }       go back to the built-in wording
 //
-// Live immediately on every page that has no picture or wording of its own —
+// Live immediately on every page that has no picture or wording of its own -
 // the global page included. Pages that chose their own are untouched.
 
 export const runtime = "nodejs";

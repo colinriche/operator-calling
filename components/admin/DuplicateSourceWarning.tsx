@@ -10,7 +10,7 @@ import type { SimilarSourceRow } from "@/lib/waitlist/types";
 //
 // Shown when the server refuses a create or an edit with 409. Shared by the
 // outreach panel's Add-source form and the spreadsheet view so both refusals
-// read identically — the same wording, the same matches, the same override.
+// read identically - the same wording, the same matches, the same override.
 //
 // The override is a real button rather than a hidden flag: two sources for one
 // subreddit is sometimes genuinely right, and the person deciding that should
@@ -110,7 +110,7 @@ export function DuplicateSourceWarning({
         <p className="text-xs text-muted-foreground">
           {archived.length === 1 ? "One match is" : `${archived.length} matches are`}{" "}
           archived. Unarchiving keeps the registrations and tracked links it
-          already has — adding a second record does not.
+          already has - adding a second record does not.
         </p>
       )}
 
@@ -128,8 +128,8 @@ export function DuplicateSourceWarning({
           {overriding
             ? "Working…"
             : action === "create"
-              ? "Create anyway — it is a different place"
-              : "Save anyway — it is a different place"}
+              ? "Create anyway - it is a different place"
+              : "Save anyway - it is a different place"}
         </Button>
       </div>
     </div>

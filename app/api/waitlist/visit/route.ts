@@ -8,7 +8,7 @@ import {
 } from "@/lib/waitlist/server";
 import { normaliseSourceCode, visitorHashFrom } from "@/lib/waitlist/source-code";
 
-// POST /api/waitlist/visit — records a visit to a tracked waitlist link.
+// POST /api/waitlist/visit - records a visit to a tracked waitlist link.
 //
 // Fired from the client rather than during the server render so that bots and
 // link-preview crawlers, which do not execute JavaScript, stay out of the
@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
 
   const sourceCode = normaliseSourceCode(body.sourceCode);
   if (!sourceCode) {
-    // Nothing to attribute — not an error worth surfacing.
+    // Nothing to attribute - not an error worth surfacing.
     return NextResponse.json({ recorded: false });
   }
 

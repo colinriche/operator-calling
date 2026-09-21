@@ -11,7 +11,7 @@ import {
 import { registerWaitlistEntry, waitlistDb } from "@/lib/waitlist/server";
 import { visitorHashFrom } from "@/lib/waitlist/source-code";
 
-// POST /api/waitlist/register — public, unauthenticated waitlist signup.
+// POST /api/waitlist/register - public, unauthenticated waitlist signup.
 //
 // Attribution is resolved from the source code on the server; platform,
 // audience label, group and relationship status sent by the browser are
@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Time zone affects display only, so an unrecognised one is not worth failing
-  // a signup over — fall back to the schedule zone and record that we chose it.
+  // a signup over - fall back to the schedule zone and record that we chose it.
   const timezone = isValidTimezone(body.timezone) ? body.timezone : SCHEDULE_ZONE;
   const timezoneSource: TimezoneSource =
     body.timezoneSource === "user_selected" ? "user_selected" : "detected";
@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
       displayName: str(body.displayName, 80),
       interestedInOrganising: body.interestedInOrganising === true,
       // A second, separate interest. It never affects which demand source this
-      // registration is attributed to — the group they came for is the group
+      // registration is attributed to - the group they came for is the group
       // they came for.
       familyInterest: body.familyInterest === true,
       country,
@@ -108,7 +108,7 @@ export async function POST(req: NextRequest) {
       timezoneSource,
     });
 
-    // Only on a genuinely new registration — resubmitting a form should not
+    // Only on a genuinely new registration - resubmitting a form should not
     // generate another confirmation. Fire-and-forget: the person is registered
     // whether or not the mail leaves, and waiting on SMTP would make the form
     // feel slow for no benefit.
@@ -123,7 +123,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // A duplicate looks identical to a first-time signup from the outside —
+    // A duplicate looks identical to a first-time signup from the outside -
     // the visitor gets a normal confirmation either way.
     return NextResponse.json({
       success: true,

@@ -7,7 +7,7 @@
 //
 // A source's picture is one `imageChoice` string:
 //
-//   ""                 unset — whatever the page showed before the library
+//   ""                 unset - whatever the page showed before the library
 //                      existed (a family photograph, community artwork), else
 //                      the default
 //   "default"          the library default, explicitly
@@ -22,8 +22,8 @@
 //
 // ─── Wording ─────────────────────────────────────────────────────────────────
 //
-// The main copy of a page — heading, two paragraphs, the family sign-off and the
-// link-preview description — comes in four variants, because the four kinds of
+// The main copy of a page - heading, two paragraphs, the family sign-off and the
+// link-preview description - comes in four variants, because the four kinds of
 // page are selling different things (see presentation.ts).
 //
 // Each variant has a default: the built-in text, or an admin's edit of it held
@@ -93,7 +93,7 @@ export function parseImageChoice(raw: unknown): ParsedImageChoice | null {
 // { whatsapp: "library:abc" }. Nothing else needs setting up.
 //
 // Which network is asking is read off the preview fetcher's user agent when it
-// requests the page, so one tracked link serves every network its own card —
+// requests the page, so one tracked link serves every network its own card -
 // nobody has to post a different URL to each.
 //
 // Some previews cannot be told apart. Messenger and Instagram use Facebook's
@@ -202,7 +202,7 @@ export const WORDING_VARIANTS = [
   {
     id: "community_known",
     label: "Existing group",
-    hint: "People who already know each other — a year group, an old team.",
+    hint: "People who already know each other - a year group, an old team.",
     placeholders: ["{group}"],
   },
   {
@@ -244,7 +244,7 @@ export interface WaitlistWording {
   /** The link preview's description. */
   ogDescription: string;
   /**
-   * The message the share buttons carry — the post on X, the Reddit title, the
+   * The message the share buttons carry - the post on X, the Reddit title, the
    * WhatsApp message, the email. "" follows the built-in wording, which is also
    * what wording saved before this field existed does.
    */

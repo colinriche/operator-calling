@@ -19,8 +19,8 @@ import type { TopicArtId } from "./topic-art";
 
 // ─── Wire shapes ─────────────────────────────────────────────────────────────
 //
-// Plain, serialisable versions of the Firestore documents — dates as ISO
-// strings — shared between the API routes and the admin panel.
+// Plain, serialisable versions of the Firestore documents - dates as ISO
+// strings - shared between the API routes and the admin panel.
 
 export interface DemandSourceRow {
   id: string;
@@ -42,7 +42,7 @@ export interface DemandSourceRow {
   connectionType: ConnectionType | string;
   /** Chosen from the curated set; "" means fall back to the brand mark. */
   topicArtId: string;
-  /** Family mode only — the heading the page leads with. */
+  /** Family mode only - the heading the page leads with. */
   familyName: string;
   /** Public download URL of the uploaded hero image, or null. */
   heroImageUrl: string | null;
@@ -161,7 +161,7 @@ export interface SourceLinkRow {
 // ─── Resolved public context ─────────────────────────────────────────────────
 //
 // What the waitlist page renders from. Every field is resolved on the server
-// from the source code — nothing here is trusted from the browser.
+// from the source code - nothing here is trusted from the browser.
 
 export interface WaitlistContext {
   /** Null when the visitor arrived with no code, or an unusable one. */
@@ -289,7 +289,7 @@ export interface RegistrationInput {
   interestedInOrganising: boolean;
   /**
    * They also want The Operator for their own family. A second interest
-   * recorded alongside this registration — it never changes which demand source
+   * recorded alongside this registration - it never changes which demand source
    * the registration is attributed to.
    */
   familyInterest: boolean;
@@ -310,7 +310,7 @@ export interface RegistrationInput {
 // Tester activation requires a verified account, so it cannot be expressed
 // through an unauthenticated registration. It happens only via
 // POST /api/waitlist/tester, which demands a Firebase ID token. Re-adding a
-// field here would reopen the bypass — a scripted POST minting "active testers"
+// field here would reopen the bypass - a scripted POST minting "active testers"
 // who never authenticated and never consented.
 
 export interface RegistrationResult {

@@ -17,7 +17,7 @@ import { waitlistDb } from "@/lib/waitlist/server";
 // DELETE /api/admin/demand-sources/[id]/image   remove
 //
 // The uploaded file is served from a Firebase Storage download URL, which is
-// public by construction — a link-preview crawler has no account and no way to
+// public by construction - a link-preview crawler has no account and no way to
 // authenticate, so an image that appears in a preview is an image anyone can
 // fetch. That is not a detail to bury in a tooltip, so this route refuses an
 // upload that does not carry `confirmedPublic`. The checkbox in the admin panel

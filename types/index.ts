@@ -8,7 +8,7 @@ export interface UserProfile {
   uid: string;
   email: string;
   displayName: string;
-  /** Flutter app field — present on mobile/linked accounts instead of displayName */
+  /** Flutter app field - present on mobile/linked accounts instead of displayName */
   name?: string;
   username?: string;
   city?: string;
@@ -18,11 +18,11 @@ export interface UserProfile {
   role: UserRole;
   banned?: boolean;
   archived?: boolean;
-  /** Set by the mobile app at registration — presence means account is linked */
+  /** Set by the mobile app at registration - presence means account is linked */
   systemName?: string;
   /** Populated when a web-first user links by entering their system name */
   linkedSystemName?: string;
-  /** Written on the app doc during account merge — the Firebase Auth UID of the merged web account */
+  /** Written on the app doc during account merge - the Firebase Auth UID of the merged web account */
   linkedWebUid?: string;
   createdAt: Date;
   updatedAt: Date;
@@ -49,7 +49,7 @@ export interface UserProfile {
   // Profile completeness
   interests: string[];
   bio?: string;
-  completeness: number; // 0–100
+  completeness: number; // 0-100
 
   // Notification settings
   notifications: {

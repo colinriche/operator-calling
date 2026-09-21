@@ -35,7 +35,7 @@ export function WaitlistDefaultsPanel() {
   const [open, setOpen] = useState(false);
   const [savingImage, setSavingImage] = useState(false);
   const [variant, setVariant] = useState<WordingVariant>("global");
-  // Drafts per variant; undefined means "not edited here yet — show what is stored".
+  // Drafts per variant; undefined means "not edited here yet - show what is stored".
   const [drafts, setDrafts] = useState<Partial<Record<WordingVariant, WaitlistWording | null>>>({});
   const [savingWording, setSavingWording] = useState(false);
 
@@ -75,7 +75,7 @@ export function WaitlistDefaultsPanel() {
         body: JSON.stringify({ imageChoice: choice }),
       });
       await reload();
-      toast.success("Default image changed — live on every page without its own picture");
+      toast.success("Default image changed - live on every page without its own picture");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to save");
     } finally {
@@ -99,7 +99,7 @@ export function WaitlistDefaultsPanel() {
       toast.success(
         draft === null
           ? "Back to the built-in wording"
-          : "Default wording saved — live on every page without its own wording"
+          : "Default wording saved - live on every page without its own wording"
       );
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to save");
@@ -262,7 +262,7 @@ export function WaitlistDefaultsPanel() {
             </p>
             {library.images.length === 0 ? (
               <p className="text-xs text-muted-foreground">
-                Nothing uploaded yet — use Upload new in any image picker.
+                Nothing uploaded yet - use Upload new in any image picker.
               </p>
             ) : (
               <ul className="space-y-2">
@@ -318,7 +318,7 @@ export function WaitlistDefaultsPanel() {
             <p className={sectionTitle}>Wording templates</p>
             <p className="text-xs text-muted-foreground mb-3">
               Saved from any wording editor with Save as template. Deleting one
-              does not change pages that started from it — they hold their own copy.
+              does not change pages that started from it - they hold their own copy.
             </p>
             {library.templates.length === 0 ? (
               <p className="text-xs text-muted-foreground">No templates saved yet.</p>

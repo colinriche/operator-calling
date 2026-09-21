@@ -20,7 +20,7 @@ import { sanitiseWording } from "@/lib/waitlist/library";
 import { resolveImageChoice, resolveSocialImages } from "@/lib/waitlist/library-server";
 import { isTopicArtId } from "@/lib/waitlist/topic-art";
 
-// PATCH /api/admin/demand-sources/[id] — edit a demand source.
+// PATCH /api/admin/demand-sources/[id] - edit a demand source.
 //
 // Relationship status is settable here and nowhere else: it must be an
 // explicit act by an authorised user, never inferred from traffic, signups or
@@ -92,7 +92,7 @@ export async function PATCH(
   }
 
   // Whether tracked URLs carry the topic slug. Cosmetic, so it needs no
-  // re-issuing of codes — the same links simply copy differently from now on.
+  // re-issuing of codes - the same links simply copy differently from now on.
   if (typeof body.includeTopicInUrl === "boolean") {
     update.includeTopicInUrl = body.includeTopicInUrl;
   }
@@ -136,7 +136,7 @@ export async function PATCH(
   }
   if (typeof body.status === "string" && DEMAND_STATUS_IDS.includes(body.status)) {
     update.status = body.status;
-    // Reviewing a source is an action by a person — record who and when.
+    // Reviewing a source is an action by a person - record who and when.
     if (body.status === "under_review") {
       update.reviewedAt = FieldValue.serverTimestamp();
       update.reviewedBy = caller.uid;
@@ -184,7 +184,7 @@ export async function PATCH(
     const existing = snap.data() ?? {};
 
     // The picture. A library image's URL is looked up and copied here, never
-    // taken from the request — see resolveImageChoice.
+    // taken from the request - see resolveImageChoice.
     if (body.imageChoice !== undefined) {
       const resolved = await resolveImageChoice(db, body.imageChoice, { allowUnset: true });
       if (!resolved.ok) {
@@ -206,7 +206,7 @@ export async function PATCH(
     }
 
     // Editing a name or URL onto another source's is the same mistake as
-    // creating a duplicate, arrived at from the other direction — the same
+    // creating a duplicate, arrived at from the other direction - the same
     // guard the create route applies, minus this row so it cannot match itself.
     const identityEdited =
       typeof update.sourceName === "string" || typeof update.sourceUrl === "string";
@@ -251,7 +251,7 @@ export async function PATCH(
           : "researching";
     }
 
-    // Applied however the status arrived — the archive button, the status
+    // Applied however the status arrived - the archive button, the status
     // dropdown in the spreadsheet, or a plain PATCH. Remembering the previous
     // status in only one of those paths is how the other one loses it.
     if (typeof update.status === "string" && update.status !== existing.status) {
@@ -298,7 +298,7 @@ export async function PATCH(
     }
 
     await ref.set(update, { merge: true });
-    // Any edit can change the card — the family name, the mode, the artwork —
+    // Any edit can change the card - the family name, the mode, the artwork -
     // so make it now rather than on the first share, which WhatsApp will not
     // wait for. After the response, so saving is not slowed by a render.
     after(() => warmWaitlistCardsForSource(id));

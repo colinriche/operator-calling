@@ -3,7 +3,7 @@ import { appBaseUrl, type EmailMessage } from "./send";
 // ─── Templates ───────────────────────────────────────────────────────────────
 //
 // Plain text is the source of truth and always sent; HTML is a light wrapper
-// over the same words. Deliberately sparse — this is mail somebody asked for
+// over the same words. Deliberately sparse - this is mail somebody asked for
 // about a calling group, not a campaign, and it should read like a person
 // wrote it.
 //
@@ -41,7 +41,7 @@ export function registrationConfirmation(opts: {
 
 We'll keep your interest linked to ${opts.audienceLabel}. If enough people are interested and a calling group is created, we'll let you know.
 ${opts.isTester ? "\nYou've also joined early access as a tester.\n" : ""}
-Save this link — it lets you pause, leave or change your time zone at any time, without an account:
+Save this link - it lets you pause, leave or change your time zone at any time, without an account:
 ${link}
 
 Keep it private: anyone with it can change your settings.
@@ -52,13 +52,13 @@ The Operator is an independent service.`;
     `<p><strong>You're on the list.</strong></p>
 <p>We'll keep your interest linked to ${opts.audienceLabel}. If enough people are interested and a calling group is created, we'll let you know.</p>
 ${opts.isTester ? "<p>You've also joined early access as a tester.</p>" : ""}
-<p>Save the link below — it lets you pause, leave or change your time zone at any time, without an account. Keep it private: anyone with it can change your settings.</p>`,
+<p>Save the link below - it lets you pause, leave or change your time zone at any time, without an account. Keep it private: anyone with it can change your settings.</p>`,
     link
   );
 
   return {
     to: opts.to,
-    subject: "You're on the list — The Operator",
+    subject: "You're on the list - The Operator",
     text,
     html,
   };
@@ -82,7 +82,7 @@ export function groupActivated(opts: {
   const joining = opts.needsAccount
     ? `To join the calls you'll need an account. Create one with this email address and you'll be added to the group automatically:
 ${signUp}`
-    : `You're in the group already — nothing to do.`;
+    : `You're in the group already - nothing to do.`;
 
   const text = `The calling group for ${opts.audienceLabel} is now running.
 
@@ -108,7 +108,7 @@ ${
   opts.needsAccount
     ? `<p>To join the calls you'll need an account. Create one with this email address and you'll be added to the group automatically:<br>
 <a href="${signUp}" style="color:#8a6d1f">${signUp}</a></p>`
-    : `<p>You're in the group already — nothing to do.</p>`
+    : `<p>You're in the group already - nothing to do.</p>`
 }`,
     link
   );

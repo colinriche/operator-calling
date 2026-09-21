@@ -7,9 +7,9 @@ import {
   PRIVATE_KEY_VAR,
 } from "../lib/firebase-env";
 
-// The project is a constant now, so most of what this file used to cover —
+// The project is a constant now, so most of what this file used to cover -
 // selecting between projects, rejecting stale NEXT_PUBLIC_* values, refusing a
-// partial custom config, preferring one credential name over another — no longer
+// partial custom config, preferring one credential name over another - no longer
 // exists to be tested. What remains is that the one config is internally
 // consistent and that credentials come from exactly two variables.
 
@@ -24,7 +24,7 @@ describe("client config", () => {
     expect(firebaseProjectId()).toBe("operator-calling");
   });
 
-  it("is internally consistent — every field names the same project", () => {
+  it("is internally consistent - every field names the same project", () => {
     const cfg = firebaseClientConfig();
     const projectId = cfg.projectId;
     expect(cfg.authDomain).toBe(`${projectId}.firebaseapp.com`);
@@ -60,7 +60,7 @@ describe("admin credentials", () => {
     });
   });
 
-  it("has no fallback — unset means undefined, not a default", () => {
+  it("has no fallback - unset means undefined, not a default", () => {
     // The old module fell back through _PROD/_DEV names. A silent default here
     // is how a deployment ends up authenticating as the wrong project.
     process.env.FIREBASE_CLIENT_EMAIL_PROD = "prod@x.iam.gserviceaccount.com";

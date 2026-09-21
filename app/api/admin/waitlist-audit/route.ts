@@ -3,7 +3,7 @@ import { requireAdmin } from "@/lib/admin-auth";
 import { COLLECTIONS } from "@/lib/waitlist/constants";
 import { waitlistDb } from "@/lib/waitlist/server";
 
-// Data-integrity audit. Read-only — reports, never repairs.
+// Data-integrity audit. Read-only - reports, never repairs.
 //
 // Exists because the public registration endpoint could once mint
 // `testerStatus: "active"` with no account behind it. Those records are

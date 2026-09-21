@@ -32,7 +32,7 @@ import type { WaitlistPresentation } from "@/lib/waitlist/types";
 // app/api/og/waitlist/route.tsx.
 //
 // Why the admin routes need it: the first scrape of a card that has not been
-// made yet waits for a render — measured at up to 4.4s on a cold function, on
+// made yet waits for a render - measured at up to 4.4s on a cold function, on
 // top of the page itself. WhatsApp gave up on exactly that, showed a family
 // link with no picture, and then remembered the link that way. Making the card
 // when an admin saves means a link is not shared before its card exists.
@@ -49,7 +49,7 @@ import type { WaitlistPresentation } from "@/lib/waitlist/types";
 //   t.exports = e.x("sharp-20c6a5da84e2135f", () => require("sharp-20c6a5da84e2135f"))
 //
 // Nothing by that name exists, `e.x` is a plain thunk call with no manifest
-// behind it, and the require therefore threw during module evaluation — before
+// behind it, and the require therefore threw during module evaluation - before
 // the handler, and before any try/catch inside it. Every request returned 500
 // with a zero-byte body; Facebook reported only "could not be processed as an
 // image". Adding sharp to serverExternalPackages did not change the emitted
@@ -85,7 +85,7 @@ const MUTED = "#6B6259";
 /**
  * Fonts are fetched rather than bundled, because next/font keeps its files
  * where satori cannot reach them. A failure here costs the brand typeface and
- * nothing else — the image still renders in satori's default face, which is a
+ * nothing else - the image still renders in satori's default face, which is a
  * far better outcome than a 500 and no preview at all.
  */
 async function loadFont(
@@ -180,7 +180,7 @@ export interface WaitlistCard {
 /**
  * Where a code's card lives, resolved exactly as the page resolves it.
  *
- * The `v` in the endpoint's URL is not trusted for this — the path is keyed on
+ * The `v` in the endpoint's URL is not trusted for this - the path is keyed on
  * the version of the presentation actually resolved here, so a stale or
  * invented `v` cannot make one card be stored under another's address.
  */
@@ -206,7 +206,7 @@ export async function waitlistCard(
     if (stored && isJpeg(stored)) return { bytes: stored, cache: true };
     return await render(p, path);
   } catch (err) {
-    // Whatever failed — a font, satori, the source lookup — a scraper gets a
+    // Whatever failed - a font, satori, the source lookup - a scraper gets a
     // real image rather than a 500 with nothing in it. An empty body is the one
     // outcome that leaves every shared link with no picture at all.
     console.error("[og/waitlist] render failed, serving fallback:", err);
@@ -288,7 +288,7 @@ async function render(p: WaitlistPresentation, path: string): Promise<WaitlistCa
   // Two treatments, because the two kinds of picture want opposite things.
   //
   // An uploaded picture is never cropped at the sides. Filling the frame
-  // regardless used to cut the ends off any wide picture — the words on a
+  // regardless used to cut the ends off any wide picture - the words on a
   // banner, the people at a photograph's edges. So it is fitted to the card's
   // full width: a banner wider than the strip keeps every edge on cream bands,
   // and a landscape photograph loses a little of its top and bottom, evenly.
@@ -303,7 +303,7 @@ async function render(p: WaitlistPresentation, path: string): Promise<WaitlistCa
   //
   // It is drawn oversized and centred instead: at this height the subject
   // fills the card properly, and the ~17% trimmed off the top and bottom is
-  // the scene's own margin — the discs in topic-art.ts, never the subject.
+  // the scene's own margin - the discs in topic-art.ts, never the subject.
   // Because every scene is drawn on the same SAND field, the bands either side
   // read as part of the artwork rather than as letterboxing.
   //
@@ -468,7 +468,7 @@ async function render(p: WaitlistPresentation, path: string): Promise<WaitlistCa
   }
 
   // JPEG, or WhatsApp drops a photograph card for being too big. If the encode
-  // fails the PNG is served, since a large image beats no image — but neither
+  // fails the PNG is served, since a large image beats no image - but neither
   // stored nor cached, so the next scrape tries the encode again rather than
   // pinning a card WhatsApp will refuse.
   let card: Buffer;
@@ -479,7 +479,7 @@ async function render(p: WaitlistPresentation, path: string): Promise<WaitlistCa
     return { bytes: png, cache: false };
   }
 
-  // Stored for next time, and — more to the point — so the page can hand
+  // Stored for next time, and - more to the point - so the page can hand
   // Facebook the file's own URL instead of this endpoint.
   await storeWaitlistCard(path, card);
 

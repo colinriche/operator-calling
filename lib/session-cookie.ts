@@ -1,8 +1,8 @@
 // ─── The signed-in marker cookie ─────────────────────────────────────────────
 //
 // proxy.ts decides whether /dashboard and /admin may render by whether the
-// `__session` cookie exists. It never reads the value — the pages and every API
-// route verify the Firebase ID token themselves — so the cookie is a marker,
+// `__session` cookie exists. It never reads the value - the pages and every API
+// route verify the Firebase ID token themselves - so the cookie is a marker,
 // not a credential.
 //
 // It used to hold the ID token with max-age=3600. Firebase keeps a user signed

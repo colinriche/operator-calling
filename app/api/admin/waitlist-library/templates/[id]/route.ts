@@ -5,7 +5,7 @@ import { COLLECTIONS } from "@/lib/waitlist/constants";
 import { sanitiseWording } from "@/lib/waitlist/library";
 import { waitlistDb } from "@/lib/waitlist/server";
 
-// PATCH  /api/admin/waitlist-library/templates/[id] — rename or rewrite
+// PATCH  /api/admin/waitlist-library/templates/[id] - rename or rewrite
 // DELETE /api/admin/waitlist-library/templates/[id]
 //
 // Safe to change or delete at any time: sources hold their own copy of the

@@ -3,7 +3,7 @@ import nodemailer, { type Transporter } from "nodemailer";
 // ─── Sending ─────────────────────────────────────────────────────────────────
 //
 // One function, one transport. Everything else in the app calls sendEmail and
-// knows nothing about how mail leaves the building — so moving from Google
+// knows nothing about how mail leaves the building - so moving from Google
 // Workspace SMTP to a transactional provider later means replacing this file
 // and nothing else.
 //
@@ -15,7 +15,7 @@ import nodemailer, { type Transporter } from "nodemailer";
 export interface EmailMessage {
   to: string;
   subject: string;
-  /** Plain text is required — never send HTML-only mail. */
+  /** Plain text is required - never send HTML-only mail. */
   text: string;
   html?: string;
 }
@@ -39,14 +39,14 @@ function fromAddress(): string {
 // ─── Collection-only mode ────────────────────────────────────────────────────
 //
 // Addresses are collected and stored as normal; nothing is delivered. This is
-// the current state deliberately — the waitlist is gathering people before
+// the current state deliberately - the waitlist is gathering people before
 // there is anything worth mailing them about, and the first mail this domain
 // ever sends should be one somebody wrote on purpose, not an automated
 // confirmation that went out while the product was still being built.
 //
 // Sending needs EMAIL_SENDING_ENABLED=true *and* SMTP credentials. Two
-// conditions rather than one so that configuring SMTP — for a test, or because
-// the vars were copied between environments — can never by itself start mail
+// conditions rather than one so that configuring SMTP - for a test, or because
+// the vars were copied between environments - can never by itself start mail
 // flowing to real people.
 
 /** Master switch. Off unless explicitly enabled. */
@@ -80,15 +80,15 @@ function transporter(): Transporter | null {
 /**
  * Send one message.
  *
- * Never throws. Email is a side effect of things that must succeed regardless —
- * a registration is still a registration if the confirmation bounces — so
+ * Never throws. Email is a side effect of things that must succeed regardless -
+ * a registration is still a registration if the confirmation bounces - so
  * failures are reported in the return value and logged, not raised.
  */
 export async function sendEmail(message: EmailMessage): Promise<SendResult> {
   if (!isEmailSendingEnabled()) {
-    // Expected state, not a fault — logged at info so it does not read as one.
+    // Expected state, not a fault - logged at info so it does not read as one.
     console.log(
-      `[email] sending disabled — would have sent "${message.subject}" to ${message.to}`
+      `[email] sending disabled - would have sent "${message.subject}" to ${message.to}`
     );
     return { sent: false, error: "sending_disabled" };
   }
@@ -96,7 +96,7 @@ export async function sendEmail(message: EmailMessage): Promise<SendResult> {
   const transport = transporter();
   if (!transport) {
     console.warn(
-      `[email] enabled but SMTP not configured — would have sent "${message.subject}" to ${message.to}`
+      `[email] enabled but SMTP not configured - would have sent "${message.subject}" to ${message.to}`
     );
     return { sent: false, error: "not_configured" };
   }

@@ -33,7 +33,7 @@ import {
 import { buildTrackedUrl, type TopicUrlOptions } from "@/lib/waitlist/tracked-url";
 import type { DemandSourceRow, SourceLinkRow } from "@/lib/waitlist/types";
 
-// Demand sources — admin or super_admin.
+// Demand sources - admin or super_admin.
 //
 // These records hold internal notes and posting rules, and the registrations
 // endpoint behind them exposes email addresses. Opened to `admin` deliberately;
@@ -83,7 +83,7 @@ function buildLinkRow(
   };
 }
 
-// ─── GET — list every demand source with its tracked links ───────────────────
+// ─── GET - list every demand source with its tracked links ───────────────────
 
 export async function GET(req: NextRequest) {
   const caller = await requireAdmin(req);
@@ -244,7 +244,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// ─── POST — create a demand source and its first tracked link ────────────────
+// ─── POST - create a demand source and its first tracked link ────────────────
 
 export async function POST(req: NextRequest) {
   const caller = await requireAdmin(req);
@@ -299,7 +299,7 @@ export async function POST(req: NextRequest) {
     // Duplicate guard. Enforced here rather than in either caller so it holds
     // for the outreach panel, the spreadsheet view and anything written later:
     // a check that only one screen performs is a check that eventually gets
-    // routed around. Same shape as the group-creation guard — refuse, name the
+    // routed around. Same shape as the group-creation guard - refuse, name the
     // matches, and let a person decide it really is a different place.
     if (body.acknowledgeDuplicates !== true) {
       const matches = await findSimilarDemandSources(db, {

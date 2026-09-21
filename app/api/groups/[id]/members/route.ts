@@ -4,7 +4,7 @@ import { getAdminServices, verifyAuth } from "@/lib/firebase-admin";
 
 type Params = { params: Promise<{ id: string }> };
 
-// POST /api/groups/[id]/members — invite a user by username (creator only)
+// POST /api/groups/[id]/members - invite a user by username (creator only)
 export async function POST(req: NextRequest, { params }: Params) {
   const uid = await verifyAuth(req.headers.get("authorization") ?? "");
   if (!uid) return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });

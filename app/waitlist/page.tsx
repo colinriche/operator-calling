@@ -44,7 +44,7 @@ function first(params: SearchParams, key: string): string | undefined {
 
 // generateMetadata and the render below are two passes over the same request.
 // Without this they would each resolve the source separately, which is both a
-// second Firestore read and — if a source were edited between the two — a page
+// second Firestore read and - if a source were edited between the two - a page
 // whose Open Graph tags described a different page.
 const contextFor = cache(
   async (code: string | undefined, share: string | undefined) =>
@@ -71,8 +71,8 @@ async function origin(): Promise<string> {
  * whose output is discarded, and a cold edge takes seconds. Storage answers all
  * three the way a file does, because it is one.
  *
- * The first scrape of a new version still gets the renderer — nothing has been
- * stored yet — and that request is what stores it. Every later scrape, the
+ * The first scrape of a new version still gets the renderer - nothing has been
+ * stored yet - and that request is what stores it. Every later scrape, the
  * publish-time one included, gets the file. Neither URL ever returns different
  * bytes for the same version, which is the property that actually matters.
  *
@@ -139,7 +139,7 @@ export async function generateMetadata({
     : `${site}/waitlist`;
 
   // Title, description and image all come out of the same presentation object
-  // the page renders from — there is nothing here to keep in sync by hand.
+  // the page renders from - there is nothing here to keep in sync by hand.
   return {
     title: p.og.title,
     description: p.og.description,
@@ -198,7 +198,7 @@ export default async function WaitlistPage({
   // Which of the six homepage feature cards make sense here. The pair
   // "calls with people you know" / "unexpected calls with people you don't" are
   // the same product pitched at opposite audiences, so the page picks the one
-  // that matches what it has already promised — a family page must not tell
+  // that matches what it has already promised - a family page must not tell
   // its reader to expect calls from strangers.
   const featureIds =
     p.connectionType === "existing_connections"
@@ -271,12 +271,12 @@ export default async function WaitlistPage({
           the product and not two that drift apart.
 
           These sit outside the narrow column above rather than inside it, so
-          their own containers govern their width — and every one is passed
+          their own containers govern their width - and every one is passed
           `compact`, which drops them from homepage scale to this page's. At
           full scale the join between a 672px column of form and a 1280px
           section read as two different pages stitched together.
 
-          Nothing below is source-specific except the feature selection — the
+          Nothing below is source-specific except the feature selection - the
           form, its wording, its artwork and its tracking are all above and
           untouched. */}
       <WhyCallingSection compact />

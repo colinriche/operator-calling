@@ -22,7 +22,7 @@ import { waitlistDb } from "@/lib/waitlist/server";
 
 export const runtime = "nodejs";
 
-// ─── GET — what the reviewer needs before deciding ───────────────────────────
+// ─── GET - what the reviewer needs before deciding ───────────────────────────
 
 export async function GET(
   req: NextRequest,
@@ -70,7 +70,7 @@ export async function GET(
   }
 }
 
-// ─── POST — create a new group, or link an existing one ──────────────────────
+// ─── POST - create a new group, or link an existing one ──────────────────────
 
 export async function POST(
   req: NextRequest,
@@ -169,7 +169,7 @@ export async function POST(
             creatorUsername = userSnap.data()?.username ?? "";
           }
         } catch {
-          // Non-fatal — a missing display name should not block group creation.
+          // Non-fatal - a missing display name should not block group creation.
         }
       }
 
@@ -194,7 +194,7 @@ export async function POST(
       status = "group_created";
     }
 
-    // Attribution and outreach history stay on the demand source — linking adds
+    // Attribution and outreach history stay on the demand source - linking adds
     // the group, it never replaces what came before.
     await sourceRef.set(
       {
@@ -209,7 +209,7 @@ export async function POST(
     );
 
     // The status just changed, which decides whether the links still serve
-    // this page or fall back to the global one — either way, a different card.
+    // this page or fall back to the global one - either way, a different card.
     after(() => warmWaitlistCardsForSource(id));
 
     return NextResponse.json({

@@ -18,7 +18,7 @@ export function HeroSection() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 w-full">
         <div className="grid lg:grid-cols-2 gap-16 items-center">
-          {/* Left — copy */}
+          {/* Left - copy */}
           <div>
             <motion.div
               initial={{ opacity: 0, y: 24 }}
@@ -48,7 +48,7 @@ export function HeroSection() {
               transition={{ duration: 0.6, delay: 0.2 }}
             >
               A 5-minute call beats a hundred messages. The Operator only connects
-              you when both of you answer — so there's no missed timing, no pressure,
+              you when both of you answer - so there's no missed timing, no pressure,
               just real conversation.
             </motion.p>
 
@@ -93,7 +93,7 @@ export function HeroSection() {
             </motion.div>
           </div>
 
-          {/* Right — visual */}
+          {/* Right - visual */}
           <motion.div
             className="flex flex-col items-center gap-8"
             initial={{ opacity: 0, scale: 0.95 }}
@@ -115,7 +115,7 @@ export function HeroSection() {
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-foreground">Jamie M.</p>
-                  <p className="text-xs text-muted-foreground">Both answered — connecting...</p>
+                  <p className="text-xs text-muted-foreground">Both answered - connecting...</p>
                 </div>
               </div>
               <div className="w-full h-1.5 rounded-full bg-muted overflow-hidden">

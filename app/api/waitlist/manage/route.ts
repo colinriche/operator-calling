@@ -11,7 +11,7 @@ import { SCHEDULE_ZONE, isValidTimezone } from "@/lib/waitlist/timezone";
 
 // Self-service management for a registration, with no account required.
 //
-// The manage token is a bearer credential — holding it is authorisation. That
+// The manage token is a bearer credential - holding it is authorisation. That
 // is a deliberate trade: someone who registered interest with an email address
 // has no other way to prove who they are, and forcing an account to leave a
 // list they never needed an account to join would be worse.
@@ -37,7 +37,7 @@ function maskEmail(email: string): string {
   return `${local.slice(0, 2)}${"•".repeat(4)}@${domain}`;
 }
 
-// ─── GET — everything the manage page renders ────────────────────────────────
+// ─── GET - everything the manage page renders ────────────────────────────────
 
 export async function GET(req: NextRequest) {
   const token = req.nextUrl.searchParams.get("t")?.trim();
@@ -69,7 +69,7 @@ export async function GET(req: NextRequest) {
         groupCallsEnabled = group?.callsEnabled === true;
         // Only advertise a time when calls are actually running. Telling a
         // member "next call Sunday 7pm" for a paused group is worse than saying
-        // nothing — they would turn up to silence.
+        // nothing - they would turn up to silence.
         if (group?.scheduleLocalTime && groupCallsEnabled) {
           const window: WeeklyWindow = {
             weekday: group.scheduleWeekday ?? 0,
@@ -117,7 +117,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// ─── PATCH — act on it ───────────────────────────────────────────────────────
+// ─── PATCH - act on it ───────────────────────────────────────────────────────
 
 type Action =
   | "set_timezone"
@@ -180,7 +180,7 @@ export async function PATCH(req: NextRequest) {
         break;
       }
 
-      // Community interest — whether they still want to hear about this
+      // Community interest - whether they still want to hear about this
       // community. Never touches the group, and never deletes the attribution
       // their registration contributed to the demand record.
       case "community_pause":
@@ -194,7 +194,7 @@ export async function PATCH(req: NextRequest) {
         update.communityWithdrawnAt = FieldValue.serverTimestamp();
         break;
 
-      // Group participation — separate from the above. Leaving removes them
+      // Group participation - separate from the above. Leaving removes them
       // from the group but keeps the registration, its source attribution and
       // the demand it counted towards.
       case "group_pause":
@@ -209,7 +209,7 @@ export async function PATCH(req: NextRequest) {
         removeFromGroup = true;
         break;
 
-      // Tester programme — independent of everything above. Rejoining needs an
+      // Tester programme - independent of everything above. Rejoining needs an
       // account, so it is handled by /api/waitlist/tester, not here.
       case "tester_pause":
         update.testerStatus = "paused";
@@ -248,7 +248,7 @@ export async function PATCH(req: NextRequest) {
       }
 
       if (data.demandSourceId && data.demandSourceId !== "_general") {
-        // The demand record itself is untouched — only the live member tally
+        // The demand record itself is untouched - only the live member tally
         // moves, so historical counts stay honest.
         await db
           .collection(COLLECTIONS.demandSources)

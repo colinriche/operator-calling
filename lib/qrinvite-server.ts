@@ -7,7 +7,7 @@
  * Given a raw token string (which may be a JWT), return the Firestore document
  * ID to use for the qr_tokens collection.
  *
- * The mobile app encodes a JWT whose payload contains `tokenId` — that UUID is
+ * The mobile app encodes a JWT whose payload contains `tokenId` - that UUID is
  * the actual Firestore doc key. If the token is not a JWT or has no tokenId,
  * fall back to using the raw token directly.
  */
@@ -21,7 +21,7 @@ export function resolveTokenDocId(token: string): string {
       return payload.tokenId;
     }
   } catch {
-    // Not a valid JWT — use the token as-is
+    // Not a valid JWT - use the token as-is
   }
   return token;
 }

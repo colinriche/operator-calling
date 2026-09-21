@@ -6,7 +6,7 @@ import { getAdminDb } from "@/lib/firebase-admin";
 // ─── Where administrative authority is defined ───────────────────────────────
 //
 // One collection, one document per person, keyed by their email address in
-// lowercase. Membership of this collection IS the permission — there is no
+// lowercase. Membership of this collection IS the permission - there is no
 // second place to check and no way to acquire a role by editing your own
 // profile.
 //
@@ -19,10 +19,10 @@ import { getAdminDb } from "@/lib/firebase-admin";
 // Keyed by email rather than by uid because a person is not a uid: phone auth
 // mints a fresh Firebase UID, the custom-token admin login uses the Firestore
 // document id as the uid, and the same human can hold several. Their email is
-// the thing that stays put across all of it — and it is what someone typing an
+// the thing that stays put across all of it - and it is what someone typing an
 // address into the admin panel actually knows.
 //
-// Lives in `operator-calling`, the one project the website uses — the same
+// Lives in `operator-calling`, the one project the website uses - the same
 // project that issues the caller's token, so authentication and authorisation
 // now read from the same place.
 
@@ -33,7 +33,7 @@ export type AdminRole = "admin" | "super_admin";
 export const ADMIN_ROLES: readonly AdminRole[] = ["admin", "super_admin"];
 
 export interface AdminRecord {
-  /** Document id — the lowercased email. */
+  /** Document id - the lowercased email. */
   email: string;
   name: string;
   role: AdminRole;
@@ -106,7 +106,7 @@ export function toAdminRecord(id: string, data: FirebaseFirestore.DocumentData):
  * The admin record for an email, or null.
  *
  * Returns null for a document carrying an unrecognised `role` rather than
- * treating it as an admin — a typo in a hand-written record must fail closed.
+ * treating it as an admin - a typo in a hand-written record must fail closed.
  */
 export async function lookupAdmin(email: string): Promise<AdminRecord | null> {
   const id = adminDocId(email);
@@ -117,7 +117,7 @@ export async function lookupAdmin(email: string): Promise<AdminRecord | null> {
 
   const record = toAdminRecord(snap.id, snap.data() ?? {});
   if (!record) {
-    console.warn(`[admins] ${id} has an invalid role — refusing access`);
+    console.warn(`[admins] ${id} has an invalid role - refusing access`);
   }
   return record;
 }

@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 //
 // A community group is created with its schedule ready and calls off, because
 // nobody has yet taken responsibility for running it. This is the control that
-// ends that state — and it is deliberately the group admin's to press, not
+// ends that state - and it is deliberately the group admin's to press, not
 // something that flips on when they are appointed.
 
 interface CallsState {
@@ -73,8 +73,8 @@ export function GroupCallsToggle({ groupId }: { groupId: string | null }) {
       if (!res.ok) throw new Error(data.error ?? "Could not change calls");
       toast.success(
         enable
-          ? "Calls on — starting from the next scheduled time"
-          : "Calls paused — your schedule is unchanged"
+          ? "Calls on - starting from the next scheduled time"
+          : "Calls paused - your schedule is unchanged"
       );
       await load();
     } catch (err) {

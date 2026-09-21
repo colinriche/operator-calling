@@ -70,7 +70,7 @@ async function resolveMemberSummary(
   return { name, username, email };
 }
 
-// GET /api/groups/[id] — group detail + members
+// GET /api/groups/[id] - group detail + members
 export async function GET(req: NextRequest, { params }: Params) {
   const uid = await verifyAuth(req.headers.get("authorization") ?? "");
   if (!uid) return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
@@ -140,7 +140,7 @@ export async function GET(req: NextRequest, { params }: Params) {
   });
 }
 
-// PATCH /api/groups/[id] — update group settings (creator only)
+// PATCH /api/groups/[id] - update group settings (creator only)
 export async function PATCH(req: NextRequest, { params }: Params) {
   const uid = await verifyAuth(req.headers.get("authorization") ?? "");
   if (!uid) return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
@@ -176,7 +176,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   return NextResponse.json({ success: true });
 }
 
-// DELETE /api/groups/[id] — delete group (creator only)
+// DELETE /api/groups/[id] - delete group (creator only)
 export async function DELETE(req: NextRequest, { params }: Params) {
   const uid = await verifyAuth(req.headers.get("authorization") ?? "");
   if (!uid) return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });

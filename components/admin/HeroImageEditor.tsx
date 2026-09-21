@@ -25,8 +25,8 @@ import type { DemandSourceRow } from "@/lib/waitlist/types";
 // path that forgot the gate would be an upload path that puts a family
 // photograph on a public URL without anybody being told.
 //
-// The server enforces it too — POST …/image refuses without `confirmedPublic`
-// — so this is the explanation, not the enforcement.
+// The server enforces it too - POST …/image refuses without `confirmedPublic`
+// - so this is the explanation, not the enforcement.
 
 /* eslint-disable @next/next/no-img-element */
 
@@ -49,7 +49,7 @@ export function HeroImageEditor({ source, onSaved }: Props) {
     // actually enforces it.
     if (file.size > HERO_IMAGE_MAX_BYTES) {
       toast.error(
-        `That image is ${(file.size / 1024 / 1024).toFixed(1)}MB — the limit is ${
+        `That image is ${(file.size / 1024 / 1024).toFixed(1)}MB - the limit is ${
           HERO_IMAGE_MAX_BYTES / 1024 / 1024
         }MB.`
       );
@@ -71,7 +71,7 @@ export function HeroImageEditor({ source, onSaved }: Props) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Upload failed");
 
-      toast.success("Hero image uploaded — it is now publicly visible");
+      toast.success("Hero image uploaded - it is now publicly visible");
       // Re-armed for the next upload: a second image is a second decision.
       setConfirmedPublic(false);
       await onSaved();

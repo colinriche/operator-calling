@@ -4,7 +4,7 @@ import type { WaitlistPresentation } from "@/lib/waitlist/types";
 
 // ─── The top of the waitlist page ────────────────────────────────────────────
 //
-// Hero, source, heading and lead — in that order, above everything else,
+// Hero, source, heading and lead - in that order, above everything else,
 // because the one thing a visitor arriving from a forum post needs immediately
 // is "what is this and where did it come from". Nothing here is written in this
 // file: every string comes from lib/waitlist/presentation.ts, which is also
@@ -20,8 +20,8 @@ export function WaitlistHeader({ p }: { p: WaitlistPresentation }) {
     <header className="mb-8">
       {/* Only an uploaded family photograph earns the full-width banner. A
           family page is *about* those people, so the picture is the point.
-          Topic artwork is decoration — a mark identifying the subject, the same
-          job the brand mark does on the global page — and blowing it up to
+          Topic artwork is decoration - a mark identifying the subject, the same
+          job the brand mark does on the global page - and blowing it up to
           16/9 pushed the heading and the independence note below the fold on a
           phone, which is exactly where they must not be. */}
       {p.hero.kind === "image" ? (

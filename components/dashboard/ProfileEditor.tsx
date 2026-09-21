@@ -344,7 +344,7 @@ export function ProfileEditor() {
         <Progress value={completeness} className="h-2" />
         {completeness < 100 && (
           <p className="text-xs text-muted-foreground mt-2">
-            {completeness < 40 ? "Add a bio and interests to get better matched calls." : "Almost there — a few more details improve your call quality."}
+            {completeness < 40 ? "Add a bio and interests to get better matched calls." : "Almost there - a few more details improve your call quality."}
           </p>
         )}
       </div>
@@ -432,7 +432,7 @@ export function ProfileEditor() {
               <textarea
                 value={bio}
                 onChange={(e) => setBio(e.target.value)}
-                placeholder="A line or two about yourself — helps with matched calls."
+                placeholder="A line or two about yourself - helps with matched calls."
                 className="w-full min-h-[80px] resize-none rounded-xl border border-input bg-background px-3 py-2.5 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-shadow"
                 maxLength={200}
               />

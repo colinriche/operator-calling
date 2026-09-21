@@ -310,7 +310,7 @@ function InterestsPicker({
   function handleAdd() {
     const trimmed = input.trim();
     if (!isValidInterest(trimmed)) {
-      setError("2–30 letters only (A–Z, spaces).");
+      setError("2-30 letters only (A-Z, spaces).");
       return;
     }
     const normalised = trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase();
@@ -457,7 +457,7 @@ export function PublicGroupsBrowser() {
         setAllGroups(groups);
         setPopularInterests(interests);
       })
-      .catch(() => {/* Firestore unavailable — graceful empty state */})
+      .catch(() => {/* Firestore unavailable - graceful empty state */})
       .finally(() => setLoading(false));
   }, [fetched]);
 

@@ -56,10 +56,10 @@ describe("the page and its Open Graph tags", () => {
       expect(p.og.description.length).toBeLessThan(p.lead.length);
       expect(p.og.description.length).toBeLessThanOrEqual(140);
       // The title is the heading, optionally with the source line the page
-      // prints directly above it — never anything invented for the preview.
+      // prints directly above it - never anything invented for the preview.
       expect(p.og.title.startsWith(p.heading)).toBe(true);
       if (p.og.title !== p.heading) {
-        expect(p.og.title).toBe(`${p.heading} — ${p.eyebrow}`);
+        expect(p.og.title).toBe(`${p.heading} - ${p.eyebrow}`);
       }
     }
   });
@@ -115,7 +115,7 @@ describe("community mode", () => {
       contextFor({ ...COMMUNITY, publicEyebrow: "For the Tuesday night league" })
     );
     expect(p.eyebrow).toBe("For the Tuesday night league");
-    expect(p.og.title).toBe(`${p.heading} — For the Tuesday night league`);
+    expect(p.og.title).toBe(`${p.heading} - For the Tuesday night league`);
   });
 
   // The platform is an internal field: it decides nothing a visitor reads.
@@ -167,7 +167,7 @@ describe("community mode", () => {
 
 // Whether a real community may be named is decided once, from its recorded
 // relationship status. A page that may not name it must not name it in the
-// title or the preview image either — which is only guaranteed because all
+// title or the preview image either - which is only guaranteed because all
 // three are built from this one object.
 describe("naming the community", () => {
   const named = ["organiser_verified", "officially_supported", "partnered"];
@@ -280,7 +280,7 @@ describe("mode resolution", () => {
 
 // Two audiences, two arguments. Describing a group of former colleagues as
 // "others who share an interest" describes something they did not sign up for,
-// and describing strangers as people you already know is a false promise —
+// and describing strangers as people you already know is a false promise -
 // so neither vocabulary may leak into the other's page.
 describe("connection type", () => {
   const KNOWN: PublicSourceFields = {
@@ -309,7 +309,7 @@ describe("connection type", () => {
 
   // The Operator decides when it is time. Wording that hands the visitor the
   // diary, or that reads like a standing appointment, turns an occasional and
-  // welcome thing into an obligation — so these phrasings are barred outright
+  // welcome thing into an obligation - so these phrasings are barred outright
   // rather than left to whoever edits the copy next.
   it("never makes an existing-connections page sound like an appointment", () => {
     for (const fields of [
@@ -424,7 +424,7 @@ describe("the family prompt", () => {
   it("does not change what the registration is for", () => {
     const p = buildWaitlistPresentation(contextFor(COMMUNITY));
     // The prompt is an extra question on the page, not a redefinition of the
-    // audience — the interest label still names the topic they arrived for.
+    // audience - the interest label still names the topic they arrived for.
     expect(p.interestLabel).toBe("live poker");
   });
 });
@@ -452,7 +452,7 @@ describe("what a link preview says", () => {
       { waitlistMode: "global" },
     ]) {
       const p = buildWaitlistPresentation(contextFor(fields));
-      expect(p.og.facebookTitle).toBe("The Operator — making the call for you");
+      expect(p.og.facebookTitle).toBe("The Operator - making the call for you");
       expect(p.og.facebookTitle).not.toContain(p.heading);
     }
 
@@ -523,7 +523,7 @@ describe("the preview image URL", () => {
 });
 
 // Facebook and WhatsApp cache a preview against its image URL. If the URL does
-// not move when the picture does, a card can outlive the photograph it shows —
+// not move when the picture does, a card can outlive the photograph it shows -
 // which is worse than no preview, because an admin took that picture down.
 describe("the preview image version", () => {
   const family = (over: PublicSourceFields = {}) =>

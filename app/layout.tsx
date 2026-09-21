@@ -19,11 +19,11 @@ const sora = Sora({
 
 export const metadata: Metadata = {
   title: {
-    default: "The Operator — Voice-first calling",
+    default: "The Operator - Voice-first calling",
     template: "%s | The Operator",
   },
   description:
-    "Real conversation, better timed. The Operator connects you when both of you are ready — no pressure, no missed timing.",
+    "Real conversation, better timed. The Operator connects you when both of you are ready - no pressure, no missed timing.",
   openGraph: {
     title: "The Operator",
     description: "Voice-first calling. Only connects when both answer.",

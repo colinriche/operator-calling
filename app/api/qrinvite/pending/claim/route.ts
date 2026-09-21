@@ -8,7 +8,7 @@ import { resolveTokenProject } from "@/lib/qrinvite-admin";
 //
 // Called by the Flutter app after sign-up/login. Finds any pending_connections
 // records saved with the user's email (entered on the install screen) and
-// completes them — adding the user to the group or contact list.
+// completes them - adding the user to the group or contact list.
 
 interface ClaimResult {
   pendingId: string;

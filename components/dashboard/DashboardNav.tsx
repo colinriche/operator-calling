@@ -51,7 +51,7 @@ export function DashboardNav() {
   }
 
   // Rendered into both the desktop sidebar and the mobile drawer. Shared rather
-  // than duplicated so the two cannot drift apart — the mobile menu is exactly
+  // than duplicated so the two cannot drift apart - the mobile menu is exactly
   // the desktop menu, including the link gating and the admin section.
   function items() {
     return (

@@ -18,14 +18,14 @@ import { urlSourceCode } from "@/lib/waitlist/tracked-url";
 //
 // It also carries the page's readable slug as &t= where the source opted in,
 // so a pasted link says what it is about rather than only a code. The page
-// ignores `t` entirely — see lib/waitlist/tracked-url.ts — and the canonical
+// ignores `t` entirely - see lib/waitlist/tracked-url.ts - and the canonical
 // URL in the page's metadata drops it, so the networks still treat every share
 // of a page as the same address.
 
 interface ShareRowProps {
   sourceCode: string | null;
   /**
-   * From the presentation, so a shared link describes the page it points at —
+   * From the presentation, so a shared link describes the page it points at -
    * a global page must not be passed round as though it were about a topic.
    */
   shareText: string;
@@ -91,7 +91,7 @@ export function ShareRow({
       setCopied(true);
       window.setTimeout(() => setCopied(false), 2500);
     } catch {
-      // Clipboard can be blocked by permissions — say nothing rather than
+      // Clipboard can be blocked by permissions - say nothing rather than
       // claiming a copy that did not happen.
     }
   }
@@ -101,10 +101,10 @@ export function ShareRow({
     try {
       await navigator.share({ title: shareSubject, text: shareText, url: link });
       // navigator.share resolving means the sheet was used, not that anything
-      // was posted — this is recorded as intent only.
+      // was posted - this is recorded as intent only.
       recordShare("native");
     } catch {
-      // Cancelled or unsupported — nothing to report.
+      // Cancelled or unsupported - nothing to report.
     }
   }
 

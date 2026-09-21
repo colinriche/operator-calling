@@ -5,7 +5,7 @@ import type { LibraryImageRow, WordingTemplateRow } from "@/lib/waitlist/library
 import { libraryImageRow, wordingTemplateRow } from "@/lib/waitlist/library-server";
 import { getWaitlistDefaults, waitlistDb } from "@/lib/waitlist/server";
 
-// GET /api/admin/waitlist-library — every uploaded image (archived included, so
+// GET /api/admin/waitlist-library - every uploaded image (archived included, so
 // a page still showing one can name it), every wording template, and the
 // current defaults. One request, because every picker needs all three.
 

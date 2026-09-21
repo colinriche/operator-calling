@@ -47,7 +47,7 @@ import type { DemandSourceRow, SimilarSourceRow } from "@/lib/waitlist/types";
 //
 // The same records the outreach panel manages one card at a time, in a grid
 // built for changing forty of them in an afternoon. Same collection, same API
-// routes, same validation — this is a second view of the data, not a second
+// routes, same validation - this is a second view of the data, not a second
 // copy of it, and every edit is a PATCH to the record itself.
 //
 // There is no importer, deliberately. A spreadsheet round-trip cannot tell a
@@ -105,7 +105,7 @@ function shortDate(iso: string | null): string {
 /**
  * Column order follows how a source is actually worked: what it is, where it
  * is, where it stands, then the public wording, then the numbers it produced.
- * Everything an admin sets is editable; everything the system counts is not —
+ * Everything an admin sets is editable; everything the system counts is not -
  * typing a registration count would be inventing demand.
  */
 const COLUMNS: Column[] = [
@@ -498,7 +498,7 @@ export function DemandSourceSpreadsheet() {
    * Write one field.
    *
    * Applied to the local row first so the grid never stalls mid-edit, and
-   * rolled back on failure — an optimistic update that quietly survives a
+   * rolled back on failure - an optimistic update that quietly survives a
    * rejected write would show an admin a value the database does not have.
    */
   const saveField = useCallback(
@@ -533,7 +533,7 @@ export function DemandSourceSpreadsheet() {
       }
 
       markRow(id, "saved");
-      // Server-side effects — statusBeforeArchive, threshold re-evaluation —
+      // Server-side effects - statusBeforeArchive, threshold re-evaluation -
       // are not guessed at locally, so the row is refetched rather than assumed.
       if (key === "status" || key === "demandThreshold") await load();
     },
@@ -672,7 +672,7 @@ export function DemandSourceSpreadsheet() {
       setDuplicates([]);
       setNewRow({ ...BLANK_DRAFT });
       setAdding(false);
-      toast.success(`Created — tracked link ${data.sourceCode}`);
+      toast.success(`Created - tracked link ${data.sourceCode}`);
       await load();
     } catch (err) {
       console.error(err);
@@ -691,7 +691,7 @@ export function DemandSourceSpreadsheet() {
         "It leaves the active list but nothing is deleted: its " +
         `${registrations} registration${registrations === 1 ? "" : "s"}, tracked links, ` +
         "visits and outreach history all stay.\n\n" +
-        "Its tracked links keep working — they show the generic waitlist page " +
+        "Its tracked links keep working - they show the generic waitlist page " +
         "instead of this community's one. You can restore it at any time."
     );
     if (!confirmed) return;
@@ -728,7 +728,7 @@ export function DemandSourceSpreadsheet() {
 
   function exportCsv() {
     if (visible.length === 0) {
-      toast.error("Nothing to export — clear the filters or add a source");
+      toast.error("Nothing to export - clear the filters or add a source");
       return;
     }
     downloadCsv(csvFilename("operator-outreach-sources"), demandSourcesToCsv(visible));
@@ -782,7 +782,7 @@ export function DemandSourceSpreadsheet() {
         >
           {!known && (
             <option value={current} disabled>
-              — not set —
+              - not set -
             </option>
           )}
           {column.options?.map((o) => (
@@ -842,7 +842,7 @@ export function DemandSourceSpreadsheet() {
           !text && "text-muted-foreground/50"
         )}
       >
-        {text || "—"}
+        {text || "-"}
       </div>
     );
   }
@@ -1020,7 +1020,7 @@ export function DemandSourceSpreadsheet() {
         <div className="overflow-x-auto max-h-[70vh] overflow-y-auto">
           <table className="border-collapse text-xs" style={{ minWidth: "max-content" }}>
             <colgroup>
-              {/* State dot plus two icon buttons. Sized so nothing wraps —
+              {/* State dot plus two icon buttons. Sized so nothing wraps -
                   a wrapped action cell is the one thing that would make the
                   rows taller. */}
               <col style={{ width: ACTIONS_WIDTH }} />
@@ -1100,7 +1100,7 @@ export function DemandSourceSpreadsheet() {
                           aria-label={
                             archived
                               ? `Restore ${source.sourceName} to its previous status`
-                              : `Archive ${source.sourceName} — keeps registrations, links and history`
+                              : `Archive ${source.sourceName} - keeps registrations, links and history`
                           }
                           className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
                         >
@@ -1160,7 +1160,7 @@ export function DemandSourceSpreadsheet() {
             {sources.length === 0
               ? "No demand sources yet. Add one to generate a tracked waitlist link."
               : statusFilter === "active" && archivedCount > 0
-                ? `No sources match those filters. ${archivedCount} archived source${archivedCount === 1 ? " is" : "s are"} hidden — switch the status filter to see ${archivedCount === 1 ? "it" : "them"}.`
+                ? `No sources match those filters. ${archivedCount} archived source${archivedCount === 1 ? " is" : "s are"} hidden - switch the status filter to see ${archivedCount === 1 ? "it" : "them"}.`
                 : "No sources match those filters."}
           </p>
         )}

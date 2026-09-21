@@ -18,7 +18,7 @@ import { COLLECTIONS } from "@/lib/waitlist/constants";
 // knows or guesses an administrator's email address can become that
 // administrator, and email addresses are guessable by design.
 //
-// This is a known, accepted trade-off, not an oversight — the alternative
+// This is a known, accepted trade-off, not an oversight - the alternative
 // (requiring a real Firebase Auth sign-in) was considered and declined. What
 // stands between this endpoint and an attacker is only that nobody has tried.
 //
@@ -34,7 +34,7 @@ import { COLLECTIONS } from "@/lib/waitlist/constants";
 
 export const runtime = "nodejs";
 
-/** Deliberately strict — brute force needs to be slow and noisy. */
+/** Deliberately strict - brute force needs to be slow and noisy. */
 const LOGIN_LIMIT = { limit: 5, windowSeconds: 60 * 15 } as const;
 
 interface Match {
@@ -68,7 +68,7 @@ async function legacyMatch(input: string): Promise<Match | null> {
     typeof data.email === "string" ? data.email.toLowerCase() : adminDocId(input);
 
   console.warn(
-    `[admin/token] LEGACY ROLE USED for ${email} (role=${data.role}) — add this ` +
+    `[admin/token] LEGACY ROLE USED for ${email} (role=${data.role}) - add this ` +
       `address to the "admins" collection, then remove the fallback`
   );
 
@@ -128,7 +128,7 @@ export async function POST(req: NextRequest) {
       : await legacyMatch(input);
 
     if (!match) {
-      // Deliberately vague — never reveal whether an address is an admin.
+      // Deliberately vague - never reveal whether an address is an admin.
       return NextResponse.json(
         { error: "No admin account found for that email" },
         { status: 404 }
@@ -136,7 +136,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Minted by the DEFAULT admin app, whose project id comes from
-    // NEXT_PUBLIC_FIREBASE_PROJECT_ID — the same project the browser's client
+    // NEXT_PUBLIC_FIREBASE_PROJECT_ID - the same project the browser's client
     // SDK is configured for. It has to be: signInWithCustomToken rejects a
     // token issued by any other project. This stays correct after the move,
     // because both sides read the same variable.

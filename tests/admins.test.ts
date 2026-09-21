@@ -9,7 +9,7 @@ import {
   toAdminRecord,
 } from "@/lib/admins";
 
-// The `admins` collection is the whole permission system — there is no second
+// The `admins` collection is the whole permission system - there is no second
 // place that grants administrative access. So the parts that decide whether a
 // document counts have to fail closed on anything unexpected, and the document
 // id has to be derived identically every time or a real admin silently stops

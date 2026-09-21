@@ -12,7 +12,7 @@ import { formatInZone } from "./timezone";
 
 // ─── Activating a community group ────────────────────────────────────────────
 //
-// A threshold means enough demonstrated interest to open the group — not that
+// A threshold means enough demonstrated interest to open the group - not that
 // that many people are immediately callable. Most registrants have no account,
 // because registering interest deliberately does not require one.
 //
@@ -29,7 +29,7 @@ export interface ActivationResult {
 }
 
 /**
- * Resolve the Firebase uid for a registration — only from verified identity.
+ * Resolve the Firebase uid for a registration - only from verified identity.
  *
  * The single accepted route is `testerUid`, recorded by the authenticated
  * tester flow after verifying an ID token.
@@ -37,7 +37,7 @@ export interface ActivationResult {
  * This used to also match the registration's email against the `user`
  * collection. That treated an unverified address as proof of identity: anyone
  * could register interest using a stranger's email and have that stranger
- * silently added to a group. Nobody is worse off for the removal — an account
+ * silently added to a group. Nobody is worse off for the removal - an account
  * holder who registered with their own address is admitted the moment they next
  * sign in, by claimGroupsForAccount, which matches on the verified email in
  * their ID token.
@@ -90,7 +90,7 @@ export async function activateCommunityGroup(
 
     // Someone who withdrew interest or already left is not swept back in by a
     // later activation. Their registration still counted towards the demand
-    // that opened the group — the historical record is not what is being
+    // that opened the group - the historical record is not what is being
     // decided here.
     if (entry.communityInterestStatus === "withdrawn") continue;
     if (!ADMITTABLE_MEMBERSHIPS.includes(entry.groupMembership ?? "none")) continue;
@@ -101,7 +101,7 @@ export async function activateCommunityGroup(
   }
 
   // The creating admin is always a member, so the group has an owner who can
-  // set schedules — otherwise a group of accountless registrants is inert.
+  // set schedules - otherwise a group of accountless registrants is inert.
   const memberIds = Array.from(
     new Set([createdByUid, ...withUid.map((m) => m.uid)])
   );
@@ -134,7 +134,7 @@ export async function activateCommunityGroup(
 
     // The schedule exists from the moment the group does, but calling does not
     // begin automatically. `createdBy` here is the Operator staff member who
-    // set up the demand source — not somebody who has taken responsibility for
+    // set up the demand source - not somebody who has taken responsibility for
     // running this community's calls. Until such a person exists and says so,
     // calls stay off.
     callsEnabled: false,
@@ -145,7 +145,7 @@ export async function activateCommunityGroup(
     updatedAt: FieldValue.serverTimestamp(),
   });
 
-  // The schedule is created immediately even though calls are off — turning
+  // The schedule is created immediately even though calls are off - turning
   // calls on later must not have to invent one.
   await gDb.collection("scheduledGroupCalls").add({
     groupId: groupRef.id,
@@ -155,7 +155,7 @@ export async function activateCommunityGroup(
     scheduledAt: schedule.scheduleNextRunUtc,
     callType: "group",
     showUser: true,
-    // "paused", not "scheduled" — defence in depth. group.callsEnabled is the
+    // "paused", not "scheduled" - defence in depth. group.callsEnabled is the
     // authoritative control, but the dispatcher lives in another codebase and
     // does not check it yet. Existing dispatch queries filter on
     // status == "scheduled", so a paused schedule is skipped by code that knows
@@ -179,7 +179,7 @@ export async function activateCommunityGroup(
       {
         groupId: groupRef.id,
         userId: uid,
-        // Nobody administers this group yet — createdBy is the staff member who
+        // Nobody administers this group yet - createdBy is the staff member who
         // set up the demand source, not someone running the community.
         role: "member",
         status: "active",
@@ -246,7 +246,7 @@ export async function activateCommunityGroup(
  * Email everyone still interested in a community that its group is live.
  *
  * Records notifiedGroupLiveAt per registration before sending, so a retry after
- * a partial failure does not send twice to the people it already reached —
+ * a partial failure does not send twice to the people it already reached -
  * duplicate mail about the same event is the kind of thing that gets a sending
  * domain reported.
  */
@@ -255,7 +255,7 @@ export async function notifyGroupActivated(
   audienceLabel: string
 ): Promise<{ sent: number; failed: number; skipped: number }> {
   if (!isEmailConfigured()) {
-    console.warn("[activation] email not configured — nobody notified");
+    console.warn("[activation] email not configured - nobody notified");
     return { sent: 0, failed: 0, skipped: 0 };
   }
 
@@ -358,7 +358,7 @@ export async function claimGroupsForAccount(
     const data = doc.data();
     if (!data.groupId) continue;
     // Only someone still waiting to be admitted. Never re-adds a person who
-    // left the group or withdrew interest — signing up is not a request to
+    // left the group or withdrew interest - signing up is not a request to
     // rejoin something they deliberately quit.
     if (data.groupMembership !== "eligible") continue;
     if (data.communityInterestStatus === "withdrawn") continue;

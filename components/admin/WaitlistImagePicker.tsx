@@ -19,8 +19,8 @@ import { BRAND_ART_DATA_URI, TOPIC_ART, topicArtDataUri, topicArtLabel } from "@
 
 // ─── Choosing a waitlist page's picture ──────────────────────────────────────
 //
-// One picker for every place a picture is chosen — the outreach panel, a
-// spreadsheet row, and the default itself — over one library: the built-in
+// One picker for every place a picture is chosen - the outreach panel, a
+// spreadsheet row, and the default itself - over one library: the built-in
 // pictures, uploaded images, the curated artwork and the brand mark, plus the
 // library default and a family's own photograph where those make sense.
 //
@@ -74,7 +74,7 @@ export function describeImageChoice(
 }
 
 interface Props {
-  /** The effective choice — see effectiveImageChoice. */
+  /** The effective choice - see effectiveImageChoice. */
   value: string;
   onChange: (choice: string) => void;
   disabled?: boolean;
@@ -333,7 +333,7 @@ function LibraryUploadForm({
   async function upload(file: File) {
     if (file.size > HERO_IMAGE_MAX_BYTES) {
       toast.error(
-        `That image is ${(file.size / 1024 / 1024).toFixed(1)}MB — the limit is ${
+        `That image is ${(file.size / 1024 / 1024).toFixed(1)}MB - the limit is ${
           HERO_IMAGE_MAX_BYTES / 1024 / 1024
         }MB.`
       );

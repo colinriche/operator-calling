@@ -6,7 +6,7 @@ import { COLLECTIONS, LINK_STATUSES } from "@/lib/waitlist/constants";
 import { createUniqueSourceCode, waitlistDb } from "@/lib/waitlist/server";
 import { buildTrackedUrl } from "@/lib/waitlist/tracked-url";
 
-// Tracked links — admin or super_admin.
+// Tracked links - admin or super_admin.
 //
 // One source can carry many links: a separate link per post, comment or message
 // is what makes per-outreach performance visible rather than just a single
@@ -90,7 +90,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// PATCH — pause, archive or relabel an existing link.
+// PATCH - pause, archive or relabel an existing link.
 export async function PATCH(req: NextRequest) {
   const caller = await requireAdmin(req);
   if (!caller) {

@@ -7,7 +7,7 @@ import {
 } from "@/lib/waitlist/duplicate-sources";
 import type { DemandSourceRow } from "@/lib/waitlist/types";
 
-// No Firestore here, per this project's testing rule — the duplicate scan takes
+// No Firestore here, per this project's testing rule - the duplicate scan takes
 // its collection through the db argument, so a stub holding plain objects
 // exercises the real scoring code without reaching a database.
 

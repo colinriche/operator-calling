@@ -107,7 +107,7 @@ async function resolveParticipants(
   return { participantIds, participantNames };
 }
 
-// GET /api/groups/[id]/schedules — list upcoming scheduled calls for this group
+// GET /api/groups/[id]/schedules - list upcoming scheduled calls for this group
 export async function GET(req: NextRequest, { params }: Params) {
   const uid = await verifyAuth(req.headers.get("authorization") ?? "");
   if (!uid) return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
@@ -152,7 +152,7 @@ export async function GET(req: NextRequest, { params }: Params) {
   return NextResponse.json({ schedules });
 }
 
-// POST /api/groups/[id]/schedules — create a scheduled call (creator only)
+// POST /api/groups/[id]/schedules - create a scheduled call (creator only)
 export async function POST(req: NextRequest, { params }: Params) {
   const uid = await verifyAuth(req.headers.get("authorization") ?? "");
   if (!uid) return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });

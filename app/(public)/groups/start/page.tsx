@@ -11,9 +11,9 @@ import {
 } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "Start a group — The Operator",
+  title: "Start a group - The Operator",
   description:
-    "Apply to create and manage a private call group on The Operator. Set schedules, pair members, and run regular community calls — hands-free.",
+    "Apply to create and manage a private call group on The Operator. Set schedules, pair members, and run regular community calls - hands-free.",
 };
 
 export default function StartGroupPage() {
@@ -25,7 +25,7 @@ export default function StartGroupPage() {
           <span className="text-2xl shrink-0 mt-0.5">🧪</span>
           <div>
             <p className="font-heading font-semibold text-foreground mb-1">
-              Beta testing phase — approval required
+              Beta testing phase - approval required
             </p>
             <p className="text-sm text-muted-foreground leading-relaxed">
               The Operator is in closed beta. New groups are approved manually so we
@@ -69,12 +69,12 @@ export default function StartGroupPage() {
             {
               icon: CalendarClock,
               title: "Automated call schedules",
-              desc: "Set a recurring schedule — daily, weekly, whenever. The Operator calls members at the right time without any manual action.",
+              desc: "Set a recurring schedule - daily, weekly, whenever. The Operator calls members at the right time without any manual action.",
             },
             {
               icon: GitBranch,
               title: "Flexible member pairing",
-              desc: "Random pairs, round-robin rotation, or custom rules you define — like matching mentors with mentees.",
+              desc: "Random pairs, round-robin rotation, or custom rules you define - like matching mentors with mentees.",
             },
           ].map((item, i) => (
             <AnimatedSection key={item.title} delay={i * 0.08}>
@@ -95,7 +95,7 @@ export default function StartGroupPage() {
       {/* Admin flow timeline */}
       <AnimatedSection className="mb-16">
         <h2 className="font-heading font-bold text-2xl text-foreground mb-8">
-          How it works — admin flow
+          How it works - admin flow
         </h2>
         <div className="relative">
           <div className="absolute left-5 top-0 bottom-0 w-px bg-border hidden sm:block" />
@@ -124,7 +124,7 @@ export default function StartGroupPage() {
               {
                 n: "05",
                 title: "Calls run automatically",
-                desc: "At the scheduled time The Operator calls everyone simultaneously and pairs up whoever answers. You watch the participation come in — no manual action needed.",
+                desc: "At the scheduled time The Operator calls everyone simultaneously and pairs up whoever answers. You watch the participation come in - no manual action needed.",
               },
             ].map((step, i) => (
               <AnimatedSection key={step.n} delay={i * 0.07}>
@@ -223,7 +223,7 @@ export default function StartGroupPage() {
               {
                 icon: Users,
                 title: "Closed membership",
-                desc: "Your group is private. Members only join via your invite or your explicit approval — no random strangers.",
+                desc: "Your group is private. Members only join via your invite or your explicit approval - no random strangers.",
               },
               {
                 icon: Shield,
@@ -261,7 +261,7 @@ export default function StartGroupPage() {
           <p className="text-background/70 text-sm mb-6 leading-relaxed">
             Members access The Operator through Apple TestFlight or the Google Play
             beta programme during testing. We register their email addresses before
-            they download — they&apos;ll see an error if they try to install without
+            they download - they&apos;ll see an error if they try to install without
             being registered first.
           </p>
           <div className="grid sm:grid-cols-2 gap-4">
@@ -269,7 +269,7 @@ export default function StartGroupPage() {
               <div className="flex items-center gap-2 mb-2">
                 <span className="text-lg"></span>
                 <span className="font-heading font-semibold text-background text-sm">
-                  iOS — Apple TestFlight
+                  iOS - Apple TestFlight
                 </span>
               </div>
               <p className="text-xs text-background/70 leading-relaxed">
@@ -282,7 +282,7 @@ export default function StartGroupPage() {
               <div className="flex items-center gap-2 mb-2">
                 <span className="text-lg">🤖</span>
                 <span className="font-heading font-semibold text-background text-sm">
-                  Android — Play Store beta
+                  Android - Play Store beta
                 </span>
               </div>
               <p className="text-xs text-background/70 leading-relaxed">
@@ -301,7 +301,7 @@ export default function StartGroupPage() {
           Apply for a group
         </h2>
         <p className="text-muted-foreground mb-8 text-sm">
-          Fill in the details below. Include as many member emails as you have — you
+          Fill in the details below. Include as many member emails as you have - you
           can always add more once your group is approved.
         </p>
         <GroupAdminRequestForm />

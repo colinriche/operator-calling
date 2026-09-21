@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { PublicGroupsBrowser } from "@/components/public/PublicGroupsBrowser";
 
-export const metadata: Metadata = { title: "Browse groups — The Operator" };
+export const metadata: Metadata = { title: "Browse groups - The Operator" };
 
 export default function GroupsPage() {
   return (
@@ -13,7 +13,7 @@ export default function GroupsPage() {
             Find your community
           </h1>
           <p className="text-lg text-muted-foreground max-w-xl">
-            Browse public groups near you — sport, social, work, education and more.
+            Browse public groups near you - sport, social, work, education and more.
             Join the ones that fit, or create your own.
           </p>
         </div>

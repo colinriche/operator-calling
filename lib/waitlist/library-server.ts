@@ -13,7 +13,7 @@ import {
 import { toIso } from "./server";
 
 // Server-only: the library's Firestore reads and the one validation that needs
-// a read — whether an image choice points at something that exists.
+// a read - whether an image choice points at something that exists.
 
 export function libraryImageRow(doc: DocumentSnapshot): LibraryImageRow | null {
   const data = doc.data();

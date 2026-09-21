@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Copy, Check } from "lucide-react";
 
-// The manage link is a bearer credential — anyone holding it can change that
+// The manage link is a bearer credential - anyone holding it can change that
 // registration. Shown once, copyable, and never included in anything the share
 // buttons produce.
 
@@ -21,7 +21,7 @@ export function ManageLink({ token }: { token: string }) {
       setCopied(true);
       window.setTimeout(() => setCopied(false), 2500);
     } catch {
-      // Clipboard blocked — the link is selectable on screen regardless.
+      // Clipboard blocked - the link is selectable on screen regardless.
     }
   }
 

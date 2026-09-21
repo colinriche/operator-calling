@@ -10,11 +10,11 @@ import { groupsDb } from "@/lib/waitlist/group-linking";
 //
 // Three things looked like "group admin" before this:
 //
-//   groups.createdBy    — who created it. For an auto-created group that is the
+//   groups.createdBy    - who created it. For an auto-created group that is the
 //                         Operator staff member who set up the demand source,
 //                         which is provenance, not authority.
-//   groups.groupAdminId — written as null and never set.
-//   memberships         — what GroupAdminDashboard actually queries.
+//   groups.groupAdminId - written as null and never set.
+//   memberships         - what GroupAdminDashboard actually queries.
 //
 // `groups.groupAdminId` is now the single source of truth for authority, and a
 // `memberships` document with role "admin" is written alongside it so the group
@@ -69,7 +69,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       await groupRef.set(
         {
           groupAdminId: null,
-          // Removing the admin does not stop calls that are already running —
+          // Removing the admin does not stop calls that are already running -
           // that is a separate, explicit decision.
           updatedAt: FieldValue.serverTimestamp(),
         },
@@ -84,7 +84,7 @@ export async function POST(req: NextRequest, { params }: Params) {
           .get();
         const batch = gDb.batch();
         for (const doc of memberships.docs) {
-          // Demote rather than delete — they stay in the group.
+          // Demote rather than delete - they stay in the group.
           batch.set(doc.ref, { role: "member" }, { merge: true });
         }
         await batch.commit();

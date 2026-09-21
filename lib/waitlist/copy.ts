@@ -2,7 +2,7 @@
 //
 // The disclaimer shown on the waitlist page is derived from the demand source's
 // recorded relationshipStatus and nothing else. A tracked link is attribution
-// only — it never implies the destination forum, group or its organisers have
+// only - it never implies the destination forum, group or its organisers have
 // approved, adopted or partnered with The Operator.
 
 import {
@@ -42,7 +42,7 @@ export function resolveDisclaimer(status: RelationshipStatus | string): string {
 }
 
 /**
- * The short, prominent independence note for a community page — the one that
+ * The short, prominent independence note for a community page - the one that
  * sits above the form rather than in the fine print.
  *
  * `resolveDisclaimer` below is still the full statement and still appears at the
@@ -87,7 +87,7 @@ export const TESTER_CONSENT_LABEL =
  * Shown on the form itself, before submitting.
  *
  * Purely a heads-up. Early Access is an optional second step after joining, not
- * part of this submission — so this is deliberately a notice and not a
+ * part of this submission - so this is deliberately a notice and not a
  * checkbox. Someone who wants calls sooner should know that exists before they
  * decide whether joining is worth it.
  */
@@ -108,7 +108,7 @@ export const TESTER_LOGIN_REASON =
 // ─── Family hero image ───────────────────────────────────────────────────────
 //
 // The upload warning is worth being blunt about. A family photo on a waitlist
-// page is not "shared with the family" — it is served from a public URL and
+// page is not "shared with the family" - it is served from a public URL and
 // copied into a link preview by every messaging app the link passes through.
 // Someone choosing a picture of their children deserves to be told that before
 // the file dialog, not in a tooltip afterwards.
@@ -116,7 +116,7 @@ export const TESTER_LOGIN_REASON =
 export const HERO_IMAGE_WARNING_HEADLINE = "This image will be public";
 
 export const HERO_IMAGE_WARNING_BODY =
-  "Anyone with the link can see it — they do not need an account, and the link may be forwarded on. It is also copied into the link preview shown by WhatsApp, Facebook, Messages and anywhere else the link is pasted, and those previews can stay cached after the image is removed.";
+  "Anyone with the link can see it - they do not need an account, and the link may be forwarded on. It is also copied into the link preview shown by WhatsApp, Facebook, Messages and anywhere else the link is pasted, and those previews can stay cached after the image is removed.";
 
 export const HERO_IMAGE_WARNING_ADVICE =
   "Do not upload anything you would not put on a public web page. Photographs of children are best avoided.";

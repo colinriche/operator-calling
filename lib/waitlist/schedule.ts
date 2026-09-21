@@ -2,8 +2,8 @@ import { SCHEDULE_ZONE } from "./timezone";
 
 // ─── Weekly call windows ─────────────────────────────────────────────────────
 //
-// A window is defined as a wall-clock time in a zone — Sunday 19:00
-// Europe/London — and resolved to a UTC instant per occurrence.
+// A window is defined as a wall-clock time in a zone - Sunday 19:00
+// Europe/London - and resolved to a UTC instant per occurrence.
 //
 // Storing only the UTC instant would drift an hour at each British Summer Time
 // boundary, so a call advertised as 7pm would silently become 8pm in late
@@ -44,7 +44,7 @@ export const DEFAULT_WINDOW: WeeklyWindow = {
  * How far `zone` is from UTC at a given instant, in milliseconds.
  *
  * Derived by asking Intl what the wall clock reads in that zone at that
- * instant, rather than from a table — so DST transitions are the runtime's
+ * instant, rather than from a table - so DST transitions are the runtime's
  * problem, not ours.
  */
 function zoneOffsetMs(instant: Date, zone: string): number {
@@ -78,7 +78,7 @@ function zoneOffsetMs(instant: Date, zone: string): number {
  * The UTC instant at which a given wall-clock time occurs in a zone.
  *
  * Two passes: guess by treating the wall time as UTC, correct by the offset at
- * that guess, then re-check — because the offset can itself differ either side
+ * that guess, then re-check - because the offset can itself differ either side
  * of a DST boundary, and the naive single-pass version lands an hour out on
  * exactly the weekends people would notice.
  */
@@ -154,7 +154,7 @@ export function nextOccurrenceUtc(
       window.zone
     );
     if (candidate.getTime() > from.getTime()) return candidate;
-    // Today's slot has already passed — try next week.
+    // Today's slot has already passed - try next week.
     daysAhead += 7;
   }
 

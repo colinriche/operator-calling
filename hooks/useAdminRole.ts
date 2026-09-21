@@ -7,7 +7,7 @@ import type { AdminRole } from "@/lib/admins";
 // ─── The caller's administrative role ────────────────────────────────────────
 //
 // Asks the server, because the answer lives in the `admins` collection in the
-// production data project and no client reads that collection directly — it is
+// production data project and no client reads that collection directly - it is
 // the permission list.
 //
 // Replaces reading `profile.role` off the `user` document. That was wrong in
@@ -15,7 +15,7 @@ import type { AdminRole } from "@/lib/admins";
 // custom-token admin session often has no `user` document at all, so the flag
 // silently came back undefined and hid controls from real super admins.
 //
-// This governs what the UI *offers*. It is not a security boundary — every
+// This governs what the UI *offers*. It is not a security boundary - every
 // route re-checks server-side, and must keep doing so.
 
 interface AdminRoleState {

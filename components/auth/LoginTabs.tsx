@@ -22,7 +22,7 @@ export function LoginTabs({ initialMethod, nextPath }: LoginTabsProps) {
         </TabsList>
 
         <TabsContent value="email">
-          {/* AuthForm handles its own card wrapper — we strip it here by
+          {/* AuthForm handles its own card wrapper - we strip it here by
               rendering it without the outer card. AuthForm is self-contained
               so we render it directly and let it use the parent card. */}
           <AuthFormInline mode="login" nextPath={nextPath} />
@@ -61,21 +61,21 @@ function firebaseErrorMessage(err: unknown): string {
     "auth/invalid-credential": "Incorrect email or password.",
     "auth/user-not-found": "No account found with that email.",
     "auth/wrong-password": "Incorrect password.",
-    "auth/email-already-in-use": "That email is already registered — try signing in instead.",
-    "auth/too-many-requests": "Too many attempts — wait a moment before trying again.",
+    "auth/email-already-in-use": "That email is already registered - try signing in instead.",
+    "auth/too-many-requests": "Too many attempts - wait a moment before trying again.",
     "auth/user-disabled": "This account has been disabled.",
-    "auth/network-request-failed": "Network error — check your connection and try again.",
+    "auth/network-request-failed": "Network error - check your connection and try again.",
     "auth/unauthorized-domain":
       "This domain isn't authorised for sign-in. Add operatorcalling.com to Firebase Console → Authentication → Authorized domains.",
     "auth/captcha-check-failed":
-      "reCAPTCHA check failed — the domain may not be authorised. Add operatorcalling.com to Firebase Console → Authentication → Authorized domains.",
+      "reCAPTCHA check failed - the domain may not be authorised. Add operatorcalling.com to Firebase Console → Authentication → Authorized domains.",
     "auth/popup-closed-by-user": "Sign-in was cancelled.",
     "auth/operation-not-allowed": "This sign-in method isn't enabled. Contact support.",
   };
   if (code && known[code]) return `${known[code]} [${code}]`;
   const raw = err instanceof Error ? err.message : "";
   const clean = raw.replace(/^Firebase:\s*/i, "").replace(/\s*\(auth\/[^)]+\)\.?$/, "").trim();
-  const meaningful = clean && clean.toLowerCase() !== "error" ? clean : "Something went wrong — please try again.";
+  const meaningful = clean && clean.toLowerCase() !== "error" ? clean : "Something went wrong - please try again.";
   return code ? `${meaningful} [${code}]` : meaningful;
 }
 
@@ -122,7 +122,7 @@ function AuthFormInline({ mode, nextPath }: { mode: "login" | "signup"; nextPath
     } catch (err) {
       const code = (err as { code?: string }).code ?? "unknown";
       console.warn("Phone save failed (non-fatal):", err, "| code:", code);
-      // Non-blocking — proceed to dashboard even if save fails
+      // Non-blocking - proceed to dashboard even if save fails
     } finally {
       setPhoneSaving(false);
     }

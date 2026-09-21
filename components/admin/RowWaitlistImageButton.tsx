@@ -34,7 +34,7 @@ import type { DemandSourceRow } from "@/lib/waitlist/types";
 
 // ─── The waitlist picture and wording, from a spreadsheet row ────────────────
 //
-// One icon opening one dialog: the picture (saved the moment it is chosen —
+// One icon opening one dialog: the picture (saved the moment it is chosen -
 // there is no draft to lose, and the row is one click deep), the family's own
 // photograph where the page is a family page, and the wording (saved with a
 // button, because it is typed).
@@ -49,7 +49,7 @@ import type { DemandSourceRow } from "@/lib/waitlist/types";
 /* eslint-disable @next/next/no-img-element */
 
 const PREVIEW_WIDTH = 288;
-/** Roughly the 16:9 image plus its caption — used only to keep it on screen. */
+/** Roughly the 16:9 image plus its caption - used only to keep it on screen. */
 const PREVIEW_HEIGHT = 200;
 const GAP = 8;
 
@@ -116,7 +116,7 @@ export function RowWaitlistImageButton({ source, onSaved }: Props) {
     if (!rect) return;
 
     // To the right of the icon by default, flipping left when that would run
-    // off the edge — the actions column is pinned to the left of a grid that
+    // off the edge - the actions column is pinned to the left of a grid that
     // scrolls, so "right" is nearly always the side with room.
     let left = rect.right + GAP;
     if (left + PREVIEW_WIDTH > window.innerWidth - GAP) {
@@ -190,7 +190,7 @@ export function RowWaitlistImageButton({ source, onSaved }: Props) {
     }
   }
 
-  const summary = `${source.sourceName} — picture: ${choiceLabel}; wording: ${
+  const summary = `${source.sourceName} - picture: ${choiceLabel}; wording: ${
     source.wording ? "own" : "default"
   }`;
 

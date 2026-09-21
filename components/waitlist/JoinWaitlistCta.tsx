@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 // buttons scroll there; they never navigate.
 //
 // Rendered as a real anchor rather than a button so it still works with no
-// JavaScript — the click handler only upgrades the jump to a smooth scroll and
+// JavaScript - the click handler only upgrades the jump to a smooth scroll and
 // moves focus into the first field, which a bare `#` jump does not do.
 
 /** The id of the form wrapper on the waitlist page. */
@@ -76,7 +76,7 @@ export function JoinWaitlistBand({ note }: { note: string }) {
 
 /**
  * The closing block. Visually the homepage's final CTA, without its two
- * buttons — this page has one action, and "Get started free" and "Download the
+ * buttons - this page has one action, and "Get started free" and "Download the
  * app" both lead away from it.
  */
 export function JoinWaitlistFinalCta({ heading, body }: { heading: string; body: string }) {

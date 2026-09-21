@@ -160,7 +160,7 @@ function CategorySection({ cat }: { cat: CategoryConfig }) {
         </div>
       ) : groups.length === 0 ? (
         <p className="text-sm text-muted-foreground py-1">
-          No public {cat.label.toLowerCase()} groups available yet — check back soon.
+          No public {cat.label.toLowerCase()} groups available yet - check back soon.
         </p>
       ) : (
         <>

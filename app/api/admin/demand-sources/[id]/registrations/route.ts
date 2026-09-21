@@ -6,7 +6,7 @@ import { toIso, waitlistDb } from "@/lib/waitlist/server";
 // GET /api/admin/demand-sources/[id]/registrations
 //
 // Registration emails are the most sensitive thing this feature stores, so this
-// is never folded into the main list response — it is fetched deliberately, per
+// is never folded into the main list response - it is fetched deliberately, per
 // source. Open to admin and super_admin.
 
 export const runtime = "nodejs";
@@ -37,7 +37,7 @@ export async function GET(
         email: data.email ?? "",
         displayName: data.displayName ?? "",
         interestedInOrganising: data.interestedInOrganising === true,
-        // Community interest and tester status are reported separately — one is
+        // Community interest and tester status are reported separately - one is
         // never derived from the other.
         communityInterest: data.communityInterest !== false,
         testerStatus: data.testerStatus ?? "none",
@@ -55,7 +55,7 @@ export async function GET(
       };
     });
 
-    // Sorted in memory so this needs no composite index — 500 rows is nothing.
+    // Sorted in memory so this needs no composite index - 500 rows is nothing.
     registrations.sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
 
     return NextResponse.json({ registrations });

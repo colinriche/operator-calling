@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { DemandSourceSpreadsheet } from "@/components/admin/DemandSourceSpreadsheet";
 import { WaitlistDefaultsPanel } from "@/components/admin/WaitlistDefaultsPanel";
 
-// A second view of the demand sources the outreach page manages — the same
+// A second view of the demand sources the outreach page manages - the same
 // records, the same API routes, the same validation. Built for editing forty of
 // them rather than one, which the card layout on /admin/outreach is not.
 //
@@ -20,7 +20,7 @@ export default function AdminOutreachSpreadsheetPage() {
         </h1>
         <p className="text-muted-foreground">
           Every demand source in one grid. Edits save to the record as you make
-          them — this is the same data as the outreach page, not a copy of it.
+          them - this is the same data as the outreach page, not a copy of it.
           Removing a source means archiving it, which keeps its registrations,
           tracked links and history.
         </p>

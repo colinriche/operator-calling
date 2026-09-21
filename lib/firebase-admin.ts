@@ -9,7 +9,7 @@ import { getAuth, type Auth, type DecodedIdToken } from "firebase-admin/auth";
 // outreach data all live there, and every server route reaches them through the
 // single Admin SDK app below.
 //
-// The project id comes from lib/firebase-env.ts — the same module the browser
+// The project id comes from lib/firebase-env.ts - the same module the browser
 // client reads in lib/firebase.ts. Server and client therefore cannot drift
 // apart: whatever project the browser signs in against is the project whose
 // tokens this file verifies and whose data it reads. That split is what
@@ -23,7 +23,7 @@ import { getAuth, type Auth, type DecodedIdToken } from "firebase-admin/auth";
 //   FIREBASE_PRIVATE_KEY    its private key
 //
 // The key is the PEM from the service-account JSON. Literal `\n` escapes are
-// normalised below, so either the escaped or the real multi-line form works —
+// normalised below, so either the escaped or the real multi-line form works -
 // but a stray `"` from the surrounding JSON does not, and produces
 // `error:1E08010C:DECODER routines::unsupported` on the first Firestore call.
 
@@ -46,7 +46,7 @@ export function getAdminApp(): App {
   try {
     return getApp();
   } catch {
-    // not yet initialized — fall through
+    // not yet initialized - fall through
   }
 
   const projectId = firebaseProjectId();
@@ -57,13 +57,13 @@ export function getAdminApp(): App {
   if (!privateKey) missing.push(PRIVATE_KEY_VAR);
   if (missing.length) {
     throw new Error(
-      `[firebase-admin] Cannot initialize Firebase — missing environment ` +
+      `[firebase-admin] Cannot initialize Firebase - missing environment ` +
         `variable(s): ${missing.join(", ")}. Set them in the Vercel project settings.`
     );
   }
 
   // A service account from a different project is the one misconfiguration that
-  // produces confusing, apparently unrelated failures — token verification
+  // produces confusing, apparently unrelated failures - token verification
   // rejecting valid sign-ins, admin lookups finding nothing. Say so plainly.
   if (!clientEmail!.endsWith(`@${projectId}.iam.gserviceaccount.com`)) {
     console.warn(
@@ -94,7 +94,7 @@ export function getAdminAuth(): Auth {
  *
  * Server-side uploads deliberately: writing through the Admin SDK needs no
  * Storage rules at all, and this project's ruleset is shared with the mobile
- * app — a website feature should not require a rules deploy to work.
+ * app - a website feature should not require a rules deploy to work.
  */
 export function getAdminBucket() {
   return getStorage(getAdminApp()).bucket(firebaseClientConfig().storageBucket);

@@ -25,7 +25,7 @@ interface AuthState {
  *
  * Fire-and-forget, once per tab: a community group activates on demonstrated
  * demand, mostly from people without accounts, so signing up later is the
- * moment they can actually be admitted. Failures are silent by design — this
+ * moment they can actually be admitted. Failures are silent by design - this
  * must never interfere with signing in.
  */
 async function claimWaitlistGroups(u: User): Promise<void> {
@@ -114,9 +114,9 @@ export function useAuth(): AuthState {
         }
       }
 
-      // 2. UID doc not found, or only an email-only stub exists — check if a
+      // 2. UID doc not found, or only an email-only stub exists - check if a
       // mobile account shares this email.
-      // Finding a doc by email alone does NOT mean accounts are linked — the mobile
+      // Finding a doc by email alone does NOT mean accounts are linked - the mobile
       // user doc has systemName set for all app users. Only treat as linked if the
       // explicit merge has been done (linkedWebUid matches or linkedSystemName set).
       if (u.email) {
@@ -139,7 +139,7 @@ export function useAuth(): AuthState {
         }
       }
 
-      // 4. Brand new web-only account — no Firestore doc yet
+      // 4. Brand new web-only account - no Firestore doc yet
       setProfile(null);
       setProfileDocId(null);
       setIsLinked(false);

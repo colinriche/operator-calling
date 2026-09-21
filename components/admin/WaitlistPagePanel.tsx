@@ -40,7 +40,7 @@ import type { DemandSourceRow, WaitlistHero } from "@/lib/waitlist/types";
 //
 // The preview is not a mock-up. It is built by calling the same
 // buildWaitlistPresentation the page and the Open Graph route call, on a
-// context assembled by the same waitlistContextFrom the server uses — so what
+// context assembled by the same waitlistContextFrom the server uses - so what
 // is shown here is what will render, including the rule about whether the
 // community may be named.
 
@@ -107,7 +107,7 @@ export function WaitlistPagePanel({ source, onSaved }: Props) {
       (imageChoice === source.imageChoice ? source.imageChoiceUrl : null))
     : null;
 
-  // Exactly what the page will render, from exactly the same code — with the
+  // Exactly what the page will render, from exactly the same code - with the
   // unsaved edits applied, which is the whole point of a preview.
   const preview = useMemo(
     () =>
@@ -180,7 +180,7 @@ export function WaitlistPagePanel({ source, onSaved }: Props) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to add to the library");
       await reloadLibrary();
-      toast.success("Copied into the library — other pages can now choose it");
+      toast.success("Copied into the library - other pages can now choose it");
     } catch (err) {
       console.error(err);
       toast.error(err instanceof Error ? err.message : "Failed to add to the library");
@@ -315,7 +315,7 @@ export function WaitlistPagePanel({ source, onSaved }: Props) {
         />
         <p className="text-xs text-muted-foreground mt-1.5">
           Shown above the heading on the page and on the link preview card, and
-          added to the preview title. Written by you — the platform a link is
+          added to the preview title. Written by you - the platform a link is
           posted on is never shown publicly.
           {mode === "community" && !canNameSourcePublicly(source.relationshipStatus) && (
             <>
@@ -366,7 +366,7 @@ export function WaitlistPagePanel({ source, onSaved }: Props) {
         />
       </div>
 
-      {/* Preview — the page and the link preview, from the same object */}
+      {/* Preview - the page and the link preview, from the same object */}
       <div className="grid lg:grid-cols-2 gap-3">
         <div className="rounded-lg border border-border/60 overflow-hidden bg-background">
           <p className="text-[11px] uppercase tracking-wide text-muted-foreground px-3 pt-2.5">
@@ -444,7 +444,7 @@ export function WaitlistPagePanel({ source, onSaved }: Props) {
         </Button>
         {dirty && (
           <span className="text-xs text-muted-foreground">
-            Unsaved — the live page still shows the previous version.
+            Unsaved - the live page still shows the previous version.
           </span>
         )}
       </div>

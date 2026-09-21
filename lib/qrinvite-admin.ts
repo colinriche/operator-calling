@@ -9,7 +9,7 @@ import { getAdminDb } from "@/lib/firebase-admin";
 import { resolveTokenDocId } from "@/lib/qrinvite-server";
 
 export interface ResolvedToken {
-  /** Firestore handle — use it for all follow-up reads/writes. */
+  /** Firestore handle - use it for all follow-up reads/writes. */
   db: Firestore;
   /** The qr_tokens document id (decoded from the JWT payload when present). */
   docId: string;

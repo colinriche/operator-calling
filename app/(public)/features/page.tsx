@@ -11,7 +11,7 @@ const featureGroups = [
       { icon: Phone, name: "Mutual-answer connecting", desc: "Calls only connect when both parties pick up. Zero missed-call anxiety." },
       { icon: Clock, name: "Availability windows", desc: "Set the hours you're open to calls. We only ring when you're ready." },
       { icon: Calendar, name: "Scheduled calls", desc: "Book a call time that works for both of you, confirmed in advance." },
-      { icon: Bell, name: "Callback requests", desc: "Ask someone to call you back when they're free — they accept, you both get rung." },
+      { icon: Bell, name: "Callback requests", desc: "Ask someone to call you back when they're free - they accept, you both get rung." },
     ],
   },
   {

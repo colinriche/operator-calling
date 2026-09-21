@@ -134,7 +134,7 @@ export function GroupAdminRequestForm() {
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={3}
-              placeholder="Tell us about your group — who's in it and what you'd use The Operator for."
+              placeholder="Tell us about your group - who's in it and what you'd use The Operator for."
               className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 resize-none"
             />
           </div>
@@ -166,7 +166,7 @@ export function GroupAdminRequestForm() {
               <input
                 value={location}
                 onChange={(e) => setLocation(e.target.value)}
-                placeholder="e.g. Manchester, UK — or just 'UK'"
+                placeholder="e.g. Manchester, UK - or just 'UK'"
                 className={inputClass}
               />
             )}

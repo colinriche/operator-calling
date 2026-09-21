@@ -4,7 +4,7 @@ import { waitlistCard } from "@/lib/waitlist/og-card";
 
 // ─── The link preview image ──────────────────────────────────────────────────
 //
-// GET /api/og/waitlist?s=CODE&n=NETWORK&v=TOKEN — the image a messaging app
+// GET /api/og/waitlist?s=CODE&n=NETWORK&v=TOKEN - the image a messaging app
 // shows when this tracked link is pasted. `n` is present only for a network
 // given a picture of its own.
 //
@@ -14,12 +14,12 @@ import { waitlistCard } from "@/lib/waitlist/og-card";
 // in presentation.ts: a source that may not be named on the page cannot be
 // named here either.
 //
-// `v` is read by nobody. It is a cache key — see waitlistOgImageVersion — so a
+// `v` is read by nobody. It is a cache key - see waitlistOgImageVersion - so a
 // replaced photograph or a different artwork produces a URL the scrapers have
 // not already cached.
 //
 // A file-convention `opengraph-image.tsx` would have been simpler, but those do
-// not receive search params — and the source code is a search param, so every
+// not receive search params - and the source code is a search param, so every
 // tracked link would have produced the same generic image.
 //
 // ─── What this card is, and what it learned the hard way ─────────────────────
@@ -33,8 +33,8 @@ import { waitlistCard } from "@/lib/waitlist/og-card";
 // in which the embedded copy was unreadable.
 //
 // The second removed all of it. That was too far in the other direction:
-// Facebook does not reliably print og:title under the card — in testing it
-// showed the domain — so a wordless picture arrived with no idea what it was.
+// Facebook does not reliably print og:title under the card - in testing it
+// showed the domain - so a wordless picture arrived with no idea what it was.
 //
 // So: the picture dominates, and the title rides in a solid band beneath it.
 // The paragraph stays out; the platform has the description in metadata and
@@ -43,8 +43,8 @@ import { waitlistCard } from "@/lib/waitlist/og-card";
 //
 // ─── How it is made ───────────────────────────────────────────────────────────
 //
-// In lib/waitlist/og-card.tsx — including why it is a JPEG and why nothing
-// native runs there — shared with the admin routes that make the card in
+// In lib/waitlist/og-card.tsx - including why it is a JPEG and why nothing
+// native runs there - shared with the admin routes that make the card in
 // advance.
 
 export const runtime = "nodejs";
@@ -63,8 +63,8 @@ function imageResponse(bytes: Buffer, { cache }: { cache: boolean }): Response {
     headers: {
       "content-type": isJpeg(bytes) ? "image/jpeg" : "image/png",
       "content-length": String(bytes.byteLength),
-      // A scraper fetches this twice — once to build the composer preview and
-      // again when the post is submitted — and the second fetch has a tighter
+      // A scraper fetches this twice - once to build the composer preview and
+      // again when the post is submitted - and the second fetch has a tighter
       // budget than the first. Five minutes was short enough that the second
       // one could land on a cold render; a day, revalidated in the background,
       // means it almost never does.

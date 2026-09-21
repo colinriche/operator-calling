@@ -3,7 +3,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import type { QueryDocumentSnapshot } from "firebase-admin/firestore";
 import { getAdminServices, verifyAuth } from "@/lib/firebase-admin";
 
-// GET /api/groups — list groups the caller belongs to
+// GET /api/groups - list groups the caller belongs to
 export async function GET(req: NextRequest) {
   const uid = await verifyAuth(req.headers.get("authorization") ?? "");
   if (!uid) return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ groups });
 }
 
-// POST /api/groups — create a new group
+// POST /api/groups - create a new group
 export async function POST(req: NextRequest) {
   const uid = await verifyAuth(req.headers.get("authorization") ?? "");
   if (!uid) return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });

@@ -13,7 +13,7 @@ import { isValidTimezone } from "@/lib/waitlist/timezone";
 // Unlike registering interest, this requires an account: testers are added to
 // calling groups, and group membership is keyed on a Firebase uid. The manage
 // token identifies WHICH registration is being upgraded; the ID token proves
-// WHO is doing it. Both are required — the token alone must not be enough to
+// WHO is doing it. Both are required - the token alone must not be enough to
 // attach a stranger's account to someone else's registration.
 
 export const runtime = "nodejs";
@@ -28,7 +28,7 @@ async function findByToken(token: string) {
   return snap.empty ? null : snap.docs[0];
 }
 
-// ─── GET — what the tester page needs to render ──────────────────────────────
+// ─── GET - what the tester page needs to render ──────────────────────────────
 
 export async function GET(req: NextRequest) {
   const token = req.nextUrl.searchParams.get("t")?.trim();
@@ -44,7 +44,7 @@ export async function GET(req: NextRequest) {
 
     const data = doc.data();
     // Only what the page needs. The full email is never echoed back from a
-    // bearer token — a leaked link should not also disclose the address.
+    // bearer token - a leaked link should not also disclose the address.
     const email = (data.email ?? "") as string;
     const [local, domain] = email.split("@");
     const maskedEmail =
@@ -63,7 +63,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// ─── POST — join the programme ───────────────────────────────────────────────
+// ─── POST - join the programme ───────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
   const idToken = req.headers.get("authorization")?.replace("Bearer ", "").trim();
@@ -108,7 +108,7 @@ export async function POST(req: NextRequest) {
 
     const data = doc.data();
 
-    // Rejoining after leaving is fine — it is their own decision, made here
+    // Rejoining after leaving is fine - it is their own decision, made here
     // rather than inferred from a resubmitted form.
     const update: Record<string, unknown> = {
       testerStatus: "active",
@@ -120,7 +120,7 @@ export async function POST(req: NextRequest) {
     };
 
     // Pin attribution at the moment of opting in, and never overwrite it if
-    // they have opted in before — the first community keeps the credit.
+    // they have opted in before - the first community keeps the credit.
     if (!data.testerJoinedFromSourceCode && data.sourceCode) {
       update.testerJoinedFromSourceCode = data.sourceCode;
     }
@@ -128,7 +128,7 @@ export async function POST(req: NextRequest) {
     const wasCounted = data.testerStatus === "active";
     await doc.ref.set(update, { merge: true });
 
-    // Community attribution is untouched by any of the above — becoming a
+    // Community attribution is untouched by any of the above - becoming a
     // tester is additive.
     if (!wasCounted && data.demandSourceId && data.demandSourceId !== "_general") {
       await waitlistDb()

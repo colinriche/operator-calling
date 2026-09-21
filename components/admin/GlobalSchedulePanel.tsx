@@ -83,8 +83,8 @@ export function GlobalSchedulePanel() {
         !notify
           ? "Window added"
           : data.notified?.skipped === "email_disabled"
-            ? "Window added — email sending is off, so nobody was notified"
-            : `Window added — ${data.notified?.sent ?? 0} tester(s) emailed`
+            ? "Window added - email sending is off, so nobody was notified"
+            : `Window added - ${data.notified?.sent ?? 0} tester(s) emailed`
       );
       setLabel("");
       await load();

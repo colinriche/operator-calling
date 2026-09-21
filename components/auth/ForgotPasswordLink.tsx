@@ -8,13 +8,13 @@ import { auth } from "@/lib/firebase";
 // ─── Forgot password ─────────────────────────────────────────────────────────
 //
 // Firebase sends the email and hosts the page the link opens, so there is no
-// reset route of our own to keep in step with it — and no password ever reaches
+// reset route of our own to keep in step with it - and no password ever reaches
 // this site.
 //
 // The reply is deliberately the same whether or not the address has an account,
 // and whether or not that account has a password at all: a sign-in form that
 // answers "no account found" tells anyone who asks which addresses are
-// registered here. Genuine faults — a network failure, too many attempts — are
+// registered here. Genuine faults - a network failure, too many attempts - are
 // still reported, because those are the caller's own problem to act on.
 //
 // Shared by both sign-in forms, which carry their own copies of these fields.
@@ -40,11 +40,11 @@ export function ForgotPasswordLink({ email }: { email: string }) {
     } catch (err) {
       const code = (err as { code?: string }).code ?? "";
       if (code === "auth/too-many-requests") {
-        toast.error("Too many attempts — wait a moment before trying again.");
+        toast.error("Too many attempts - wait a moment before trying again.");
         return;
       }
       if (code === "auth/network-request-failed") {
-        toast.error("Network error — check your connection and try again.");
+        toast.error("Network error - check your connection and try again.");
         return;
       }
       // Everything else, auth/user-not-found included, falls through to the

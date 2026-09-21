@@ -19,7 +19,7 @@ import { countryName } from "@/lib/waitlist/locales";
 
 // ─── Organiser interest ──────────────────────────────────────────────────────
 //
-// People who offered to help organise calls. Ticking that box grants nothing —
+// People who offered to help organise calls. Ticking that box grants nothing -
 // this is where a person decides what, if anything, it leads to.
 //
 // The screen deliberately keeps three things visually apart: what they offered,
@@ -119,7 +119,7 @@ export function OrganiserInterestPanel() {
     if (!user || !row.groupId || !row.accountUid) return;
     if (
       !window.confirm(
-        `Appoint ${row.displayName || row.email} as group admin of ${row.groupName}?\n\nThis gives them control of the group. It does not switch calls on — they do that themselves.`
+        `Appoint ${row.displayName || row.email} as group admin of ${row.groupName}?\n\nThis gives them control of the group. It does not switch calls on - they do that themselves.`
       )
     ) {
       return;
@@ -139,7 +139,7 @@ export function OrganiserInterestPanel() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to appoint");
       await patch(row.id, { organiserStatus: "approved" });
-      toast.success("Appointed — they turn calls on when ready");
+      toast.success("Appointed - they turn calls on when ready");
     } catch (err) {
       console.error(err);
       toast.error(err instanceof Error ? err.message : "Failed to appoint");
@@ -231,7 +231,7 @@ export function OrganiserInterestPanel() {
             )}
           </div>
 
-          {/* What they assert, and whether anyone checked — kept apart. */}
+          {/* What they assert, and whether anyone checked - kept apart. */}
           <div className="flex flex-wrap gap-4 text-xs">
             <label className="flex items-center gap-2 text-foreground">
               <input

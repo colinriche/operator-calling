@@ -19,7 +19,7 @@ export async function GET(req: NextRequest): Promise<NextResponse<ValidateRespon
   }
 
   try {
-    // The token carries no environment field — look it up in whichever
+    // The token carries no environment field - look it up in whichever
     // Firebase project (dev or staging) actually holds it.
     const resolved = await resolveTokenProject(token);
     if (!resolved) {
@@ -41,7 +41,7 @@ export async function GET(req: NextRequest): Promise<NextResponse<ValidateRespon
       return NextResponse.json({ valid: false, reason: "used" });
     }
 
-    // Resolve display name — prefer the field on the token doc, fall back to
+    // Resolve display name - prefer the field on the token doc, fall back to
     // the user's profile in Firestore, then a safe default.
     let targetDisplayName: string = data.targetDisplayName ?? "";
     if (!targetDisplayName && data.targetUserId) {
@@ -63,7 +63,7 @@ export async function GET(req: NextRequest): Promise<NextResponse<ValidateRespon
           }
         }
       } catch {
-        // Non-fatal — default below handles it
+        // Non-fatal - default below handles it
       }
     }
     if (!targetDisplayName) targetDisplayName = "Someone";

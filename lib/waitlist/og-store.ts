@@ -9,7 +9,7 @@
 //
 //   Range request   200 OK with a Content-Range header and a 1024-byte body.
 //                   A client that asks for a range and is answered 200 has been
-//                   told it holds the entire entity — so it decodes a truncated
+//                   told it holds the entire entity - so it decodes a truncated
 //                   PNG and renders nothing. The slicing happens at the CDN
 //                   edge, above the handler, so no amount of code in the route
 //                   can answer 206 instead.
@@ -25,7 +25,7 @@
 // wearing a .png costume.
 //
 // Objects are keyed by the version token, which is derived from what the card
-// is made of — so a source accumulates one file per genuine change, and the
+// is made of - so a source accumulates one file per genuine change, and the
 // previous one is deleted on upload rather than left behind.
 
 import { createHash } from "node:crypto";
@@ -46,7 +46,7 @@ export function waitlistCardPath(
 ): string {
   const safe = /^[a-z0-9]{1,16}$/.test(version) ? version : "0";
   // A network's own card lives in its own subfolder, so storing one network's
-  // new card only replaces that network's old one — see storeWaitlistCard.
+  // new card only replaces that network's old one - see storeWaitlistCard.
   const sub = network && /^[a-z]{1,16}$/.test(network) ? `/${network}` : "";
   // .jpg: the card is stored as JPEG to stay under WhatsApp's size limit. The
   // extension also keeps these paths clear of the oversized .png cards that
@@ -63,8 +63,8 @@ export function waitlistCardPath(
  * lets generateMetadata build the address with no I/O at all, and still gives a
  * value nobody can guess from the outside.
  *
- * It is not a secret. The card is public by construction — it is the picture on
- * a link preview — and the token exists to make the object addressable without
+ * It is not a secret. The card is public by construction - it is the picture on
+ * a link preview - and the token exists to make the object addressable without
  * touching the shared Storage ruleset, exactly as the hero-image route uses it.
  */
 function tokenFor(path: string): string {

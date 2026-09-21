@@ -1,4 +1,4 @@
-\# The Operator – Next.js Website \& Web App Prompt
+\# The Operator - Next.js Website \& Web App Prompt
 
 
 

@@ -115,7 +115,7 @@ export function TesterJoin({ token }: { token: string }) {
           {summary?.timezone ? ` (${summary.timezone.replace(/_/g, " ")})` : ""}.
         </p>
         <p className="text-sm text-muted-foreground leading-relaxed mt-4 pt-4 border-t border-border/60">
-          Your interest in the group you originally registered for is unaffected —
+          Your interest in the group you originally registered for is unaffected -
           this is in addition to it, not instead of it.
         </p>
       </div>

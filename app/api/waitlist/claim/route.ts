@@ -9,7 +9,7 @@ import { claimGroupsForAccount } from "@/lib/waitlist/activation";
 //
 // A group activates on demonstrated demand, which mostly comes from people
 // without accounts. When one of them signs up later, they should land in the
-// group without having to find it — the interest was already expressed.
+// group without having to find it - the interest was already expressed.
 //
 // Matching is on the verified email from the ID token, never on anything the
 // caller sends, so nobody can claim a stranger's registration.
@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ joined: result.joined });
   } catch (err) {
     console.error("[waitlist/claim]", err);
-    // Never surface this to a user mid sign-in — it is a background nicety.
+    // Never surface this to a user mid sign-in - it is a background nicety.
     return NextResponse.json({ joined: [] });
   }
 }

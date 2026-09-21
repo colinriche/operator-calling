@@ -36,7 +36,7 @@ export default function PrivacyPage() {
         </h1>
         <p className="text-xl text-muted-foreground max-w-xl mx-auto">
           The Operator is built on the principle that your conversations are yours.
-          We're here to connect you — not to monetise you.
+          We're here to connect you - not to monetise you.
         </p>
       </AnimatedSection>
 
@@ -59,8 +59,8 @@ export default function PrivacyPage() {
           <h2 className="font-heading font-bold text-2xl mb-4">Safety controls</h2>
           <ul className="space-y-3">
             {[
-              "Set precise availability windows — you only ring when you've said you're available",
-              "Unknown callers must be matched through opt-in settings — no cold calls",
+              "Set precise availability windows - you only ring when you've said you're available",
+              "Unknown callers must be matched through opt-in settings - no cold calls",
               "Group admins can restrict call permissions to specific members or roles",
               "All accounts are verified before accessing matched-stranger calls",
               "Super admins can suspend or remove users platform-wide",

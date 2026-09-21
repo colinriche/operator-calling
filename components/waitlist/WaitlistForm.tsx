@@ -33,7 +33,7 @@ interface WaitlistFormProps {
    * page does not have.
    */
   presentation: WaitlistPresentation;
-  /** Admin preview — renders normally but records nothing. */
+  /** Admin preview - renders normally but records nothing. */
   isPreview: boolean;
 }
 
@@ -101,7 +101,7 @@ export function WaitlistForm({
     if (!validate()) return;
 
     if (isPreview) {
-      setFormError("Preview mode — this form does not submit.");
+      setFormError("Preview mode - this form does not submit.");
       return;
     }
 
@@ -134,12 +134,12 @@ export function WaitlistForm({
       setConfirmedOrganising(organising);
       setManageToken(data.manageToken ?? "");
       // Saved so the manage link survives a closed tab before email exists to
-      // deliver it. Best-effort — private browsing may refuse.
+      // deliver it. Best-effort - private browsing may refuse.
       if (data.manageToken) {
         try {
           window.localStorage.setItem("operator_waitlist_token", data.manageToken);
         } catch {
-          /* storage unavailable — the link is still on screen */
+          /* storage unavailable - the link is still on screen */
         }
       }
       setStatus("success");
@@ -196,7 +196,7 @@ export function WaitlistForm({
             </Link>
           ) : (
             <p className="text-sm text-muted-foreground">
-              Early access sign-up is briefly unavailable — your interest above is
+              Early access sign-up is briefly unavailable - your interest above is
               recorded either way.
             </p>
           )}
@@ -213,7 +213,7 @@ export function WaitlistForm({
             </p>
             <p className="text-xs text-muted-foreground leading-relaxed mb-3">
               It lets you pause, leave or change your time zone later, without an
-              account. Keep it private — anyone with it can change your settings.
+              account. Keep it private - anyone with it can change your settings.
             </p>
             <ManageLink token={manageToken} />
           </div>
@@ -251,7 +251,7 @@ export function WaitlistForm({
 
         {isPreview && (
           <p className="text-xs bg-primary/10 border border-primary/30 rounded-lg px-3 py-2 text-foreground">
-            Admin preview — visits and registrations are not recorded.
+            Admin preview - visits and registrations are not recorded.
           </p>
         )}
 
@@ -447,7 +447,7 @@ export function WaitlistForm({
         )}
 
         {/* A heads-up, not a field. Early Access is an optional second step
-            after joining — nothing here is part of this submission, which is
+            after joining - nothing here is part of this submission, which is
             why there is no checkbox. */}
         <div className="rounded-xl border border-primary/30 bg-primary/5 px-4 py-3.5">
           <p className="font-heading font-semibold text-sm text-foreground mb-1">

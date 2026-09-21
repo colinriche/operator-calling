@@ -7,8 +7,8 @@
 // construction, and consistent across every page.
 //
 // Each piece is an SVG *string* rather than a component, because the same
-// artwork has to render in two very different places — the React page and the
-// satori-rendered Open Graph image — and those two must not be able to drift.
+// artwork has to render in two very different places - the React page and the
+// satori-rendered Open Graph image - and those two must not be able to drift.
 // Both consume `topicArtDataUri`, so the image in a link preview is the same
 // file as the image at the top of the page.
 //

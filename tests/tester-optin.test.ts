@@ -6,7 +6,7 @@ import path from "node:path";
 //
 // Regression guard for a real defect: the public, unauthenticated registration
 // endpoint accepted `joinTesterProgramme: true` and wrote
-// `testerStatus: "active"` with a consent timestamp — no login, no uid, no
+// `testerStatus: "active"` with a consent timestamp - no login, no uid, no
 // consent actually given. A scripted POST could mint "active testers" who would
 // then be emailed about test windows.
 //

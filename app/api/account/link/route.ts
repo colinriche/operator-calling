@@ -5,13 +5,13 @@ import { getAdminServices } from "@/lib/firebase-admin";
 // ─── POST /api/account/link ───────────────────────────────────────────────────
 //
 // Merges a web account into a mobile app account using a Support Code
-// (systemName). The app account is the primary account — its UID, role, and
+// (systemName). The app account is the primary account - its UID, role, and
 // document ID are retained. The web account document is deleted after a
 // successful merge.
 //
 // The endpoint is called repeatedly as the user progresses through steps:
 //
-//   Step 1 — enter support code:
+//   Step 1 - enter support code:
 //     body: { supportCode }
 //     → { status: "email_required" }      phone user must verify app email
 //     → { status: "name_conflict", webName, appName }  user must pick a name
@@ -19,11 +19,11 @@ import { getAdminServices } from "@/lib/firebase-admin";
 //     → { status: "email_mismatch", message }
 //     → { status: "not_found" | "multiple_matches" | "already_linked" | "error", message }
 //
-//   Step 2 (phone users) — verify email ownership:
+//   Step 2 (phone users) - verify email ownership:
 //     body: { supportCode, emailVerification }
 //     → { status: "name_conflict" | "linked" | "email_mismatch" | "error" }
 //
-//   Step 3 (name conflict) — choose a name:
+//   Step 3 (name conflict) - choose a name:
 //     body: { supportCode, emailVerification?, preferredName }
 //     → { status: "linked" | "error" }
 
@@ -181,7 +181,7 @@ export async function POST(req: NextRequest) {
       ]);
 
       if (!appDocTx.exists) {
-        throw new Error("App account document no longer exists — it may have been deleted.");
+        throw new Error("App account document no longer exists - it may have been deleted.");
       }
 
       const appDataTx = appDocTx.data()!;
@@ -196,7 +196,7 @@ export async function POST(req: NextRequest) {
 
       // Build merged data. App account fields take priority; web fields fill gaps.
       const mergedUpdate: Record<string, unknown> = {
-        // Identity — app always wins
+        // Identity - app always wins
         uid: appDocId,
         role: appDataTx.role ?? "user",
         systemName: appDataTx.systemName,

@@ -5,7 +5,7 @@ import { getAdminServices } from "@/lib/firebase-admin";
 // ─── POST /api/invite/process ─────────────────────────────────────────────────
 // Called after a new user provides their phone number following signup via an
 // SMS invite link. Creates the appropriate friend request or group invite so
-// the inviter–invitee relationship is established on both the website and the
+// the inviter-invitee relationship is established on both the website and the
 // mobile app.
 //
 // Body: { inviterUsername: string, groupId?: string, inviteeUid: string, inviteePhone: string }

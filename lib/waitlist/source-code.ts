@@ -3,7 +3,7 @@ import { adminCredentials } from "../firebase-env";
 
 // ─── Tracked source codes ────────────────────────────────────────────────────
 //
-// A source code is an attribution identifier, not an authentication token —
+// A source code is an attribution identifier, not an authentication token -
 // but it must still be unguessable, because sequential codes would let anyone
 // enumerate every audience we are quietly testing and inflate their counters.
 //
@@ -23,7 +23,7 @@ export function generateSourceCode(): string {
 }
 
 /**
- * Shape check only — says nothing about whether the code exists. Used to
+ * Shape check only - says nothing about whether the code exists. Used to
  * reject junk before it reaches Firestore.
  */
 export function isValidSourceCodeFormat(code: unknown): code is string {
@@ -38,7 +38,7 @@ export function isValidSourceCodeFormat(code: unknown): code is string {
 // ─── Manage tokens ───────────────────────────────────────────────────────────
 //
 // A bearer credential letting someone with no account manage their own
-// registration — pause, leave, change time zone. Anyone holding it can act as
+// registration - pause, leave, change time zone. Anyone holding it can act as
 // that person, so it is long, random, and never placed in a URL we ask them to
 // share.
 
@@ -83,7 +83,7 @@ export function hashValue(value: string): string {
   return createHash("sha256").update(`${salt()}::${value}`).digest("hex");
 }
 
-/** Short salted hash — visitor identity, rate-limit buckets. */
+/** Short salted hash - visitor identity, rate-limit buckets. */
 export function shortHash(value: string): string {
   return hashValue(value).slice(0, 32);
 }
@@ -94,7 +94,7 @@ export function shortHash(value: string): string {
  * Duplicate detection keys a waitlist entry on hash(email), so that id has to
  * stay identical forever: if the salt ever rotated, the same address would
  * resolve to a new document and re-register as fresh demand. Salting buys
- * nothing here anyway — the entry stores the plaintext email alongside it, so
+ * nothing here anyway - the entry stores the plaintext email alongside it, so
  * anyone who can read the id can already read the address.
  */
 export function stableHash(value: string): string {
@@ -103,7 +103,7 @@ export function stableHash(value: string): string {
 
 /**
  * Best-effort client IP behind Vercel's proxy. Returns "unknown" rather than
- * throwing — a missing header should degrade rate limiting, not break signup.
+ * throwing - a missing header should degrade rate limiting, not break signup.
  */
 export function clientIpFrom(headers: Headers): string {
   const forwarded = headers.get("x-forwarded-for");
@@ -114,10 +114,10 @@ export function clientIpFrom(headers: Headers): string {
   return headers.get("x-real-ip")?.trim() || "unknown";
 }
 
-/** Hashed visitor identifier — the only form an IP is ever persisted in. */
+/** Hashed visitor identifier - the only form an IP is ever persisted in. */
 export function visitorHashFrom(headers: Headers): string {
   return shortHash(clientIpFrom(headers));
 }
 
-// Email normalisation lives in ./email — it needs provider-specific rules that
+// Email normalisation lives in ./email - it needs provider-specific rules that
 // have nothing to do with source codes or hashing.

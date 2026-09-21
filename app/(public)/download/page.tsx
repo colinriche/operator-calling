@@ -17,7 +17,7 @@ export default function DownloadPage() {
         </h1>
         <p className="text-xl text-muted-foreground max-w-lg mx-auto mb-10">
           The full calling experience on iOS and Android. Not in the stores yet
-          — register your interest and we&apos;ll tell you the moment it is.
+          - register your interest and we&apos;ll tell you the moment it is.
         </p>
 
         {/* Both buttons lead to the waitlist until there is a store listing to

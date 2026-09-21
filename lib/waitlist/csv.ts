@@ -49,7 +49,7 @@ export function toCsv(rows: unknown[][]): string {
 
 /**
  * `2026-09-07 14:32` in UTC. Sheets parses this as a real datetime, which the
- * stored ISO string with its `Z` suffix is not — it lands as text and will not
+ * stored ISO string with its `Z` suffix is not - it lands as text and will not
  * sort chronologically, which is the one thing a date column is for.
  */
 function utcDateTime(iso: string | null): string {
@@ -66,7 +66,7 @@ interface Column {
 
 /**
  * Column order is the export's contract with whoever reads it. Identity first,
- * then what the source is, then what it produced, then bookkeeping — so the
+ * then what the source is, then what it produced, then bookkeeping - so the
  * left-hand freeze in Sheets lands somewhere useful.
  */
 const COLUMNS: Column[] = [
@@ -95,7 +95,7 @@ const COLUMNS: Column[] = [
   { header: "Internal notes", value: (s) => s.internalNotes },
   { header: "Posting rules", value: (s) => s.postingRules },
 
-  // Blank rather than 0 when there is no override — 0 would read as "nobody
+  // Blank rather than 0 when there is no override - 0 would read as "nobody
   // needed", which is a different claim from "use the default".
   { header: "Threshold override", value: (s) => s.demandThreshold ?? "" },
   { header: "Effective threshold", value: (s) => s.effectiveThreshold },
@@ -130,7 +130,7 @@ const COLUMNS: Column[] = [
   { header: "Updated (UTC)", value: (s) => utcDateTime(s.updatedAt) },
 ];
 
-/** The rows exactly as passed — already filtered and sorted by the caller. */
+/** The rows exactly as passed - already filtered and sorted by the caller. */
 export function demandSourcesToCsv(sources: DemandSourceRow[]): string {
   return toCsv([
     COLUMNS.map((c) => c.header),

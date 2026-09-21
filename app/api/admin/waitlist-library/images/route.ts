@@ -27,7 +27,7 @@ import { waitlistDb } from "@/lib/waitlist/server";
 //
 // Every library image can be put on any page, including pages posted to public
 // forums, so an upload needs the same public-visibility confirmation as a
-// family photograph — enforced here, not only by the checkbox.
+// family photograph - enforced here, not only by the checkbox.
 //
 // A family photograph is copied rather than referenced. The family's own
 // upload is deleted when the family replaces or removes it, and that must not

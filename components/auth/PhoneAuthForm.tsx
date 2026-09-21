@@ -21,20 +21,20 @@ function firebaseErrorMessage(err: unknown): string {
   const code = (err as { code?: string }).code ?? "";
   const known: Record<string, string> = {
     "auth/invalid-phone-number": "That doesn't look like a valid phone number.",
-    "auth/too-many-requests": "Too many attempts — wait a moment before trying again.",
+    "auth/too-many-requests": "Too many attempts - wait a moment before trying again.",
     "auth/code-expired": "The verification code has expired. Please request a new one.",
-    "auth/invalid-verification-code": "Incorrect code — please check and try again.",
+    "auth/invalid-verification-code": "Incorrect code - please check and try again.",
     "auth/missing-phone-number": "Please enter your phone number.",
-    "auth/network-request-failed": "Network error — check your connection and try again.",
+    "auth/network-request-failed": "Network error - check your connection and try again.",
     "auth/captcha-check-failed":
-      "reCAPTCHA check failed — domain may not be authorised. Add operatorcalling.com to Firebase Console → Authentication → Authorized domains.",
+      "reCAPTCHA check failed - domain may not be authorised. Add operatorcalling.com to Firebase Console → Authentication → Authorized domains.",
     "auth/unauthorized-domain":
       "This domain isn't authorised. Add operatorcalling.com to Firebase Console → Authentication → Authorized domains.",
   };
   if (code && known[code]) return `${known[code]} [${code}]`;
   const raw = err instanceof Error ? err.message : "";
   const clean = raw.replace(/^Firebase:\s*/i, "").replace(/\s*\(auth\/[^)]+\)\.?$/, "").trim();
-  const meaningful = clean && clean.toLowerCase() !== "error" ? clean : "Something went wrong — please try again.";
+  const meaningful = clean && clean.toLowerCase() !== "error" ? clean : "Something went wrong - please try again.";
   return code ? `${meaningful} [${code}]` : meaningful;
 }
 

@@ -170,7 +170,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<CompleteRespo
     } catch {}
 
     if (!isPrivate) {
-      // Public group — add directly
+      // Public group - add directly
       if (memberIds.includes(currentUserId)) {
         return NextResponse.json({ success: true, alreadyMember: true });
       }
@@ -201,7 +201,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<CompleteRespo
         { merge: true }
       );
     } else {
-      // Private group — create a join request
+      // Private group - create a join request
       if (memberIds.includes(currentUserId)) {
         return NextResponse.json({ success: true, alreadyMember: true });
       }
@@ -233,7 +233,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<CompleteRespo
       });
     }
 
-    // Group tokens stay active — only increment the usage counter
+    // Group tokens stay active - only increment the usage counter
     batch.update(tokenRef, {
       usageCount: FieldValue.increment(1),
       lastUsedAt: FieldValue.serverTimestamp(),

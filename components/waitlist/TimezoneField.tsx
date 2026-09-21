@@ -13,7 +13,7 @@ import type { TimezoneSource } from "@/lib/waitlist/constants";
 // ─── Time zone ───────────────────────────────────────────────────────────────
 //
 // Detected from the browser and shown plainly, because it decides what time
-// their calls appear to be at. Never asked for via location permission — the
+// their calls appear to be at. Never asked for via location permission - the
 // browser already knows, and prompting for GPS to work out what "7pm" means
 // would be wildly disproportionate.
 //

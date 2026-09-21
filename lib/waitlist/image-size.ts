@@ -10,7 +10,7 @@ export interface ImageSize {
 }
 
 export function imageSize(bytes: Uint8Array): ImageSize | null {
-  // PNG: IHDR is always the first chunk, width and height at bytes 16–23.
+  // PNG: IHDR is always the first chunk, width and height at bytes 16-23.
   if (bytes.length >= 24 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e) {
     const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
     return valid(view.getUint32(16), view.getUint32(20));

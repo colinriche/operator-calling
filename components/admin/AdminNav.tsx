@@ -113,7 +113,7 @@ export function AdminNav() {
       </div>
 
       <Sheet open={open} onOpenChange={setOpen}>
-        {/* Width left to SheetContent's own responsive classes — see the note
+        {/* Width left to SheetContent's own responsive classes - see the note
             in DashboardNav about why overriding it here is unreliable. */}
         <SheetContent side="left" className="gap-0 p-0">
           <div className="p-5 border-b border-border">

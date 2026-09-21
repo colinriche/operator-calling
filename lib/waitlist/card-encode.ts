@@ -2,7 +2,7 @@
 //
 // WhatsApp silently drops a preview image over roughly 600KB. satori only emits
 // PNG, and PNG is lossless, so a card built on an uploaded family photograph
-// measured 659KB and 998KB in production — no picture on WhatsApp — while every
+// measured 659KB and 998KB in production - no picture on WhatsApp - while every
 // illustrated card sat under 65KB.
 //
 // Re-encoded as JPEG here, in pure JavaScript. The previous attempt used sharp,
@@ -21,8 +21,8 @@ import { PNG } from "pngjs";
  * take, and the card's picture is the whole point of it. Measured against a
  * lossless render of the same card, 92 more than halves the error of 85.
  *
- * The lower steps exist for the pathological case rather than any real card —
- * an image of pure noise reaches 1.4MB at 92 — so the limit is enforced rather
+ * The lower steps exist for the pathological case rather than any real card -
+ * an image of pure noise reaches 1.4MB at 92 - so the limit is enforced rather
  * than assumed. Encoding twice costs a fraction of a second, once, on the
  * render that stores the card.
  */
@@ -39,8 +39,8 @@ export function isJpeg(bytes: Uint8Array): boolean {
 /**
  * The rendered PNG as a JPEG.
  *
- * The card is opaque by construction — every pixel sits on the cream or ink
- * ground — so dropping the alpha channel loses nothing.
+ * The card is opaque by construction - every pixel sits on the cream or ink
+ * ground - so dropping the alpha channel loses nothing.
  */
 export function pngToJpeg(png: Buffer): Buffer {
   const decoded = PNG.sync.read(png);

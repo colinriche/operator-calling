@@ -1,5 +1,5 @@
 // Server-only: imports firebase-admin and reads privileged fields. Never import
-// this from a Client Component — use lib/waitlist/constants.ts or copy.ts there.
+// this from a Client Component - use lib/waitlist/constants.ts or copy.ts there.
 
 import { FieldValue, type Firestore, type Transaction } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase-admin";
@@ -43,7 +43,7 @@ import type {
 // ─── Project routing ─────────────────────────────────────────────────────────
 //
 // All waitlist and demand data lives in the "staging" project
-// (operator-calling) — the project the mobile app reads, so demand sources and
+// (operator-calling) - the project the mobile app reads, so demand sources and
 // registrations sit alongside the groups they eventually become.
 //
 // This moved off the old dev project once the flow had been exercised.
@@ -119,7 +119,7 @@ interface ResolvedSource {
 
 /**
  * Look up a tracked link and its demand source. Returns null for anything
- * unusable — unknown code, paused/archived link, or a source that is no longer
+ * unusable - unknown code, paused/archived link, or a source that is no longer
  * collecting. Callers fall back to the generic waitlist rather than showing an
  * error, so a stale link posted months ago still lands somewhere sensible.
  */
@@ -157,7 +157,7 @@ async function resolveSource(
 /**
  * Resolve everything the public page needs from a raw `?s=` value. Platform,
  * audience label, group link, relationship status, page mode and imagery are
- * all read from the database — never accepted from the query string — so a
+ * all read from the database - never accepted from the query string - so a
  * visitor cannot forge an endorsement, or a family name, by editing the URL.
  *
  * The mapping itself lives in lib/waitlist/presentation.ts, shared with the
@@ -343,7 +343,7 @@ export async function registerWaitlistEntry(
   const sourceData = resolved?.sourceData ?? {};
 
   // Taken from the presentation rather than straight off the source, so the
-  // confirmation email names the same thing the page they joined from did — a
+  // confirmation email names the same thing the page they joined from did - a
   // family by its name, a global page as talking with new people, and not the
   // neutral "people who share this interest" fallback in either case.
   const audienceLabel = buildWaitlistPresentation(
@@ -412,7 +412,7 @@ export async function registerWaitlistEntry(
         { merge: true }
       );
 
-      // Only the organiser counter can move — signupCount must not grow, or a
+      // Only the organiser counter can move - signupCount must not grow, or a
       // resubmitted form would push a source over its threshold on its own.
       if (upgrade && sourceRef) {
         tx.set(
@@ -432,7 +432,7 @@ export async function registerWaitlistEntry(
       return {
         created: false,
         organiserUpgraded: upgrade,
-        // Reuse the existing token — regenerating would silently break a link
+        // Reuse the existing token - regenerating would silently break a link
         // they had already saved.
         manageToken: (previous.manageToken as string) ?? manageToken,
         testerStatus: previousTester,
@@ -488,7 +488,7 @@ export async function registerWaitlistEntry(
     if (resolved && sourceRef && sourceSnap) {
       // Threshold is NOT decided here. It is evaluated after the transaction
       // against a real count of entry documents, so it can never be driven by a
-      // counter that has drifted — see evaluateThreshold below.
+      // counter that has drifted - see evaluateThreshold below.
       tx.set(
         sourceRef,
         {
@@ -565,7 +565,7 @@ export async function registerWaitlistEntry(
  * Count the registrations that actually exist for a source.
  *
  * One document per (source, canonical email), so this is a count of unique
- * normalised registrations by construction — dots and +tags on a Gmail address
+ * normalised registrations by construction - dots and +tags on a Gmail address
  * all collapse onto the same document and are counted once.
  *
  * Uses an aggregate count rather than reading the documents: cheap, exact, and

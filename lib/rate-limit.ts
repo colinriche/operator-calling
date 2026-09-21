@@ -8,7 +8,7 @@ import type { Firestore } from "firebase-admin/firestore";
 // Firestore costs a transaction per request but actually holds across
 // instances.
 //
-// Buckets are fixed windows rather than sliding — cheaper, and precise enough
+// Buckets are fixed windows rather than sliding - cheaper, and precise enough
 // for "stop someone scripting 10,000 fake signups".
 
 export interface RateLimitResult {
@@ -22,7 +22,7 @@ export interface RateLimitResult {
 export interface RateLimitOptions {
   /** Logical bucket name, e.g. "waitlist_register". */
   scope: string;
-  /** Caller identity within the scope — already hashed if derived from an IP. */
+  /** Caller identity within the scope - already hashed if derived from an IP. */
   identifier: string;
   /** Maximum requests allowed per window. */
   limit: number;
@@ -46,7 +46,7 @@ export async function checkRateLimit(
   const resetAt = new Date(windowStart + windowMs);
 
   // Window start is part of the id, so an expired bucket is simply a different
-  // document — no cleanup pass needed to expire old counters.
+  // document - no cleanup pass needed to expire old counters.
   const docId = `${scope}__${identifier}__${windowStart}`;
   const ref = db.collection(collectionName).doc(docId);
 

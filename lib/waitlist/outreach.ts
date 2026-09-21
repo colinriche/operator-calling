@@ -4,7 +4,7 @@
 // what was written, where it went, who posted it and when.
 //
 // The point is not bookkeeping. It is knowing whether this destination has
-// already been contacted before contacting it again — posting the same link
+// already been contacted before contacting it again - posting the same link
 // twice in the same thread is how outreach becomes spam and a subreddit bans
 // the domain.
 //
@@ -40,7 +40,7 @@ export const RECENT_OUTREACH_DAYS = 14;
 // ─── Starting copy ───────────────────────────────────────────────────────────
 //
 // Hand-written openers, taken from the spec. These are seeds to edit, not
-// things to post verbatim — posting the same sentence everywhere is exactly the
+// things to post verbatim - posting the same sentence everywhere is exactly the
 // pattern that gets a link filtered.
 //
 // An AI generator will later populate the same `generatedText` field these fill
@@ -82,7 +82,7 @@ export const OUTREACH_TEMPLATES: OutreachTemplate[] = [
   {
     id: "organiser_intro",
     label: "To an organiser",
-    text: "I'm working on something separate for one-to-one voice calls around shared interests, and wondered whether people here might find it useful. It isn't connected to this site in any way — I'd rather ask than just post a link.",
+    text: "I'm working on something separate for one-to-one voice calls around shared interests, and wondered whether people here might find it useful. It isn't connected to this site in any way - I'd rather ask than just post a link.",
     suits: ["organiser_message", "private_message"],
   },
 ];
@@ -103,7 +103,7 @@ export const DISCOURAGED_PHRASES = [
   "game-changer",
 ];
 
-/** Discouraged phrases present in a draft. Advisory — the writer decides. */
+/** Discouraged phrases present in a draft. Advisory - the writer decides. */
 export function findDiscouragedPhrases(text: string): string[] {
   const lower = text.toLowerCase();
   return DISCOURAGED_PHRASES.filter((phrase) => lower.includes(phrase));
@@ -134,7 +134,7 @@ export function normaliseDestinationUrl(raw: string): string {
 }
 
 /**
- * Join a comment and its tracked link without ending up with the URL twice —
+ * Join a comment and its tracked link without ending up with the URL twice -
  * the writer may already have pasted it in.
  */
 export function composeWithLink(text: string, trackedUrl: string): string {

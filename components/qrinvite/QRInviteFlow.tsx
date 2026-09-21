@@ -135,7 +135,7 @@ function Shell({ children }: { children: React.ReactNode }) {
           <div className="space-y-3 text-sm text-muted-foreground leading-relaxed">
             <p>
               <span className="font-semibold text-foreground">The Operator</span> is a
-              voice-first communication platform — real conversation, better timed.
+              voice-first communication platform - real conversation, better timed.
             </p>
             <p>
               A call only connects when both people answer, removing call pressure and
@@ -295,7 +295,7 @@ function ExpiredScreen() {
       </IconBadge>
       <h1 className="font-heading font-bold text-2xl text-foreground mb-2">Invite expired</h1>
       <p className="text-muted-foreground text-sm max-w-xs mx-auto">
-        This QR code has expired — they're short-lived for security. Ask the person who shared it to generate a new one.
+        This QR code has expired - they're short-lived for security. Ask the person who shared it to generate a new one.
       </p>
     </motion.div>
   );
@@ -443,7 +443,7 @@ function InstallAppScreen({
           onClick={() => void save(false)}
           className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground transition-colors"
         >
-          Skip — I'll scan the QR code again after installing
+          Skip - I'll scan the QR code again after installing
         </button>
       </form>
 
@@ -472,7 +472,7 @@ function PendingSavedScreen({
       <h1 className="font-heading font-bold text-2xl text-foreground mb-2">Invite saved</h1>
       <p className="text-muted-foreground text-sm max-w-xs mx-auto mb-6">
         {emailSaved
-          ? "Download The Operator and sign up with that phone number — your invite will be applied automatically."
+          ? "Download The Operator and sign up with that phone number - your invite will be applied automatically."
           : "Download The Operator, then scan the QR code again or return to this page to claim your invite."}
       </p>
       <StoreButtons platform={platform} />
@@ -554,7 +554,7 @@ export function QRInviteFlow({ token, type, invalidReason }: QRInviteFlowProps) 
 
   useEffect(() => {
     if (ran.current) return;
-    if (invalidReason) return; // already initialised to error state — skip async flow
+    if (invalidReason) return; // already initialised to error state - skip async flow
     ran.current = true;
 
     const platform = detectPlatform();
@@ -576,7 +576,7 @@ export function QRInviteFlow({ token, type, invalidReason }: QRInviteFlowProps) 
             setState({ status: "used" });
             break;
           case "network_error":
-            toast.error("No connection — check your network.");
+            toast.error("No connection - check your network.");
             setState({ status: "network_error" });
             break;
           default:
@@ -595,7 +595,7 @@ export function QRInviteFlow({ token, type, invalidReason }: QRInviteFlowProps) 
         if (!mounted.current) return;
 
         if (user && platform === "web") {
-          // ── Branch A: desktop logged-in user — complete on the website ───
+          // ── Branch A: desktop logged-in user - complete on the website ───
           // On mobile we always fire the deep link (Branch B) regardless of
           // auth state, so the app is the sole caller of /api/qrinvite/complete.
           // This prevents the website and the app from racing to redeem the
@@ -614,7 +614,7 @@ export function QRInviteFlow({ token, type, invalidReason }: QRInviteFlowProps) 
             const isGroup = !!tokenData.groupId;
             if (result.success) {
               if (result.pending) {
-                toast.success("Join request sent — waiting for approval.");
+                toast.success("Join request sent - waiting for approval.");
                 setState({ status: "join_requested", groupName: tokenData.groupName });
               } else {
                 toast.success(
@@ -639,7 +639,7 @@ export function QRInviteFlow({ token, type, invalidReason }: QRInviteFlowProps) 
             }
           } catch {
             if (!mounted.current) return;
-            toast.error("Couldn't complete the invite — please try again.");
+            toast.error("Couldn't complete the invite - please try again.");
             setState({ status: "error" });
           }
         } else {
@@ -654,14 +654,14 @@ export function QRInviteFlow({ token, type, invalidReason }: QRInviteFlowProps) 
           if (appNotInstalled) {
             setState({ status: "install_app", platform, token, type });
           }
-          // If the app opened, the page went to background — no further action needed.
+          // If the app opened, the page went to background - no further action needed.
         }
       });
     }
 
     run().catch(() => {
       if (mounted.current) {
-        toast.error("Something went wrong — please try again.");
+        toast.error("Something went wrong - please try again.");
         setState({ status: "error" });
       }
     });
@@ -670,8 +670,8 @@ export function QRInviteFlow({ token, type, invalidReason }: QRInviteFlowProps) 
   const handlePendingSaved = (platform: Platform, emailSaved: boolean) => {
     toast.success(
       emailSaved
-        ? "Invite saved — we'll apply it automatically when you sign up."
-        : "Invite saved — scan the QR code again after installing."
+        ? "Invite saved - we'll apply it automatically when you sign up."
+        : "Invite saved - scan the QR code again after installing."
     );
     setState({ status: "pending_saved", platform, token, type, emailSaved });
   };

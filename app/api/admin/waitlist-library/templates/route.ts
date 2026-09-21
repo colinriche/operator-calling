@@ -6,7 +6,7 @@ import { isWordingVariant, sanitiseWording } from "@/lib/waitlist/library";
 import { wordingTemplateRow } from "@/lib/waitlist/library-server";
 import { waitlistDb } from "@/lib/waitlist/server";
 
-// POST /api/admin/waitlist-library/templates — save wording as a template.
+// POST /api/admin/waitlist-library/templates - save wording as a template.
 //
 // A template is a starting point. Choosing one copies its text into a source,
 // so nothing here reaches a page until someone chooses it.

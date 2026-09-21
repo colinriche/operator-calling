@@ -1,4 +1,4 @@
-# Operator Calling — Community Demand, Waitlist, Outreach and Group Creation System
+# Operator Calling - Community Demand, Waitlist, Outreach and Group Creation System
 
 ## Instruction to the AI coder
 
@@ -463,7 +463,7 @@ A new link should be created when separately tracking:
 
 ---
 
-# 10. Admin dashboard — places posted and source links
+# 10. Admin dashboard - places posted and source links
 
 Create a searchable **Places Posted**, **Outreach Sources** or similarly named section in the existing admin dashboard.
 
@@ -915,7 +915,7 @@ For layouts requiring less text:
 ```text
 Like talking on the phone with new people?
 
-Operator Calling arranges scheduled one-to-one voice calls around shared interests. You make yourself available and the call comes to you — no searching for people, no arranging it yourself and no sharing phone numbers.
+Operator Calling arranges scheduled one-to-one voice calls around shared interests. You make yourself available and the call comes to you - no searching for people, no arranging it yourself and no sharing phone numbers.
 
 Register your interest in talking with people interested in [Public Audience Label].
 

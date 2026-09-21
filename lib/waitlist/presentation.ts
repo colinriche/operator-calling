@@ -5,7 +5,7 @@
 // three places: the page, the Open Graph tags, and the generated preview image.
 //
 // Previously the page held its own hard-coded headline and `metadata` held its
-// own hard-coded title, so the two were only ever the same by coincidence — and
+// own hard-coded title, so the two were only ever the same by coincidence - and
 // once a link began carrying a topic they stopped being the same at all. This
 // module is the only thing that decides what a waitlist page says. The page
 // reads it, `generateMetadata` reads it, the OG image route reads it, and the
@@ -102,7 +102,7 @@ function text(value: unknown): string {
  * Which page a source renders.
  *
  * An unset or unrecognised value is not an error: sources created before modes
- * existed simply keep the page they already had — the community page when a
+ * existed simply keep the page they already had - the community page when a
  * link resolved, the global one when it did not.
  */
 export function resolveWaitlistMode(raw: unknown, attributed: boolean): WaitlistMode {
@@ -114,8 +114,8 @@ export function resolveWaitlistMode(raw: unknown, attributed: boolean): Waitlist
 /**
  * Whether these people already know each other.
  *
- * A family page is existing connections by definition — that is what a family
- * is — so it does not depend on the stored value being right. Everything else
+ * A family page is existing connections by definition - that is what a family
+ * is - so it does not depend on the stored value being right. Everything else
  * falls back to shared interest, the weaker of the two claims.
  */
 export function resolveConnectionType(
@@ -201,10 +201,10 @@ const TAGLINE = "The Operator makes the call, so you don't have to.";
  * Facebook stacks the card, the title and the description, and the card
  * already prints what this page is about in the band under the picture. A
  * title repeating it put the same words twice in two lines, so this one says
- * what The Operator is instead — the page's own name is in the picture above
+ * what The Operator is instead - the page's own name is in the picture above
  * it. Everyone else keeps the page's title, since their previews lean on it.
  */
-const FACEBOOK_TITLE = "The Operator — making the call for you";
+const FACEBOOK_TITLE = "The Operator - making the call for you";
 
 /** Capitalise a topic without touching an already-capitalised name. */
 function leadingCapital(value: string): string {
@@ -222,7 +222,7 @@ function bulletsFor(
       // who decides rather than asking them when they are free.
       text: known
         ? "The Operator decides when it's time. Nothing to arrange between you."
-        : "You pick when you're available — no searching for anyone.",
+        : "You pick when you're available - no searching for anyone.",
     },
     {
       id: "incoming",
@@ -231,7 +231,7 @@ function bulletsFor(
     {
       id: "privacy",
       // In a group that already knows each other, everyone has everyone's
-      // number — so the meaningful control is who you would rather not be put
+      // number - so the meaningful control is who you would rather not be put
       // through to, not whether numbers are shared.
       text: known
         ? "You choose who you'd rather not be connected with."
@@ -245,14 +245,14 @@ function bulletsFor(
 // A page is selling one of two quite different things, and the wording is not
 // interchangeable. For strangers the promise is that you never have to find
 // anyone. For people who already know each other, finding each other was never
-// the problem — remembering to actually call is.
+// the problem - remembering to actually call is.
 //
 // Type 2, shared interest: people who don't know each other but share
 // something.
 //
 // Type 1, existing connections: a year group, an old team. The argument is not
 // "we save you the admin". People in these groups can already reach each
-// other; what they have lost is the everyday reason to — the shared job, the
+// other; what they have lost is the everyday reason to - the shared job, the
 // school run, the club night. So The Operator is the one that decides when it
 // is time, and the call arrives rather than being arranged. That is why nothing
 // in it frames the visitor as the scheduler, mentions overlapping availability,
@@ -270,7 +270,7 @@ function bulletsFor(
 //
 // It no longer names the topic. The card already prints it, in the band under
 // the picture, and Facebook stacks the card, the title and the description on
-// top of each other — so a topic in all three arrived three times in as many
+// top of each other - so a topic in all three arrived three times in as many
 // lines. The default is general on purpose: the card says which group this is,
 // and the description says what The Operator does. A source that wants its own
 // name in the description can still put {topic}, {group} or {family} there.
@@ -314,7 +314,7 @@ export const BUILTIN_WORDING: Record<WordingVariant, WaitlistWording> = {
     ogDescription:
       "The Operator keeps a group in touch by occasionally bringing two of its members together for a private one-to-one call.",
     shareText:
-      "A way for {group} to keep in contact by voice — The Operator occasionally brings two members together for a one-to-one call.",
+      "A way for {group} to keep in contact by voice - The Operator occasionally brings two members together for a one-to-one call.",
   },
   family: {
     heading: "{family}",
@@ -326,7 +326,7 @@ export const BUILTIN_WORDING: Record<WordingVariant, WaitlistWording> = {
     ogDescription:
       "The Operator app brings family members together through unexpected one-to-one calls.",
     shareText:
-      "Voice calls for {family} on The Operator — you say when you're free and the call comes to you.",
+      "Voice calls for {family} on The Operator - you say when you're free and the call comes to you.",
   },
 };
 
@@ -429,7 +429,7 @@ const FAMILY_PROMPT =
  * Everything the three surfaces render, derived from the resolved context.
  *
  * Note what the three modes do *not* share. Global says nothing about a shared
- * interest, because there isn't one — the fallback audience label ("people who
+ * interest, because there isn't one - the fallback audience label ("people who
  * share this interest") must never reach a global page, which is the specific
  * bug this function exists to make impossible. Community leads with the topic
  * and the source. Family leads with the family's own name.
@@ -499,7 +499,7 @@ export function buildWaitlistPresentation(
 
   if (context.mode === "community") {
     // Whatever an admin typed, and nothing otherwise. This line used to be
-    // built from the platform — "from a Facebook group" — which named a
+    // built from the platform - "from a Facebook group" - which named a
     // company that had no part in the page.
     const eyebrow = context.publicEyebrow || null;
 
@@ -546,7 +546,7 @@ export function buildWaitlistPresentation(
           ? "I may be interested in helping organise or schedule calls for this group."
           : "I may be interested in helping organise or schedule calls around this interest.",
       // Drops the "about ___" clause entirely with no topic, rather than
-      // reaching for a filler noun — a share message naming no subject still
+      // reaching for a filler noun - a share message naming no subject still
       // reads properly, which is not true of "voice calls about this topic".
       shareText: w.shareText,
       shareSubject: `${heading} on The Operator`,
@@ -554,7 +554,7 @@ export function buildWaitlistPresentation(
       interestLabel: topic || context.audienceLabel,
       hero: heroFor(context, heading, network),
       og: {
-        title: eyebrow ? `${heading} — ${eyebrow}` : heading,
+        title: eyebrow ? `${heading} - ${eyebrow}` : heading,
         facebookTitle: FACEBOOK_TITLE,
         description: w.ogDescription,
       },
@@ -604,7 +604,7 @@ export function buildWaitlistPresentation(
  *
  * The same opt-in the admin panel's copyable link uses, so a source that was
  * deliberately kept anonymous in its URLs stays that way when a visitor shares
- * it. The page ignores the slug either way — see lib/waitlist/tracked-url.ts.
+ * it. The page ignores the slug either way - see lib/waitlist/tracked-url.ts.
  */
 function shareSlugFor(context: WaitlistContext, subject: string): string {
   if (!context.sourceCode || !context.includeTopicInUrl) return "";
@@ -639,7 +639,7 @@ export function effectiveImageChoice(fields: {
  * Which picture a page shows.
  *
  * An explicit choice wins. With none, a source keeps what it showed before the
- * library existed — a family's photograph, a community's artwork — and
+ * library existed - a family's photograph, a community's artwork - and
  * everything else gets the default.
  */
 function heroFor(
@@ -810,7 +810,7 @@ export function demandSourcePresentation(
  * page's own card.
  *
  * Deliberately collapsed: a network with no picture of its own shares the
- * page's card — its address, its stored file, its cache — rather than getting
+ * page's card - its address, its stored file, its cache - rather than getting
  * an identical copy under a different name. The page, the image route and the
  * warm-up all ask this, so they agree on which file a network is served.
  */
@@ -829,7 +829,7 @@ export function cardNetwork(
  *
  * Absolute because crawlers do not resolve relative `og:image` values, and
  * carrying the source code because the image is built from the same context the
- * page is — pass the code, get that page's image.
+ * page is - pass the code, get that page's image.
  */
 export function waitlistOgImageUrl(
   origin: string,
@@ -852,7 +852,7 @@ export function waitlistOgImageUrl(
  * Facebook and WhatsApp cache a preview against its image URL and re-fetch on
  * their own schedule, which for a URL that never changes is somewhere between
  * "eventually" and "never". Replacing a family photograph or picking different
- * artwork would leave the old card in circulation indefinitely — worse than a
+ * artwork would leave the old card in circulation indefinitely - worse than a
  * plain miss, because the link then shows a picture the admin deliberately
  * took down.
  *
@@ -863,7 +863,7 @@ export function waitlistOgImageUrl(
  *
  * What it does NOT do is refresh an already-shared link. Facebook and WhatsApp
  * cache the *page* URL and the metadata they scraped from it, so a link posted
- * yesterday keeps yesterday's card — including yesterday's og:image address —
+ * yesterday keeps yesterday's card - including yesterday's og:image address -
  * until they re-scrape, which is on their schedule and not ours. This only
  * guarantees that a re-scrape, whenever it happens, cannot be served a stale
  * image. Forcing one is a manual act: Facebook's Sharing Debugger has a Scrape

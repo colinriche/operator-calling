@@ -5,7 +5,7 @@ import { COLLECTIONS } from "@/lib/waitlist/constants";
 import { LIBRARY_IMAGE_CATEGORY_IDS } from "@/lib/waitlist/library";
 import { waitlistDb } from "@/lib/waitlist/server";
 
-// PATCH /api/admin/waitlist-library/images/[id] — rename, recategorise, archive.
+// PATCH /api/admin/waitlist-library/images/[id] - rename, recategorise, archive.
 //
 // There is no delete. Pages that chose an image carry its URL, so removing the
 // file would blank their pictures and link previews. Archiving hides it from

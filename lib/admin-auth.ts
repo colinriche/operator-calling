@@ -13,10 +13,10 @@ import {
 //
 // Two steps, deliberately independent:
 //
-//   1. Authentication — who is this? The ID token is verified against
+//   1. Authentication - who is this? The ID token is verified against
 //      `operator-calling`, the one project the website signs into.
 //
-//   2. Authorisation — what may they do? Answered solely by the `admins`
+//   2. Authorisation - what may they do? Answered solely by the `admins`
 //      collection (lib/admins.ts), keyed by email, in that same project.
 //      Nothing a person can edit about their own profile grants access.
 //
@@ -28,7 +28,7 @@ export type { AdminRole };
 export interface AdminCaller {
   /** Firebase Auth UID of the caller. */
   uid: string;
-  /** Lowercased email — the `admins` document id backing them. */
+  /** Lowercased email - the `admins` document id backing them. */
   email: string;
   name: string;
   role: AdminRole;
@@ -44,7 +44,7 @@ export interface AdminCaller {
 /**
  * The caller's email address.
  *
- * A custom-token session — which is what /api/admin/token mints — carries no
+ * A custom-token session - which is what /api/admin/token mints - carries no
  * `email` claim of its own, so this checks the standard claim, then a custom
  * claim, then falls back to the legacy `user` document. Without this an
  * email-keyed lookup could never match an admin-login session.
@@ -116,8 +116,8 @@ export async function requireAdmin(
       return null;
     }
 
-    // If the `admins` collection is unreachable — misconfigured credentials, or
-    // Firestore down — that must not deny every administrator at once. Fall
+    // If the `admins` collection is unreachable - misconfigured credentials, or
+    // Firestore down - that must not deny every administrator at once. Fall
     // through to the legacy path below, which exists for exactly this.
     let record = null;
     try {
@@ -151,7 +151,7 @@ export async function requireAdmin(
           (typeof legacyProfile?.name === "string" && legacyProfile.name) ||
           "";
         console.warn(
-          `[admin-auth] LEGACY ROLE USED for ${email} (role=${role}) — add this ` +
+          `[admin-auth] LEGACY ROLE USED for ${email} (role=${role}) - add this ` +
             `address to the "admins" collection, then remove the fallback`
         );
       }

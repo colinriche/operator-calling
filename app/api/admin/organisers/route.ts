@@ -40,7 +40,7 @@ export interface OrganiserRow {
   organiserNotes: string;
   organiserReviewedAt: string | null;
 
-  /** Whether an Operator account exists for this address — appointment needs one. */
+  /** Whether an Operator account exists for this address - appointment needs one. */
   hasAccount: boolean;
   accountUid: string | null;
   /** True when they are already the admin of their community's group. */
@@ -148,7 +148,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// ─── PATCH — record review progress ──────────────────────────────────────────
+// ─── PATCH - record review progress ──────────────────────────────────────────
 
 export async function PATCH(req: NextRequest) {
   const caller = await requireAdmin(req);

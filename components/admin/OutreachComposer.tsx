@@ -26,7 +26,7 @@ import {
 // Two jobs: write the thing, and remember that it happened.
 //
 // The second matters more. Knowing this thread already had a link stops
-// outreach turning into spam — and nobody remembers across weeks and dozens of
+// outreach turning into spam - and nobody remembers across weeks and dozens of
 // subreddits, which is exactly the sort of thing a record is for.
 //
 // There is no generator yet. The textarea starts from a hand-written template
@@ -115,7 +115,7 @@ export function OutreachComposer({
     void load();
   }, [load]);
 
-  // Check the destination as it is typed, not on submit — a warning is only
+  // Check the destination as it is typed, not on submit - a warning is only
   // useful before the effort of writing something.
   useEffect(() => {
     if (!user || !destinationUrl.trim()) {
@@ -216,7 +216,7 @@ export function OutreachComposer({
       // Copied is not posted. Only a person can say it went anywhere.
       await save("copied");
     } catch {
-      toast.error("Could not copy — check clipboard permissions");
+      toast.error("Could not copy - check clipboard permissions");
     }
   }
 

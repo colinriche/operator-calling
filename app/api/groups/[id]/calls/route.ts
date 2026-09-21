@@ -10,7 +10,7 @@ import { SCHEDULE_ZONE } from "@/lib/waitlist/timezone";
 //
 // A group's schedule and whether it is currently calling are separate concerns.
 // Turning calls off leaves the schedule, the members and the group itself
-// untouched — it only stops calls running. Turning them back on resumes from
+// untouched - it only stops calls running. Turning them back on resumes from
 // the next valid occurrence; nothing missed while paused is replayed, because
 // a call nobody attended is not owed to anyone.
 //
@@ -22,12 +22,12 @@ export const runtime = "nodejs";
 type Params = { params: Promise<{ id: string }> };
 
 export const PAUSE_REASONS = {
-  awaiting_group_admin: "Calls paused — awaiting group admin",
+  awaiting_group_admin: "Calls paused - awaiting group admin",
   admin_paused: "Calls paused by an administrator",
   group_admin_paused: "Calls paused by the group admin",
 } as const;
 
-// ─── GET — current state ─────────────────────────────────────────────────────
+// ─── GET - current state ─────────────────────────────────────────────────────
 
 export async function GET(req: NextRequest, { params }: Params) {
   const { id } = await params;
@@ -70,7 +70,7 @@ export async function GET(req: NextRequest, { params }: Params) {
 // about callsEnabled.
 //
 // This is belt and braces, not a substitute: the guard still belongs in the
-// dispatch path. The schedule's day, time and zone are untouched either way —
+// dispatch path. The schedule's day, time and zone are untouched either way -
 // only its dispatch status moves.
 
 /** Mark a group's schedules as not for dispatch. Definitions are preserved. */
@@ -160,7 +160,7 @@ function nextCallIso(group: FirebaseFirestore.DocumentData): string | null {
   return nextOccurrenceUtc(window).toISOString();
 }
 
-// ─── PATCH — turn calls on or off ────────────────────────────────────────────
+// ─── PATCH - turn calls on or off ────────────────────────────────────────────
 
 export async function PATCH(req: NextRequest, { params }: Params) {
   const { id } = await params;

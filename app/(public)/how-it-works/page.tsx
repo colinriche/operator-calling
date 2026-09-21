@@ -7,7 +7,7 @@ const steps = [
   {
     n: "01",
     title: "Create your profile",
-    desc: "Set your name, availability windows, and call preferences. Tell us what kinds of conversations you're open to — work, casual, community, or all three.",
+    desc: "Set your name, availability windows, and call preferences. Tell us what kinds of conversations you're open to - work, casual, community, or all three.",
   },
   {
     n: "02",
@@ -27,7 +27,7 @@ const steps = [
   {
     n: "05",
     title: "Both answer? Connected.",
-    desc: "If you both pick up, you're connected instantly. If either of you can't answer, there's no voicemail, no awkwardness — just reschedule.",
+    desc: "If you both pick up, you're connected instantly. If either of you can't answer, there's no voicemail, no awkwardness - just reschedule.",
   },
   {
     n: "06",

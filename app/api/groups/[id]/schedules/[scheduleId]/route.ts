@@ -110,7 +110,7 @@ function isWithinEditLock(scheduledAt: Date) {
   return scheduledAt.getTime() - Date.now() <= SCHEDULE_EDIT_LOCK_MS;
 }
 
-// DELETE /api/groups/[id]/schedules/[scheduleId] — cancel a scheduled call (creator only)
+// DELETE /api/groups/[id]/schedules/[scheduleId] - cancel a scheduled call (creator only)
 export async function DELETE(req: NextRequest, { params }: Params) {
   const uid = await verifyAuth(req.headers.get("authorization") ?? "");
   if (!uid) return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
@@ -134,7 +134,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   return NextResponse.json({ success: true });
 }
 
-// PATCH /api/groups/[id]/schedules/[scheduleId] — edit a scheduled call
+// PATCH /api/groups/[id]/schedules/[scheduleId] - edit a scheduled call
 export async function PATCH(req: NextRequest, { params }: Params) {
   const uid = await verifyAuth(req.headers.get("authorization") ?? "");
   if (!uid) return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });

@@ -1,4 +1,4 @@
-# Firestore rules — what the website needs
+# Firestore rules - what the website needs
 
 > **Status: applied.** Everything in the "Manual Firestore rules changes"
 > section below has been written into the app repo's `firestore.rules` and
@@ -18,7 +18,7 @@
 >   public marketing page that was permanently empty without it. Absent
 >   `isPrivate` is treated as private, so a group is only public by saying so.
 >
-> The `isAdmin()`-accepts-`super_admin` change was **not** applied — it is for
+> The `isAdmin()`-accepts-`super_admin` change was **not** applied - it is for
 > the app's operator dashboard, not the website, and widening an admin check is
 > the app's call.
 
@@ -26,21 +26,21 @@
 
 The **main Operator app project owns the shared Firestore ruleset.** The website
 uses one Firebase project, `operator-calling`, so there is exactly one ruleset
-to reason about — the one applied there.
+to reason about - the one applied there.
 
 **This repo never modifies those rules.** It does not deploy them, does not hold
 them in version control, and does not reach into the app codebase. Its job is to
 state what the website requires and why. Changes are applied in the app repo's
-`firestore.rules` and deployed from there — the rules recorded below were applied
+`firestore.rules` and deployed from there - the rules recorded below were applied
 that way, on both `development` and `staging`, rather than by hand in the console.
 
 That constraint shapes the design rather than fighting it: **when admin-only
 data can be read through a Next.js route with the Admin SDK, it should be.**
-The Admin SDK bypasses rules entirely, so those paths need no rules at all — and
+The Admin SDK bypasses rules entirely, so those paths need no rules at all - and
 the check that guards them (`requireAdmin`) is the website's own, versioned here,
 testable here, and not shared with the app.
 
-## Two separate systems — don't confuse them
+## Two separate systems - don't confuse them
 
 | | Website server-side authorisation | Firestore client security rules |
 |---|---|---|
@@ -74,7 +74,7 @@ also writes the matching `memberships` document so the group shows up in
 only place a role string is compared, so `super_admin` is accepted everywhere
 `admin` is unless a capability deliberately excludes it.
 
-## Handled server-side — no rule change required
+## Handled server-side - no rule change required
 
 Every one of these goes through the Admin SDK behind `requireAdmin`, so rules do
 not apply:
@@ -92,7 +92,7 @@ not apply:
 **The waitlist and private website collections need no client access at all.**
 `groupDemandSources`, `sourceLinks`, `waitlistEntries`, `sourceVisits`,
 `shareEvents`, `rateLimits`, `settings` and `admins` are read and written only by
-server routes. No browser touches them, and none should — `waitlistEntries` holds
+server routes. No browser touches them, and none should - `waitlistEntries` holds
 email addresses and `admins` is the permission list itself. Firestore denies a
 collection with no `match` block, and the shared ruleset has **no recursive
 `match /{document=**}`**, so they are already closed. Nothing to add.
@@ -103,31 +103,31 @@ These run in the browser against the client SDK, so rules do apply.
 
 | Where | Collections | Verdict |
 |---|---|---|
-| `hooks/useAuth.ts` | `user` — by `linkedWebUids`, `linkedWebUid`, uid, `email` | Must stay. Runs before any session context exists. Already allowed (`allow read: if true`) |
+| `hooks/useAuth.ts` | `user` - by `linkedWebUids`, `linkedWebUid`, uid, `email` | Must stay. Runs before any session context exists. Already allowed (`allow read: if true`) |
 | `hooks/useDashboardData.ts` | `schedules`, `callbacks`, `notifications`, `memberships` | Ordinary user's own data. **Rules needed** |
 | `components/admin/GroupAdminDashboard.tsx` | `memberships`, `groups`, `user`, `invites`, `schedules`, `reports`, `scheduledGroupCalls` | Mostly allowed; **`memberships` and `schedules` need rules** |
-| `components/public/PublicGroupsBrowser.tsx` | `groups` where `isPrivate == false`, `interests` | Currently denied for signed-out visitors — see optional section |
+| `components/public/PublicGroupsBrowser.tsx` | `groups` where `isPrivate == false`, `interests` | Currently denied for signed-out visitors - see optional section |
 | Auth forms (`AuthForm`, `LoginTabs`, `PhoneAuthForm`), `ProfileEditor` | own `user` document | Already allowed |
 
-The four collections that need rules — `memberships`, `schedules`, `callbacks`,
-`notifications` — have **no `match` block at all** in the shared ruleset, so
+The four collections that need rules - `memberships`, `schedules`, `callbacks`,
+`notifications` - have **no `match` block at all** in the shared ruleset, so
 every read is denied by default. This is why the ordinary dashboard is as broken
 as `/admin/super` was, for the same underlying reason.
 
 ## Better moved behind an API route than granted rules
 
-- **`lib/dashboardSeed.ts`** — a client batch write to `user`, `groups`,
+- **`lib/dashboardSeed.ts`** - a client batch write to `user`, `groups`,
   `memberships`, `schedules`, `callbacks`, `notifications`, `invites`, `reports`
   and `admin_controls`, triggered by the "Seed dashboard data" button. Granting a
   browser write access to nine collections to support a test fixture is the wrong
   trade. Move it to `/api/admin/seed` behind `requireAdmin`. Until then it will
   fail on the collections above.
-- **`SuperAdminDashboard`'s three remaining writes** — `user.role`, `user.banned`,
+- **`SuperAdminDashboard`'s three remaining writes** - `user.role`, `user.banned`,
   `reports.status`. They work today only because the `user` rule lets any signed-in
   user write `role` and `banned`, which is far too generous. `canManageUsers` is
   `super_admin`-only, and a browser write cannot enforce that. Move to
   `/api/admin/users`.
-- **`GroupAdminDashboard`'s group-wide reads** — workable with the rules below,
+- **`GroupAdminDashboard`'s group-wide reads** - workable with the rules below,
   but the whole component would be simpler and safer behind
   `/api/admin/group/{id}` with the group-admin check server-side.
 
@@ -146,7 +146,7 @@ guards `groups` reads for the app's operator dashboard.
 
 **The website no longer depends on it.** `SuperAdminDashboard` reads groups
 server-side now, and a group admin reads their own group through
-`request.auth.uid in resource.data.memberIds` — `/api/admin/groups/{id}/admin`
+`request.auth.uid in resource.data.memberIds` - `/api/admin/groups/{id}/admin`
 adds them to `memberIds` when appointing them, precisely so this works. The fix
 below is for the app's benefit and for consistency, not to unblock the website.
 
@@ -155,7 +155,7 @@ authority is `admins/{email}`; `user.role` grants nothing on the website except
 through the transitional fallback described in
 [`admin-roles.md`](./admin-roles.md).
 
-## The legacy fallback — can it go?
+## The legacy fallback - can it go?
 
 `requireAdmin` still honours `role` on the legacy `user` document when `admins`
 has no record for that email. `admins/colinriche@gmail.com` now exists with
@@ -163,7 +163,7 @@ has no record for that email. `admins/colinriche@gmail.com` now exists with
 
 **It can be removed** once you have signed in and confirmed nothing logs
 `[admin-auth] LEGACY ROLE USED`. Leaving it in means any `role: admin` user
-document in `operator-calling` still grants website admin access — which is the
+document in `operator-calling` still grants website admin access - which is the
 exact weakness `admins` was introduced to close. Delete `legacyRole` and its call
 site in `lib/admin-auth.ts` when you are ready; say the word.
 
@@ -175,7 +175,7 @@ Copy into the shared ruleset, inside `match /databases/{database}/documents`.
 
 ## Rules required for `super_admin`
 
-**None. No rule change required — handled server-side.**
+**None. No rule change required - handled server-side.**
 
 Every site-admin and super-admin operation runs through the Admin SDK behind
 `requireAdmin`, which bypasses rules. Authority is `admins/{email}`, read by a
@@ -185,12 +185,12 @@ not a precondition for `super_admin` working.
 ## Rules required for other client-side website functionality
 
 Four collections have no `match` block, so every client read is denied. These
-serve the group-admin dashboard and the ordinary user dashboard. Read-only —
+serve the group-admin dashboard and the ordinary user dashboard. Read-only -
 every write stays server-side.
 
 **GroupAdminDashboard** needs `memberships` (its own, then group-wide) and
-`schedules` (by `groupId`). Its other reads — `groups`, `user`, `invites`,
-`reports`, `scheduledGroupCalls` — are already permitted.
+`schedules` (by `groupId`). Its other reads - `groups`, `user`, `invites`,
+`reports`, `scheduledGroupCalls` - are already permitted.
 
 **Ordinary user dashboard** (`useDashboardData`) needs `schedules`, `callbacks`,
 `notifications` and `memberships`, all scoped to the signed-in uid.
@@ -199,12 +199,12 @@ every write stays server-side.
 > `allow update` for a group admin, guarded only by an unchanged `groupId`. That
 > is too broad: `memberships.role` is authority, and a browser-side rule cannot
 > constrain which fields or which values without becoming a second, divergent
-> copy of the permission model. `GroupAdminDashboard`'s two membership writes —
-> change role, ban member — belong on a server route that checks
+> copy of the permission model. `GroupAdminDashboard`'s two membership writes -
+> change role, ban member - belong on a server route that checks
 > `groups.groupAdminId` and validates the target role. `/api/groups/{id}/members/{uid}`
 > is the natural home but does not cover it yet: it authorises on `createdBy`,
 > not `groupAdminId`, and writes `groups.members.{uid}` rather than the
-> `memberships` collection. Until it is extended, those two buttons will fail —
+> `memberships` collection. Until it is extended, those two buttons will fail -
 > deliberately, rather than by opening the collection.
 
 ```
@@ -255,7 +255,7 @@ every write stays server-side.
     }
 ```
 
-## Optional — only if the public `/groups` page should list groups
+## Optional - only if the public `/groups` page should list groups
 
 `PublicGroupsBrowser` queries `groups where isPrivate == false` and reads
 `interests`, for signed-out visitors. Both are denied today, and the component
@@ -273,7 +273,7 @@ that page came from a server route.
       allow read: if true;
 ```
 
-## Optional — let the app's `isAdmin()` accept `super_admin`
+## Optional - let the app's `isAdmin()` accept `super_admin`
 
 Not needed by the website. Include it so the app's operator dashboard does not
 reject a `super_admin`.
@@ -285,7 +285,7 @@ reject a `super_admin`.
 
 ## Everything else
 
-**No rule change required — handled server-side.** Waitlist, demand sources,
+**No rule change required - handled server-side.** Waitlist, demand sources,
 source links, outreach, organisers, global schedule, the `admins` collection,
 `admin_controls`, `Archive`, group creation and membership management, group
 call enablement, and the whole super-admin overview all run through the Admin

@@ -2,8 +2,8 @@
 //
 // Two levels, deliberately:
 //
-//   normaliseEmail  — trim + lowercase. What we store and display.
-//   canonicalEmail  — the identity used for duplicate detection.
+//   normaliseEmail  - trim + lowercase. What we store and display.
+//   canonicalEmail  - the identity used for duplicate detection.
 //
 // Canonicalisation is conservative. Over-merging is not a harmless error: two
 // genuinely different people would collapse into one record and the second
@@ -41,7 +41,7 @@ export function normaliseEmail(email: string): string {
 
 /**
  * Identity form, used for duplicate detection and for counting unique
- * registrations towards a threshold. Never displayed — the address someone
+ * registrations towards a threshold. Never displayed - the address someone
  * typed is what we show them and what we would email.
  */
 export function canonicalEmail(email: string): string {

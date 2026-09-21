@@ -18,8 +18,8 @@ import {
 // Two invariants are enforced here rather than left to whoever is clicking:
 //
 //   • The last super_admin cannot be removed or demoted. Nothing else can
-//     restore the permission afterwards — there is no console flow and no
-//     bootstrap route — so the collection has to refuse to empty itself.
+//     restore the permission afterwards - there is no console flow and no
+//     bootstrap route - so the collection has to refuse to empty itself.
 //   • You cannot demote or delete yourself. It is always a mistake in progress,
 //     and a second super_admin can do it for you if it genuinely is not.
 
@@ -90,7 +90,7 @@ export async function POST(req: NextRequest) {
       }
       if ((await countSuperAdmins()) <= 1) {
         return NextResponse.json(
-          { error: "This is the only super admin — promote someone else first" },
+          { error: "This is the only super admin - promote someone else first" },
           { status: 409 }
         );
       }
@@ -133,7 +133,7 @@ export async function DELETE(req: NextRequest) {
 
     if (existing.role === "super_admin" && (await countSuperAdmins()) <= 1) {
       return NextResponse.json(
-        { error: "This is the only super admin — promote someone else first" },
+        { error: "This is the only super admin - promote someone else first" },
         { status: 409 }
       );
     }

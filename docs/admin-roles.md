@@ -1,4 +1,4 @@
-# Admin roles — the `admins` collection
+# Admin roles - the `admins` collection
 
 ## The model
 
@@ -9,16 +9,16 @@ One collection defines who may administer the site. One document per person,
 admins/{email}
   name       string
   role       "admin" | "super_admin"
-  createdAt  timestamp   — written by the API; absent on hand-seeded records
+  createdAt  timestamp   - written by the API; absent on hand-seeded records
   updatedAt  timestamp
-  updatedBy  string      — email of the super_admin who last wrote it
+  updatedBy  string      - email of the super_admin who last wrote it
 ```
 
 Only `name` and `role` are required. A record hand-created in the console with
 just those two fields works.
 
-Lives in **`operator-calling`** — the only project the website uses, and the
-same one that issues the caller's token — reached through `getAdminDb()` in
+Lives in **`operator-calling`** - the only project the website uses, and the
+same one that issues the caller's token - reached through `getAdminDb()` in
 `lib/admins.ts`.
 
 ### Roles
@@ -30,21 +30,21 @@ same one that issues the caller's token — reached through `getAdminDb()` in
 | Create, edit, remove admins | ❌ | ✅ |
 | Edit, archive, delete user accounts | ❌ | ✅ |
 
-Capabilities are functions in `lib/admins.ts` — `canAdminister`,
-`canManageAdmins`, `canManageUsers` — so routes ask a question instead of
+Capabilities are functions in `lib/admins.ts` - `canAdminister`,
+`canManageAdmins`, `canManageUsers` - so routes ask a question instead of
 comparing role strings, and changing a permission is one edit.
 
 ### Why a separate collection, keyed by email
 
 Authority used to be a `role` field on the `user` document. Two problems:
 
-1. **`user` is written by many things** — sign-up, the mobile app, account
+1. **`user` is written by many things** - sign-up, the mobile app, account
    linking, the dashboard seeder. A field that grants administrative access
    should be reachable by exactly one code path that demands `super_admin`.
    `admins` is written only by `/api/admin/admins`.
 2. **A person is not a uid.** Phone auth mints a fresh Firebase UID, the
    custom-token admin login uses the Firestore document id as the uid, and one
-   human can hold several. Their email survives all of it — and it is what
+   human can hold several. Their email survives all of it - and it is what
    someone typing into the admin panel actually knows.
 
 Keying by email also decouples authorisation from *which Firebase project*
@@ -59,9 +59,9 @@ somebody believes are distinct would grant access to an address nobody added.
 
 `lib/admin-auth.ts`, two independent steps:
 
-1. **Authentication** — the ID token is verified against every configured
+1. **Authentication** - the ID token is verified against every configured
    Firebase project, because a token is only ever valid for its issuer.
-2. **Authorisation** — the caller's email is looked up in `admins`.
+2. **Authorisation** - the caller's email is looked up in `admins`.
 
 Resolving the email takes three attempts, because a custom-token session (what
 `/api/admin/token` mints) carries no `email` claim of its own: the standard
@@ -70,24 +70,24 @@ claim, then a custom claim, then the legacy `user` document at `user/{uid}`.
 ### Invariants enforced by `/api/admin/admins`
 
 - The **last super_admin cannot be removed or demoted.** Nothing can restore the
-  permission afterwards — there is no console flow and no bootstrap route — so
+  permission afterwards - there is no console flow and no bootstrap route - so
   the collection refuses to empty itself.
 - **You cannot demote or delete yourself.** Another super_admin can, if it is
   genuinely intended.
 
-## ⚠️ Transitional fallback — remove this
+## ⚠️ Transitional fallback - remove this
 
 `requireAdmin` still honours `role` on the legacy `user` document **when
 `admins` has no record for that email**. Every use logs:
 
 ```
-[admin-auth] LEGACY ROLE USED for <email> (role=…) — add this address to the
+[admin-auth] LEGACY ROLE USED for <email> (role=…) - add this address to the
 "admins" collection, then remove the fallback
 ```
 
 It exists so deploying this change cannot lock every administrator out before
 the collection is populated. **Until it is removed, a `user` document with
-`role: "admin"` still grants access — which is the exact weakness `admins` was
+`role: "admin"` still grants access - which is the exact weakness `admins` was
 introduced to close.** The legacy documents were in the previous project, which
 the website no longer reads; whatever `user` documents exist in
 `operator-calling` now decide this.
@@ -98,12 +98,12 @@ To remove it: populate `admins`, confirm nothing logs the warning, then delete
 ## Signing in
 
 `POST /api/admin/token` takes an **email**, looks it up in `admins`, and returns
-a Firebase custom token for it. Both `admin` and `super_admin` are accepted —
+a Firebase custom token for it. Both `admin` and `super_admin` are accepted -
 the route previously rejected `super_admin`, which would have locked out the
 highest role.
 
 The token is minted by the **default** admin app, whose project id comes from
-`NEXT_PUBLIC_FIREBASE_PROJECT_ID` — necessarily the same project the browser's
+`NEXT_PUBLIC_FIREBASE_PROJECT_ID` - necessarily the same project the browser's
 client SDK uses, because `signInWithCustomToken` rejects a token issued by any
 other project. Both sides read the same variable, so this stays correct after
 the project move.
@@ -120,7 +120,7 @@ No password, no code, no second factor. **Anyone who knows or guesses an
 administrator's email address can become that administrator**, and email
 addresses are guessable by design.
 
-This is an accepted trade-off, not an oversight — requiring a real Firebase Auth
+This is an accepted trade-off, not an oversight - requiring a real Firebase Auth
 sign-in was considered and declined. Two things narrow the window, neither of
 which makes it safe:
 
@@ -136,12 +136,12 @@ collection or the capability model would need to change.
 ## Firestore rules
 
 `admins` is read and written **only** through the Admin SDK in server routes,
-which bypasses rules. No client ever reads it, and no client should be able to —
+which bypasses rules. No client ever reads it, and no client should be able to -
 it is the permission list.
 
 The shared ruleset has no recursive `match /{document=**}`, so a collection with
 no match block is already denied to every client by default. **No rule change
-required — handled server-side.** See [`firestore-rules.md`](./firestore-rules.md),
+required - handled server-side.** See [`firestore-rules.md`](./firestore-rules.md),
 which is the single record of what the website needs from the app's ruleset.
 
 ## Seeding the first super_admin
@@ -159,7 +159,7 @@ Document id: your.email@example.com      ← lowercase
 Use the address the account you sign in with actually carries, or the lookup
 will not match.
 
-**Done:** `admins/colinriche@gmail.com` — `role: super_admin`, seeded
+**Done:** `admins/colinriche@gmail.com` - `role: super_admin`, seeded
 2026-08-12. Authority is keyed by email, so it matches however the session is
 established.
 

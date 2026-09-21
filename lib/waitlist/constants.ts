@@ -1,7 +1,7 @@
 // ─── Waitlist / demand-source constants ──────────────────────────────────────
 //
 // Shared by the public waitlist page, the public API routes and the super-admin
-// outreach panel. Everything here is safe to import from client components —
+// outreach panel. Everything here is safe to import from client components -
 // no credentials, no privileged copy.
 
 // ─── Platforms ───────────────────────────────────────────────────────────────
@@ -81,7 +81,7 @@ export const DEFAULT_RELATIONSHIP_STATUS: RelationshipStatus = "unverified";
  * Below these, the page says "from a Facebook group" and never the group's
  * name. Printing a real community's name next to an invitation reads as that
  * community endorsing it, and for an unverified source nobody there has said
- * anything at all. Verified, supported and partnered sources have — that is
+ * anything at all. Verified, supported and partnered sources have - that is
  * exactly what those statuses record.
  */
 export const NAMEABLE_RELATIONSHIP_STATUSES: readonly string[] = [
@@ -144,12 +144,12 @@ export const CONNECTION_TYPES = [
   {
     id: "shared_interest",
     label: "Shared interest",
-    hint: "Interests, hobbies, sports, supporters, communities — people who don't already know each other.",
+    hint: "Interests, hobbies, sports, supporters, communities - people who don't already know each other.",
   },
   {
     id: "existing_connections",
     label: "Existing personal connections",
-    hint: "Family, school or university friends, former colleagues, an old club — people who already know each other.",
+    hint: "Family, school or university friends, former colleagues, an old club - people who already know each other.",
   },
 ] as const;
 
@@ -169,7 +169,7 @@ export const DEFAULT_CONNECTION_TYPE: ConnectionType = "shared_interest";
 // ─── Family hero image ───────────────────────────────────────────────────────
 //
 // Uploaded by an admin, served from a public download URL so link-preview
-// crawlers can fetch it — which is precisely why the upload demands an explicit
+// crawlers can fetch it - which is precisely why the upload demands an explicit
 // acknowledgement rather than a quiet file picker.
 
 export const HERO_IMAGE_MAX_BYTES = 5 * 1024 * 1024;

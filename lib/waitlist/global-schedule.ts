@@ -10,7 +10,7 @@ import { SCHEDULE_ZONE } from "./timezone";
 
 // ─── Global pool schedules ───────────────────────────────────────────────────
 //
-// The global pool is not a group — it is everyone eligible for calls with
+// The global pool is not a group - it is everyone eligible for calls with
 // people they do not know. So its windows live on their own rather than hanging
 // off a group document.
 //
@@ -19,7 +19,7 @@ import { SCHEDULE_ZONE } from "./timezone";
 // no sensible default for a pool that exists from day one.
 //
 // This defines *when* the pool runs and tells testers about it. It does not
-// place calls — the app's own matching handles that.
+// place calls - the app's own matching handles that.
 
 export const GLOBAL_SCHEDULES_COLLECTION = "globalSchedules";
 
@@ -140,7 +140,7 @@ export async function listActiveTesters(
   }> = [];
 
   // One person can hold several registrations, one per community they came
-  // from — but they are one tester, so only mail them once.
+  // from - but they are one tester, so only mail them once.
   const seen = new Set<string>();
 
   for (const doc of snap.docs) {

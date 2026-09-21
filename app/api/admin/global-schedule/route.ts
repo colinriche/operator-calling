@@ -17,7 +17,7 @@ import { SCHEDULE_ZONE, formatInZone, isValidTimezone } from "@/lib/waitlist/tim
 // Call windows for the global pool that early access testers join.
 //
 // Community groups get a window automatically when they activate. The global
-// pool has no such trigger, so its windows are set here — without one, someone
+// pool has no such trigger, so its windows are set here - without one, someone
 // who joined early access is waiting for a call that has no time.
 
 export const runtime = "nodejs";
@@ -142,7 +142,7 @@ export async function PATCH(req: NextRequest) {
 /**
  * Tell active testers their calls now have a time, each in their own zone.
  *
- * Paced and sequential like the activation notification, for the same reason —
+ * Paced and sequential like the activation notification, for the same reason -
  * Workspace SMTP refuses bursts.
  */
 async function notifyTesters(
@@ -150,11 +150,11 @@ async function notifyTesters(
   window: WeeklyWindow
 ): Promise<{ sent: number; failed: number; skipped?: string }> {
   // While the site is collecting addresses without sending to them, walking the
-  // tester list would report every one as a failure and — worse — stamp the
+  // tester list would report every one as a failure and - worse - stamp the
   // schedule as notified. Leave notifiedAt unset so these testers are still
   // owed a mail whenever sending is turned on.
   if (!isEmailConfigured()) {
-    console.log(`[global-schedule] ${scheduleId} created — testers not notified (email off)`);
+    console.log(`[global-schedule] ${scheduleId} created - testers not notified (email off)`);
     return { sent: 0, failed: 0, skipped: "email_disabled" };
   }
 

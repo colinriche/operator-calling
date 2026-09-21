@@ -94,7 +94,7 @@ export function WaitlistWordingEditor({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to save the template");
-      toast.success(`Saved “${templateName.trim()}” — it can now be chosen for other pages`);
+      toast.success(`Saved “${templateName.trim()}” - it can now be chosen for other pages`);
       setTemplateName("");
       await reload();
     } catch (err) {

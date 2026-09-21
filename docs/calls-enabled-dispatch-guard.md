@@ -2,13 +2,13 @@
 
 **Status: outstanding, and deliberately deferred.** The guard lives in the app's
 dispatch path, which is not in this repository and is being written alongside
-the app itself — so it gets written by hand there rather than tracked as blocked
+the app itself - so it gets written by hand there rather than tracked as blocked
 work here.
 
 Deferring it is safe *only* because of the interim mitigation described below:
 auto-created schedules are written `status: "paused"`, so an unmodified
 dispatcher filtering on `status == "scheduled"` never sees them. That is an
-assumption about the dispatcher, not a contract — which is why this document
+assumption about the dispatcher, not a contract - which is why this document
 stays open rather than being closed as handled.
 
 **Before the first community group goes live with calls, this guard has to
@@ -23,25 +23,25 @@ A community group created automatically at threshold is written with
 `callsEnabled: false` because nobody has yet taken responsibility for running
 its calls. The website enforces that everywhere it can. It does not place calls.
 
-Without the guard, such a group shows **"Calls paused — awaiting group admin"**
-in the admin panel and calls people anyway — worse than having no toggle,
+Without the guard, such a group shows **"Calls paused - awaiting group admin"**
+in the admin panel and calls people anyway - worse than having no toggle,
 because it reads as safe when it is not.
 
 ## Where dispatch lives
 
 **Not in this repository.** Verified: no `functions/` directory, and every
 reference to `scheduledGroupCalls` here is CRUD from the dashboard or the
-waitlist activation — nothing reads it to place a call.
+waitlist activation - nothing reads it to place a call.
 
 What is known about the owner:
 
 | | |
 |---|---|
-| Firebase project | **`operator-calling`** — the website's only project; auto-created groups and their schedules land here. The dispatcher that matters is whichever one reads *this* project. |
+| Firebase project | **`operator-calling`** - the website's only project; auto-created groups and their schedules land here. The dispatcher that matters is whichever one reads *this* project. |
 | Functions region | `us-central1` |
-| Confirmed deployed function | `sendFcmMessage` — referenced at `components/admin/SuperAdminDashboard.tsx:60` |
-| Collection dispatch reads | `scheduledGroupCalls` — `status == "scheduled"`, `scheduledAt <= now` |
-| Related matching path | `auto_call_sessions/{sessionId}/waiting_members` — the staging Firestore rules comment "The matching Cloud Function rejects stale/missing heartbeats so crashed clients cannot be paired as ghosts", which confirms a matching function exists and reads these |
+| Confirmed deployed function | `sendFcmMessage` - referenced at `components/admin/SuperAdminDashboard.tsx:60` |
+| Collection dispatch reads | `scheduledGroupCalls` - `status == "scheduled"`, `scheduledAt <= now` |
+| Related matching path | `auto_call_sessions/{sessionId}/waiting_members` - the staging Firestore rules comment "The matching Cloud Function rejects stale/missing heartbeats so crashed clients cannot be paired as ghosts", which confirms a matching function exists and reads these |
 
 Source of truth is the **main project's Development branch**.
 
@@ -57,7 +57,7 @@ grep -rn "scheduledGroupCalls" --include="*.ts" --include="*.js" .
 grep -rn "auto_call_sessions" --include="*.ts" --include="*.js" .
 ```
 
-The function to change is whichever queries `scheduledGroupCalls` on a timer —
+The function to change is whichever queries `scheduledGroupCalls` on a timer -
 a `onSchedule` / pubsub-scheduled function, or a worker doing the same.
 
 ## The patch
@@ -71,7 +71,7 @@ const group = groupSnap.data();
 
 // Fail closed: anything other than an explicit true means do not dispatch.
 if (!group || group.callsEnabled !== true) {
-  console.log(`[dispatch] skipping ${call.groupId} — calls not enabled`);
+  console.log(`[dispatch] skipping ${call.groupId} - calls not enabled`);
   return;
 }
 ```
@@ -79,12 +79,12 @@ if (!group || group.callsEnabled !== true) {
 Requirements this satisfies:
 
 - Runs in the trusted server-side dispatch path, not the UI.
-- Fails closed — a missing field, a missing group, `undefined`, `null` or
+- Fails closed - a missing field, a missing group, `undefined`, `null` or
   `"true"` as a string all mean do not dispatch. Only boolean `true` proceeds.
 - Auto-created groups stay non-calling until an authorised admin enables them.
 - Schedules are untouched while disabled.
 - Re-enabling resumes from the next occurrence only; nothing missed is replayed
-  (the website rewrites `scheduledAt` forward on enable — see below).
+  (the website rewrites `scheduledAt` forward on enable - see below).
 
 ## Interim mitigation already in place
 
@@ -97,7 +97,7 @@ dispatcher fail closed anyway:
 - Turning calls off flips that group's schedules to `paused`.
 - Turning calls on flips them back to `scheduled` **and rewrites `scheduledAt`
   to the next occurrence**, which is what makes "do not replay missed calls"
-  true — a paused schedule whose time has passed would otherwise be instantly
+  true - a paused schedule whose time has passed would otherwise be instantly
   overdue and fire the moment it became visible.
 
 The schedule's day, time and zone are never altered by any of this.
@@ -111,7 +111,7 @@ belongs in the dispatch path.
 Adapt to whatever the main project uses; the assertions are the point.
 
 ```js
-describe("scheduled call dispatch — callsEnabled guard", () => {
+describe("scheduled call dispatch - callsEnabled guard", () => {
   it("does not dispatch or create matches when callsEnabled is false", async () => {
     const groupId = await createGroup({
       callsEnabled: false,
@@ -142,7 +142,7 @@ describe("scheduled call dispatch — callsEnabled guard", () => {
     expect(await callSessionsFor(groupId)).toHaveLength(1);
   });
 
-  // Fail-closed cases — each must behave exactly like false.
+  // Fail-closed cases - each must behave exactly like false.
   it.each([undefined, null, "true", 1, {}])(
     "does not dispatch when callsEnabled is %p",
     async (value) => {
@@ -159,7 +159,7 @@ describe("scheduled call dispatch — callsEnabled guard", () => {
 
 The third test is the one worth keeping. `!group.callsEnabled` and
 `group.callsEnabled !== true` behave identically for booleans and differ for
-the string `"true"` — which is exactly what arrives if the field is ever set
+the string `"true"` - which is exactly what arrives if the field is ever set
 from a form value or a JSON import.
 
 ## Fields the website writes
@@ -168,9 +168,9 @@ On the group document, in `operator-calling` (`GROUP_TARGET_PROJECT` in
 `lib/waitlist/group-linking.ts`):
 
 ```
-callsEnabled       boolean   — false on automatic creation
-callsPausedReason  string    — awaiting_group_admin | admin_paused | group_admin_paused
-groupAdminId       string?   — null until an organiser is appointed
+callsEnabled       boolean   - false on automatic creation
+callsPausedReason  string    - awaiting_group_admin | admin_paused | group_admin_paused
+groupAdminId       string?   - null until an organiser is appointed
 callsEnabledAt     timestamp
 callsPausedAt      timestamp
 callsUpdatedBy     uid

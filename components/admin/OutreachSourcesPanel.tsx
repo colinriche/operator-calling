@@ -53,7 +53,7 @@ import type { DemandSourceRow, SimilarSourceRow } from "@/lib/waitlist/types";
 // links have actually produced.
 //
 // Adding a source here creates no Operator group. One is created automatically
-// when demand clears the threshold, then flagged for review — with its calls
+// when demand clears the threshold, then flagged for review - with its calls
 // off until a group admin is appointed and turns them on.
 
 type SortKey =
@@ -149,14 +149,14 @@ export function OutreachSourcesPanel() {
   // name or URL changes, so a stale warning never sits above a corrected form.
   const [duplicates, setDuplicates] = useState<SimilarSourceRow[]>([]);
 
-  // Registrations are loaded per source on demand — emails are the most
+  // Registrations are loaded per source on demand - emails are the most
   // sensitive thing here, so they are never bulk-loaded with the list. The
   // route is open to admin and super_admin.
   const [openRegistrations, setOpenRegistrations] = useState<string | null>(null);
   const [registrations, setRegistrations] = useState<RegistrationRow[]>([]);
   const [loadingRegistrations, setLoadingRegistrations] = useState(false);
 
-  // Demand review — creating or linking a group. Loaded per source on demand,
+  // Demand review - creating or linking a group. Loaded per source on demand,
   // since it scans the groups collection for possible duplicates.
   const [openReview, setOpenReview] = useState<string | null>(null);
   const [review, setReview] = useState<ReviewState | null>(null);
@@ -169,7 +169,7 @@ export function OutreachSourcesPanel() {
   const [acknowledgeDuplicates, setAcknowledgeDuplicates] = useState(false);
   const [savingGroup, setSavingGroup] = useState(false);
 
-  // Threshold editing — global default, and per-source overrides.
+  // Threshold editing - global default, and per-source overrides.
   const [thresholdDraft, setThresholdDraft] = useState("");
   const [savingThreshold, setSavingThreshold] = useState(false);
   const [togglingCalls, setTogglingCalls] = useState<string | null>(null);
@@ -218,7 +218,7 @@ export function OutreachSourcesPanel() {
       await navigator.clipboard.writeText(text);
       toast.success(label);
     } catch {
-      toast.error("Could not copy — check clipboard permissions");
+      toast.error("Could not copy - check clipboard permissions");
     }
   }
 
@@ -262,7 +262,7 @@ export function OutreachSourcesPanel() {
       if (!res.ok) throw new Error(data.error ?? "Failed to create source");
 
       setDuplicates([]);
-      await copy(data.trackedUrl, "Source created — waitlist link copied");
+      await copy(data.trackedUrl, "Source created - waitlist link copied");
       setForm({ ...BLANK_FORM });
       setShowForm(false);
       await load();
@@ -275,13 +275,13 @@ export function OutreachSourcesPanel() {
   }
 
   /**
-   * Export what is on screen — the search, the platform filter and the sort all
+   * Export what is on screen - the search, the platform filter and the sort all
    * apply. The database stays the source of truth; this is a read-only snapshot
    * for reading in a spreadsheet, and there is deliberately no way back in.
    */
   function exportCsv() {
     if (visible.length === 0) {
-      toast.error("Nothing to export — clear the filters or add a source");
+      toast.error("Nothing to export - clear the filters or add a source");
       return;
     }
     downloadCsv(csvFilename("operator-outreach-sources"), demandSourcesToCsv(visible));
@@ -420,7 +420,7 @@ export function OutreachSourcesPanel() {
 
   // Sources created before this option existed, and ones whose topic was added
   // later, need a way to opt in without recreating anything. Tracked codes are
-  // untouched — only how the URL is written out changes.
+  // untouched - only how the URL is written out changes.
   async function toggleTopicInUrl(sourceId: string, include: boolean) {
     if (!user) return;
     setSavingTopicUrl(sourceId);
@@ -448,7 +448,7 @@ export function OutreachSourcesPanel() {
   async function appointGroupAdmin(groupId: string) {
     if (!user || !groupId) return;
     const identifier = window.prompt(
-      "Appoint a group admin — username, email address or uid.\n\nThis does not switch calls on; they turn them on themselves when ready."
+      "Appoint a group admin - username, email address or uid.\n\nThis does not switch calls on; they turn them on themselves when ready."
     );
     if (!identifier?.trim()) return;
 
@@ -465,7 +465,7 @@ export function OutreachSourcesPanel() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to appoint");
       toast.success(
-        `${data.displayName ?? "Group admin"} appointed — calls unchanged, they turn them on`
+        `${data.displayName ?? "Group admin"} appointed - calls unchanged, they turn them on`
       );
       await load();
     } catch (err) {
@@ -491,8 +491,8 @@ export function OutreachSourcesPanel() {
       if (!res.ok) throw new Error(data.error ?? "Failed to change calls");
       toast.success(
         enable
-          ? "Calls on — resuming from the next scheduled occurrence"
-          : "Calls paused — the schedule is unchanged"
+          ? "Calls on - resuming from the next scheduled occurrence"
+          : "Calls paused - the schedule is unchanged"
       );
       await load();
     } catch (err) {
@@ -567,7 +567,7 @@ export function OutreachSourcesPanel() {
       // a 409 here means a strong match the reviewer has not acknowledged.
       if (res.status === 409 && data.requiresAcknowledgement) {
         setReview((prev) => (prev ? { ...prev, similar: data.similar } : prev));
-        toast.error("Possible duplicate group — review and confirm to continue");
+        toast.error("Possible duplicate group - review and confirm to continue");
         return;
       }
       if (!res.ok) throw new Error(data.error ?? "Failed to save");
@@ -655,7 +655,7 @@ export function OutreachSourcesPanel() {
                 threshold
               </p>
               <p className="text-sm text-muted-foreground">
-                {thresholdReached.map((s) => s.sourceName).join(", ")} — review the
+                {thresholdReached.map((s) => s.sourceName).join(", ")} - review the
                 demand before creating any group. Nothing is created automatically.
               </p>
             </div>
@@ -738,7 +738,7 @@ export function OutreachSourcesPanel() {
         </p>
       )}
 
-      {/* Global threshold — editable here so changing it needs no deploy. */}
+      {/* Global threshold - editable here so changing it needs no deploy. */}
       <div className="rounded-xl border border-border/60 bg-card px-4 py-3 flex flex-wrap items-center gap-3">
         <label
           htmlFor="global-threshold"
@@ -836,7 +836,7 @@ export function OutreachSourcesPanel() {
                   Include the topic in the tracked URL
                   {topicSlug(form.topicName) && (
                     <>
-                      {" — "}
+                      {" - "}
                       <code className="font-mono text-muted-foreground">
                         &amp;t={topicSlug(form.topicName)}
                       </code>
@@ -956,7 +956,7 @@ export function OutreachSourcesPanel() {
                 onChange={(e) =>
                   setForm({ ...form, publicAudienceLabel: e.target.value })
                 }
-                placeholder="e.g. live poker — completes “people interested in …”"
+                placeholder="e.g. live poker - completes “people interested in …”"
                 className={inputClass}
               />
               <p className="text-xs text-muted-foreground mt-1.5">
@@ -1243,7 +1243,7 @@ export function OutreachSourcesPanel() {
                       }
                       className="w-4 h-4 shrink-0 rounded border-border accent-primary"
                     />
-                    Include the topic in these links —{" "}
+                    Include the topic in these links -{" "}
                     <code className="font-mono">
                       &amp;t={topicSlug(source.topicName)}
                     </code>
@@ -1309,7 +1309,7 @@ export function OutreachSourcesPanel() {
                       {source.groupId}
                     </code>
                   </p>
-                  {/* Interest and membership are different things — a group can
+                  {/* Interest and membership are different things - a group can
                       open on 20 expressions of interest while only 2 of those
                       people have accounts yet. Showing one number would imply
                       20 callable members. */}
@@ -1375,7 +1375,7 @@ export function OutreachSourcesPanel() {
                   {source.reviewRequiredAfterCreate && (
                     <p className="text-xs text-primary flex items-center gap-1.5">
                       <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                      Created without review — check the name and that it is not a
+                      Created without review - check the name and that it is not a
                       duplicate.
                     </p>
                   )}
@@ -1598,21 +1598,21 @@ export function OutreachSourcesPanel() {
                             <tr key={r.id} className="border-t border-border/40">
                               <td className="py-2 pr-3 text-foreground">{r.email}</td>
                               <td className="py-2 pr-3 text-muted-foreground">
-                                {r.displayName || "—"}
+                                {r.displayName || "-"}
                               </td>
                               <td className="py-2 pr-3 text-muted-foreground">
-                                {r.country ? countryName(r.country) : "—"}
+                                {r.country ? countryName(r.country) : "-"}
                               </td>
                               <td className="py-2 pr-3 text-muted-foreground">
                                 {r.englishFirstLanguage
                                   ? "English"
                                   : r.firstLanguage
                                     ? languageName(r.firstLanguage)
-                                    : "—"}
+                                    : "-"}
                               </td>
                               <td className="py-2 pr-3">
                                 {r.testerStatus === "none" ? (
-                                  <span className="text-muted-foreground">—</span>
+                                  <span className="text-muted-foreground">-</span>
                                 ) : (
                                   <span
                                     title={
@@ -1632,18 +1632,18 @@ export function OutreachSourcesPanel() {
                                 )}
                               </td>
                               <td className="py-2 pr-3 text-muted-foreground">
-                                {r.timezone ?? "—"}
+                                {r.timezone ?? "-"}
                               </td>
                               <td className="py-2 pr-3 text-muted-foreground">
-                                {r.interestedInOrganising ? "Yes" : "—"}
+                                {r.interestedInOrganising ? "Yes" : "-"}
                               </td>
                               <td className="py-2 pr-3 font-mono text-muted-foreground">
-                                {r.sourceCode ?? "—"}
+                                {r.sourceCode ?? "-"}
                               </td>
                               <td className="py-2 text-muted-foreground">
                                 {r.createdAt
                                   ? new Date(r.createdAt).toLocaleDateString()
-                                  : "—"}
+                                  : "-"}
                               </td>
                             </tr>
                           ))}

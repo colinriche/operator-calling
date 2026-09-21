@@ -92,7 +92,7 @@ export function attemptAppOpen(deepLink: string, timeoutMs = 1800): Promise<bool
 
     const onVisibilityChange = () => {
       if (document.hidden) {
-        // App opened — page went to background
+        // App opened - page went to background
         clearTimeout(timer);
         document.removeEventListener("visibilitychange", onVisibilityChange);
         // Give it a moment, then resolve false (app opened)

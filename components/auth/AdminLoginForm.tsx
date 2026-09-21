@@ -39,7 +39,7 @@ export function AdminLoginForm() {
       markSignedIn();
       router.push("/admin");
     } catch {
-      setError("Something went wrong — please try again.");
+      setError("Something went wrong - please try again.");
     } finally {
       setLoading(false);
     }

@@ -145,7 +145,7 @@ export function ManagePanel({ token }: { token: string }) {
         </p>
       )}
 
-      {/* Time zone first — it decides how everything below reads. */}
+      {/* Time zone first - it decides how everything below reads. */}
       <section className="bg-card rounded-2xl border border-border/60 p-6">
         <h2 className="font-heading font-semibold text-base text-foreground mb-3">
           Time zone
@@ -159,7 +159,7 @@ export function ManagePanel({ token }: { token: string }) {
         />
       </section>
 
-      {/* Upcoming call. Only shown when the group is actually calling — a time
+      {/* Upcoming call. Only shown when the group is actually calling - a time
           for a paused group would send someone to silence. */}
       {state.groupId && !state.groupCallsEnabled && isMember && (
         <section className="bg-card rounded-2xl border border-border/60 p-6">
@@ -169,7 +169,7 @@ export function ManagePanel({ token }: { token: string }) {
           </h2>
           <p className="text-sm text-muted-foreground leading-relaxed">
             This group has a weekly time set, but calls have not been switched on
-            yet. We&apos;ll let you know when they start — there&apos;s nothing you
+            yet. We&apos;ll let you know when they start - there&apos;s nothing you
             need to do.
           </p>
         </section>
@@ -191,7 +191,7 @@ export function ManagePanel({ token }: { token: string }) {
         </section>
       )}
 
-      {/* Community interest — distinct from membership below. */}
+      {/* Community interest - distinct from membership below. */}
       {state.communityInterest && (
         <section className="bg-card rounded-2xl border border-border/60 p-6">
           <div className="flex flex-wrap items-center gap-2 mb-2">
@@ -239,7 +239,7 @@ export function ManagePanel({ token }: { token: string }) {
         </section>
       )}
 
-      {/* Group membership — only once a group exists. */}
+      {/* Group membership - only once a group exists. */}
       {state.groupId && (
         <section className="bg-card rounded-2xl border border-border/60 p-6">
           <div className="flex flex-wrap items-center gap-2 mb-2">
@@ -289,7 +289,7 @@ export function ManagePanel({ token }: { token: string }) {
         </section>
       )}
 
-      {/* Early access — independent of both of the above. */}
+      {/* Early access - independent of both of the above. */}
       <section className="bg-card rounded-2xl border border-border/60 p-6">
         <div className="flex flex-wrap items-center gap-2 mb-2">
           <h2 className="font-heading font-semibold text-base text-foreground">
@@ -313,7 +313,7 @@ export function ManagePanel({ token }: { token: string }) {
               // Better to say so than to leave a tester wondering when to expect
               // a call that has no time yet.
               <span className="text-muted-foreground">
-                No call times set yet — we&apos;ll email you as soon as they are.
+                No call times set yet - we&apos;ll email you as soon as they are.
               </span>
             )}
           </p>

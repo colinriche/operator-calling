@@ -1,8 +1,8 @@
 # The waitlist page: three modes, one source of truth
 
 `/waitlist?s=CODE` renders one of three quite different pages. Everything on it
-— heading, artwork, the wording of the form, the `og:title`, the generated
-preview image — is derived from a single object built by
+- heading, artwork, the wording of the form, the `og:title`, the generated
+preview image - is derived from a single object built by
 `lib/waitlist/presentation.ts`.
 
 ## Why it works this way
@@ -22,8 +22,8 @@ callers:
 | The preview image | `app/api/og/waitlist/route.tsx` |
 | The admin preview | `components/admin/WaitlistPagePanel.tsx` |
 
-`presentation.ts` is client-safe on purpose — pure functions, no
-`firebase-admin`, no `next/headers` — which is what lets the admin panel preview
+`presentation.ts` is client-safe on purpose - pure functions, no
+`firebase-admin`, no `next/headers` - which is what lets the admin panel preview
 an unsaved edit by running the real code rather than a mock-up of it.
 
 The invariants worth knowing, all covered by `tests/waitlist-presentation.test.ts`:
@@ -43,14 +43,14 @@ produce a page whose own tags described a different page.
 
 A page is described by two stored fields, and they answer different questions.
 
-**`waitlistMode`** — the *shape* of the page: global, community or family.
+**`waitlistMode`** - the *shape* of the page: global, community or family.
 
-**`connectionType`** — its *register*: do these people already know each other?
+**`connectionType`** - its *register*: do these people already know each other?
 
-- `shared_interest` — interests, hobbies, sports, supporters, communities. The
+- `shared_interest` - interests, hobbies, sports, supporters, communities. The
   pitch is that you never have to find anyone: tell us when you're available and
   a call gets scheduled.
-- `existing_connections` — a family, a year group, an old team, former
+- `existing_connections` - a family, a year group, an old team, former
   colleagues. These people can already reach each other. What they have lost is
   the everyday reason to: the shared job, the school run, the club night. When
   that goes, the relationship drifts into messages and social-media reactions
@@ -66,7 +66,7 @@ neither vocabulary leaks into the other's page.
 ### The Type 1 register
 
 Type 1 copy must never put the visitor in the scheduler's seat or read like a
-standing commitment — that turns something occasional and welcome into an
+standing commitment - that turns something occasional and welcome into an
 obligation. A test bars these outright across every Type 1 string, bullets
 included:
 
@@ -76,11 +76,11 @@ included:
 
 This is also why the Type 1 bullets differ. The availability bullet says who
 decides rather than asking when you're free, and the privacy bullet offers the
-control that actually matters here — in a group where everyone already has
+control that actually matters here - in a group where everyone already has
 everyone's number, "nobody exchanges phone numbers" is not the reassurance
 being sought; "you choose who you'd rather not be connected with" is.
 
-`connectionType` defaults to `shared_interest` — deliberately the weaker of the
+`connectionType` defaults to `shared_interest` - deliberately the weaker of the
 two claims, so an unset or unrecognised value can never overclaim a
 relationship. A family page is `existing_connections` by definition, whatever is
 stored on it, since that is what a family is.
@@ -93,8 +93,8 @@ Stored on the demand source as `waitlistMode`.
 
 Operator branding, talking-to-new-people wording, no shared interest anywhere.
 
-This matters more than it looks. The neutral fallback audience label —
-`"people who share this interest"` — used to reach every unattributed page,
+This matters more than it looks. The neutral fallback audience label -
+`"people who share this interest"` - used to reach every unattributed page,
 producing "Register your interest in talking with people interested in people
 who share this interest." A global page now has no path to that string at all,
 and a test asserts it.
@@ -104,7 +104,7 @@ and a test asserts it.
 The topic is the heading. Above it sits the source line; below the lead sits the
 independence note, above the form rather than in the fine print.
 
-Artwork comes from a curated set in `lib/waitlist/topic-art.ts` — fourteen
+Artwork comes from a curated set in `lib/waitlist/topic-art.ts` - fourteen
 pieces plus the brand mark, chosen by an admin. Deliberately not uploads: a
 community page gets posted to a forum full of strangers, and "paste any image
 here" turns every one of those pages into a question about who owns the picture.
@@ -145,7 +145,7 @@ decision is made once, in `waitlistContextFrom`, and exposed as
 `context.canNameSource`; consumers ask the flag rather than re-deriving the
 rule.
 
-Descriptors are plain text and never platform logos — reproducing a mark next to
+Descriptors are plain text and never platform logos - reproducing a mark next to
 an invitation implies that platform is behind it, and most brand guidelines say
 so explicitly. `sourceDescriptor(platformId, sourceType)` in `copy.ts` maps to
 "subreddit", "Facebook group", "Discord server", "online forum", "post on X" and
@@ -166,7 +166,7 @@ blocked on someone else's release.
 
 The object is saved with a `firebaseStorageDownloadTokens` metadata value and
 served from the resulting `firebasestorage.googleapis.com/...?alt=media&token=`
-URL. That URL is public by construction — a link-preview crawler has no account
+URL. That URL is public by construction - a link-preview crawler has no account
 and no way to authenticate, so an image that appears in a preview is an image
 anyone can fetch.
 
@@ -197,7 +197,7 @@ Other properties of the route:
 | Field | Meaning |
 | --- | --- |
 | `waitlistMode` | `global` \| `community` \| `family` |
-| `connectionType` | `shared_interest` \| `existing_connections` — the page's register |
+| `connectionType` | `shared_interest` \| `existing_connections` - the page's register |
 | `topicArtId` | id from the curated set; `""` means the brand mark |
 | `familyName` | family mode heading |
 | `heroImageUrl` | public download URL, or null |
@@ -212,7 +212,7 @@ Every page that is not already about a family offers one extra question:
 > Would you also like to use The Operator to keep your family connected?
 
 It is strictly additive. Ticking it records `familyInterest` on the registration
-and nothing else — it does not change the demand source the registration is
+and nothing else - it does not change the demand source the registration is
 attributed to, or what `interestLabel` says they signed up for. Like organiser
 interest, it is one-way on resubmission: a later visit can add it but never
 silently withdraw it, so an unticked box cannot erase something asked for
@@ -231,7 +231,7 @@ already had.
 `GET /api/og/waitlist?s=CODE` → 1200×630.
 
 A file-convention `opengraph-image.tsx` would have been simpler, but those do not
-receive search params — and the source code is a search param, so every tracked
+receive search params - and the source code is a search param, so every tracked
 link would have produced the same generic image.
 
 Two deliberate soft failures, because a link with no preview is worse than a
@@ -244,7 +244,7 @@ link with a plain one:
   fetch, so a slow or missing Storage object degrades to the brand mark instead
   of taking the whole image down.
 
-The page stays `robots: noindex` — a tracked link is an internal attribution
+The page stays `robots: noindex` - a tracked link is an internal attribution
 tool, not something that should accumulate search results for every forum we
 post in. That does not stop link-preview crawlers, which is the point.
 

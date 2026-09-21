@@ -20,7 +20,7 @@ interface ArchiveRow {
 }
 
 // Was a local copy that only looked at user/{auth.uid}. A Firestore `user`
-// document does not reliably live there — phone auth mints a fresh uid, so a
+// document does not reliably live there - phone auth mints a fresh uid, so a
 // linked account's profile stays under its original document id. That made this
 // route 403 real admins whose browser showed them as admins, exactly as it did
 // on the outreach panel. lib/admin-auth.ts resolves a profile the same way

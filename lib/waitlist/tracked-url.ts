@@ -2,14 +2,14 @@
 //
 // A tracked link is `/waitlist?s=CODE`. When a source opts in, its topic is
 // appended as `&t=<slug>` purely so the link reads sensibly when pasted into a
-// forum post — "…/waitlist?s=K7P4MX&t=live-poker" says more than the code alone.
+// forum post - "…/waitlist?s=K7P4MX&t=live-poker" says more than the code alone.
 //
 // `t` is cosmetic and carries no meaning: the waitlist page ignores it entirely.
 // Everything public-facing (audience label, disclaimer, group) is still resolved
 // server-side from `s`, so editing the slug in a URL changes nothing on the page
 // and cannot be used to forge an endorsement.
 //
-// Client-safe — no firebase-admin, no server-only imports.
+// Client-safe - no firebase-admin, no server-only imports.
 
 const MAX_TOPIC_SLUG_LENGTH = 48;
 
@@ -39,7 +39,7 @@ export function topicSlug(raw: unknown): string {
  *
  * Storage and lookup stay uppercase. `normaliseSourceCode` uppercases whatever
  * arrives before it queries, so both cases resolve and every link already
- * posted keeps working — this changes only how we *write* new ones, so a
+ * posted keeps working - this changes only how we *write* new ones, so a
  * pasted Operator link reads as all lowercase.
  *
  * Everything that builds a waitlist URL goes through here rather than

@@ -2,7 +2,7 @@
 //
 // Detected from the browser only, via
 // `Intl.DateTimeFormat().resolvedOptions().timeZone`. No GPS, no IP lookup, no
-// Google location services — a calling app asking for location permission to
+// Google location services - a calling app asking for location permission to
 // work out what "7pm" means would be wildly disproportionate, and the browser
 // already knows.
 //
@@ -14,7 +14,7 @@ export const SCHEDULE_ZONE = "Europe/London";
 
 /**
  * Zones offered in the dropdown when the browser cannot enumerate its own.
- * Not exhaustive — the detected zone is always included even if absent here,
+ * Not exhaustive - the detected zone is always included even if absent here,
  * so nobody is forced to pick a wrong one.
  */
 export const FALLBACK_TIMEZONES = [

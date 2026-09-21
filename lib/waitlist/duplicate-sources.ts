@@ -5,7 +5,7 @@
 // The sibling of findSimilarGroups in group-linking.ts, one level earlier in
 // the funnel. That one asks "does a group already cover this audience?" before
 // creating a group; this asks "are we already tracking this place?" before
-// creating a source — and the cost of getting it wrong is the same shape.
+// creating a source - and the cost of getting it wrong is the same shape.
 // A second source for the same subreddit splits its registrations across two
 // records, so neither ever reaches the threshold and the community that was
 // ready never gets its group.
@@ -15,7 +15,7 @@
 //   the URL     evidence. Two sources pointing at the same normalised URL are
 //               the same place, whatever they are called.
 //   the name    a guess. Scored with the same tokeniser group matching uses,
-//               and only ever advisory — an admin can override it.
+//               and only ever advisory - an admin can override it.
 
 import type { Firestore } from "firebase-admin/firestore";
 import { COLLECTIONS } from "./constants";
@@ -44,7 +44,7 @@ export interface DuplicateSourceInput {
  * Archived sources are included on purpose. Somebody archiving a subreddit and
  * later adding it again is the single most likely way to end up with two
  * records for one place, and the right answer there is to unarchive the
- * original — which the caller can only offer if it is told the original exists.
+ * original - which the caller can only offer if it is told the original exists.
  */
 export async function findSimilarDemandSources(
   db: Firestore,
@@ -80,7 +80,7 @@ export async function findSimilarDemandSources(
 
     if (exactUrl) {
       score = 1;
-      reason = "Same URL — this is the same place";
+      reason = "Same URL - this is the same place";
     } else if (needle.size > 0) {
       const hay = new Set(
         tokenise(

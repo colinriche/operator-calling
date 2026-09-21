@@ -4,7 +4,7 @@ import { requireAdmin } from "@/lib/admin-auth";
 import { COLLECTIONS, DEMAND_SETTINGS_DOC } from "@/lib/waitlist/constants";
 import { waitlistDb } from "@/lib/waitlist/server";
 
-// PATCH /api/admin/demand-settings — global demand threshold.
+// PATCH /api/admin/demand-settings - global demand threshold.
 //
 // Editable at runtime so changing it does not need a deploy or console access.
 // Sources with their own demandThreshold override are unaffected.

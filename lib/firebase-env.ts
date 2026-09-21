@@ -8,7 +8,7 @@
 // NEXT_PUBLIC_FIREBASE_ENV and resolved server credentials through a chain of
 // env-scoped names falling back to unsuffixed ones. Every one of those code
 // paths was a way for the browser and the server to end up on *different*
-// projects — tokens issued by one and verified against another, sign-ins that
+// projects - tokens issued by one and verified against another, sign-ins that
 // appear to work and then find no data. With a single hard-coded project that
 // class of failure cannot be expressed.
 //
@@ -18,12 +18,12 @@
 // pointed anywhere but production.
 //
 // If a second project is ever genuinely needed here, add it as an explicit,
-// tested code path — do not reintroduce a silent default or a fallback.
+// tested code path - do not reintroduce a silent default or a fallback.
 //
 // The client config below is public by design: Firebase web config identifies a
 // project, it does not grant access to it. Access is decided by Firestore and
 // Storage rules and by Auth. The mobile app commits the same values in
-// lib/firebase_options.dart. Server credentials are NOT here — those are real
+// lib/firebase_options.dart. Server credentials are NOT here - those are real
 // secrets and stay in the environment.
 
 export interface FirebaseClientConfig {
@@ -54,7 +54,7 @@ export function firebaseClientConfig(): FirebaseClientConfig {
 }
 
 /**
- * The project this deployment reads and writes — safe on both server and
+ * The project this deployment reads and writes - safe on both server and
  * client. Anything naming the project (a Cloud Function URL, a stored
  * `groupProject` field) must derive it from here.
  */

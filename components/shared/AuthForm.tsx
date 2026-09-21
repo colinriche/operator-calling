@@ -30,21 +30,21 @@ function firebaseErrorMessage(err: unknown): string {
   const raw = err instanceof Error ? err.message : "";
 
   const known: Record<string, string> = {
-    "auth/email-already-in-use": "That email is already registered — try signing in instead.",
+    "auth/email-already-in-use": "That email is already registered - try signing in instead.",
     "auth/invalid-email": "That doesn't look like a valid email address.",
-    "auth/weak-password": "Password is too weak — try something longer.",
+    "auth/weak-password": "Password is too weak - try something longer.",
     "auth/wrong-password": "Incorrect password.",
     "auth/invalid-credential": "Incorrect email or password.",
     "auth/user-not-found": "No account found with that email.",
-    "auth/too-many-requests": "Too many attempts — wait a moment before trying again.",
+    "auth/too-many-requests": "Too many attempts - wait a moment before trying again.",
     "auth/popup-closed-by-user": "Sign-in was cancelled.",
     "auth/cancelled-popup-request": "Sign-in was cancelled.",
     "auth/unauthorized-domain":
       "This domain isn't authorised for sign-in. Add it to Firebase Console → Authentication → Authorized domains.",
-    "auth/network-request-failed": "Network error — check your connection and try again.",
+    "auth/network-request-failed": "Network error - check your connection and try again.",
     "auth/operation-not-allowed": "This sign-in method isn't enabled. Contact support.",
     "auth/user-disabled": "This account has been disabled.",
-    "permission-denied": "Firestore permission denied — security rules are blocking the request.",
+    "permission-denied": "Firestore permission denied - security rules are blocking the request.",
   };
 
   if (code && known[code]) return `${known[code]} [${code}]`;
@@ -53,7 +53,7 @@ function firebaseErrorMessage(err: unknown): string {
   const clean = raw.replace(/^Firebase:\s*/i, "").replace(/\s*\(auth\/[^)]+\)\.?$/, "").trim();
   if (clean && clean !== "Error") return code ? `${clean} [${code}]` : clean;
 
-  return code ? `Something went wrong. [${code}]` : "Something went wrong — please try again.";
+  return code ? `Something went wrong. [${code}]` : "Something went wrong - please try again.";
 }
 
 async function writeGoogleProfile(uid: string, displayName: string | null, email: string | null, photoURL: string | null) {
@@ -149,7 +149,7 @@ export function AuthForm({ mode, inviteRef = "", inviteGid = "", nextPath = "/da
     } catch (err) {
       const code = (err as { code?: string }).code ?? "unknown";
       console.warn("Phone save failed (non-fatal):", err, "| code:", code);
-      // Non-blocking — proceed to dashboard even if save fails
+      // Non-blocking - proceed to dashboard even if save fails
     } finally {
       setPhoneSaving(false);
     }
@@ -176,7 +176,7 @@ export function AuthForm({ mode, inviteRef = "", inviteGid = "", nextPath = "/da
         const cred = await createUserWithEmailAndPassword(auth, email, password);
         markSignedIn();
         uid = cred.user.uid;
-        // Non-fatal — user is already authenticated if this fails
+        // Non-fatal - user is already authenticated if this fails
         try {
           await setDoc(doc(db, "user", cred.user.uid), {
             uid: cred.user.uid,

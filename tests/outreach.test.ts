@@ -7,7 +7,7 @@ import {
 
 // The duplicate-destination warning is only as good as this normalisation. If
 // two links to the same thread produce different keys, the warning silently
-// never fires — which is worse than not having it, because it reads as checked.
+// never fires - which is worse than not having it, because it reads as checked.
 describe("normaliseDestinationUrl", () => {
   it("treats the same thread as one destination regardless of noise", () => {
     const canonical = "reddit.com/r/phonecalls/comments/abc123/weekly_thread";

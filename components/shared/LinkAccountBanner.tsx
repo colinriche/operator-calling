@@ -141,7 +141,7 @@ export function LinkAccountBanner() {
 
   return (
     <div className="mb-6 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-2xl overflow-hidden">
-      {/* Header row — always visible */}
+      {/* Header row - always visible */}
       <div className="flex items-start gap-3 px-5 py-4">
         <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
         <div className="flex-1 min-w-0">
@@ -239,7 +239,7 @@ export function LinkAccountBanner() {
         </form>
       )}
 
-      {/* Step: name conflict — pick which name to keep */}
+      {/* Step: name conflict - pick which name to keep */}
       {step === "name_conflict" && conflictNames && (
         <div className="px-5 pb-4 border-t border-amber-200 dark:border-amber-800 pt-4 flex flex-col gap-3">
           <p className="text-xs text-amber-700 dark:text-amber-400">

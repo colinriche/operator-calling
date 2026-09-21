@@ -10,7 +10,7 @@ import {
 } from "@/lib/waitlist/outreach";
 import { toIso, waitlistDb } from "@/lib/waitlist/server";
 
-// Outreach records — what was written, where it went, and when.
+// Outreach records - what was written, where it went, and when.
 //
 // No AI here by design. The record is the durable thing; a generator would only
 // ever fill `generatedText`, which is why that field exists already and is
@@ -23,7 +23,7 @@ function str(value: unknown, max: number): string {
   return typeof value === "string" ? value.trim().slice(0, max) : "";
 }
 
-// ─── GET — history, optionally for one source ────────────────────────────────
+// ─── GET - history, optionally for one source ────────────────────────────────
 
 export async function GET(req: NextRequest) {
   const caller = await requireAdmin(req);
@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
   try {
     const db = waitlistDb();
 
-    // "Has this exact place already had a link from us?" — asked across every
+    // "Has this exact place already had a link from us?" - asked across every
     // source, not just this one, because the same thread can be reached from
     // two different demand sources and posting twice is still posting twice.
     if (checkDestination) {
@@ -108,7 +108,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// ─── POST — create a draft, after checking it is a sensible thing to do ──────
+// ─── POST - create a draft, after checking it is a sensible thing to do ──────
 
 export async function POST(req: NextRequest) {
   const caller = await requireAdmin(req);
@@ -201,7 +201,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// ─── PATCH — edit, mark copied, mark posted, archive ─────────────────────────
+// ─── PATCH - edit, mark copied, mark posted, archive ─────────────────────────
 
 export async function PATCH(req: NextRequest) {
   const caller = await requireAdmin(req);

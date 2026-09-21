@@ -7,7 +7,7 @@ import { getAdminServices } from "@/lib/firebase-admin";
 // Header: Authorization: Bearer <firebase-id-token>
 //
 // Adds the calling user to a public group. Resolves the correct mobile UID
-// from the Firebase session — after linking, the web account doc is deleted
+// from the Firebase session - after linking, the web account doc is deleted
 // and the profile lives at the mobile user's doc (which has linkedWebUid set).
 
 export async function POST(req: NextRequest) {

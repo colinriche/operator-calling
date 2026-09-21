@@ -6,11 +6,11 @@ export const metadata: Metadata = { title: "FAQ" };
 const faqs = [
   {
     q: "What is The Operator?",
-    a: "The Operator is a voice-first calling platform. It lets you schedule calls, request callbacks, and join community groups — all built around the idea that a 5-minute call beats a hundred messages.",
+    a: "The Operator is a voice-first calling platform. It lets you schedule calls, request callbacks, and join community groups - all built around the idea that a 5-minute call beats a hundred messages.",
   },
   {
     q: "What does 'only connects when both answer' mean?",
-    a: "When a call is initiated, The Operator rings both parties simultaneously. If both pick up, you're connected. If either side doesn't answer, the call doesn't connect — no voicemail, no missed-call guilt, just try again.",
+    a: "When a call is initiated, The Operator rings both parties simultaneously. If both pick up, you're connected. If either side doesn't answer, the call doesn't connect - no voicemail, no missed-call guilt, just try again.",
   },
   {
     q: "Can I call strangers?",

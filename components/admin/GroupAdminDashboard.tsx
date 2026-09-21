@@ -598,7 +598,7 @@ export function GroupAdminDashboard({ defaultTab = "members" }: { defaultTab?: s
         createdAt: Timestamp.now(),
       });
 
-      toast.success("Call scheduled — it will fire automatically at the chosen time");
+      toast.success("Call scheduled - it will fire automatically at the chosen time");
       setShowForm(false);
       setScheduledAt("");
       setSelectedUids(new Set());
@@ -632,10 +632,10 @@ export function GroupAdminDashboard({ defaultTab = "members" }: { defaultTab?: s
     <div className="max-w-5xl mx-auto">
       <div className="mb-8">
         <h1 className="font-heading font-bold text-3xl text-foreground mb-1">Group Admin</h1>
-        <p className="text-muted-foreground">{groupName} — manage your group, members, and calls.</p>
+        <p className="text-muted-foreground">{groupName} - manage your group, members, and calls.</p>
       </div>
 
-      {/* Whether this group is calling at all — above the stats, because a
+      {/* Whether this group is calling at all - above the stats, because a
           group created from waitlist demand arrives with calls off and nothing
           else on this page explains why nobody is being called. */}
       <GroupCallsToggle groupId={groupId} />
@@ -791,7 +791,7 @@ export function GroupAdminDashboard({ defaultTab = "members" }: { defaultTab?: s
                 </div>
 
                 <div>
-                  <Label className="text-xs text-muted-foreground mb-1 block">Max duration (minutes) — optional</Label>
+                  <Label className="text-xs text-muted-foreground mb-1 block">Max duration (minutes) - optional</Label>
                   <Input
                     type="number"
                     min={1}
@@ -902,7 +902,7 @@ export function GroupAdminDashboard({ defaultTab = "members" }: { defaultTab?: s
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-foreground">
-                          {call.callType === "video" ? "Video" : "Audio"} call — {call.participantIds.length} participant{call.participantIds.length !== 1 ? "s" : ""}
+                          {call.callType === "video" ? "Video" : "Audio"} call - {call.participantIds.length} participant{call.participantIds.length !== 1 ? "s" : ""}
                         </p>
                         <p className="text-xs text-muted-foreground mt-0.5">
                           {formatScheduledAt(call.scheduledAt)} · {call.creatorName}

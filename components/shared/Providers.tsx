@@ -6,7 +6,7 @@ import { markSignedIn, markSignedOut } from "@/lib/session-cookie";
 
 /**
  * Keeps the signed-in marker cookie in step with Firebase for as long as the
- * user is signed in — renewing it on every visit and token refresh, clearing it
+ * user is signed in - renewing it on every visit and token refresh, clearing it
  * on sign-out, including a sign-out in another tab. See lib/session-cookie.ts.
  *
  * Firebase is loaded lazily so marketing pages do not pay for it up front.

@@ -52,7 +52,7 @@ interface ArchiveRow {
 
 // The app's user-management Cloud Function, in the project the site uses. This
 // URL was once hardcoded to a different project, which rejected the site's ID
-// tokens outright — the function verifies the token with its own project's
+// tokens outright - the function verifies the token with its own project's
 // Admin SDK, and a token is only valid for its issuer.
 //
 // Derived rather than hardcoded so it can never again name a project the rest
@@ -82,7 +82,7 @@ export function SuperAdminDashboard() {
   const [failedCalls30d, setFailedCalls30d] = useState(0);
 
   // Authority comes from the `admins` collection, not from the `user` document
-  // — see hooks/useAdminRole.ts. Server routes re-check regardless.
+  // - see hooks/useAdminRole.ts. Server routes re-check regardless.
   const { isAdmin, isSuperAdmin } = useAdminRole();
   const canSeedDashboardData = isAdmin;
   const canPermanentlyDeleteArchives = isSuperAdmin;
@@ -123,7 +123,7 @@ export function SuperAdminDashboard() {
 
   // Loaded through /api/admin/overview rather than the client SDK. Three of
   // these five reads are denied by the shared Firestore ruleset, and one denial
-  // failed the whole batch — see the route for which and why.
+  // failed the whole batch - see the route for which and why.
   useEffect(() => {
     let cancelled = false;
 
@@ -657,7 +657,7 @@ export function SuperAdminDashboard() {
           </div>
         </TabsContent>
 
-        {/* Outreach — demand sources and tracked waitlist links */}
+        {/* Outreach - demand sources and tracked waitlist links */}
         <TabsContent value="outreach" className="space-y-4">
           <OutreachSourcesPanel />
         </TabsContent>

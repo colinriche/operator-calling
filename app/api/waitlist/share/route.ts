@@ -8,7 +8,7 @@ import {
 } from "@/lib/waitlist/server";
 import { normaliseSourceCode, visitorHashFrom } from "@/lib/waitlist/source-code";
 
-// POST /api/waitlist/share — records that a share button was pressed.
+// POST /api/waitlist/share - records that a share button was pressed.
 //
 // A click is an intent signal only. We never learn whether the visitor
 // actually posted anything, so this is counted separately from registrations

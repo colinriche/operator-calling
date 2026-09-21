@@ -18,7 +18,7 @@ const features = [
     icon: Phone,
     title: "Calls with people you know",
     description:
-      "Stay connected with friends, family, or colleagues through voice calls — scheduled when it actually works for both of you.",
+      "Stay connected with friends, family, or colleagues through voice calls - scheduled when it actually works for both of you.",
   },
   {
     id: "strangers",
@@ -32,7 +32,7 @@ const features = [
     icon: Clock,
     title: "Only connects when both answer",
     description:
-      "No more awkward missed calls. The Operator dials both parties simultaneously — only connecting when you're both ready.",
+      "No more awkward missed calls. The Operator dials both parties simultaneously - only connecting when you're both ready.",
   },
   {
     id: "schedule",
@@ -62,7 +62,7 @@ export type FeatureId = (typeof features)[number]["id"];
 interface FeatureSectionsProps {
   /**
    * Which cards to show, in this order. Omitted means all six, which is what
-   * the homepage renders — so this prop cannot change that page by accident.
+   * the homepage renders - so this prop cannot change that page by accident.
    *
    * The waitlist passes a subset because two of the six argue against each
    * other depending on who is reading: "calls with people you know" and
@@ -184,7 +184,7 @@ export function WhyCallingSection({ compact }: { compact?: boolean } = {}) {
             </h2>
             <p className="text-lg text-muted-foreground mb-6 leading-relaxed">
               Tone gets lost in text. Context gets lost in threads. Misunderstandings pile up.
-              A real conversation — even a short one — resolves all of that.
+              A real conversation - even a short one - resolves all of that.
             </p>
             <p className="text-lg text-muted-foreground leading-relaxed">
               The Operator is built for the people who already know this, and just need
@@ -201,7 +201,7 @@ export function HowConnectingWorksSection({ compact }: { compact?: boolean } = {
   const steps = [
     { n: "01", title: "You both indicate readiness", desc: "Set your availability window or request a callback. No guessing." },
     { n: "02", title: "The Operator dials both sides", desc: "When the timing works, both phones ring simultaneously." },
-    { n: "03", title: "Both answer? Connected.", desc: "If either side doesn't pick up, no awkward voicemail — just try again later." },
+    { n: "03", title: "Both answer? Connected.", desc: "If either side doesn't pick up, no awkward voicemail - just try again later." },
   ];
 
   return (

@@ -5,7 +5,7 @@ import { firebaseProjectId, getAdminDb } from "@/lib/firebase-admin";
 
 // ─── Where a created group lands ─────────────────────────────────────────────
 //
-// `operator-calling` — the one project the website uses, and the project the
+// `operator-calling` - the one project the website uses, and the project the
 // mobile app reads, so a group created here is visible to both.
 //
 // The project is still recorded on the demand source as `groupProject`
@@ -14,7 +14,7 @@ import { firebaseProjectId, getAdminDb } from "@/lib/firebase-admin";
 //
 // Groups created here are still written `callsEnabled: false` with their
 // schedules `paused`. Being visible to the app is not the same as calling
-// anybody — see docs/calls-enabled-dispatch-guard.md.
+// anybody - see docs/calls-enabled-dispatch-guard.md.
 
 export const GROUP_TARGET_PROJECT: string = firebaseProjectId();
 
@@ -52,7 +52,7 @@ export interface SimilarGroup {
   name: string;
   description: string;
   memberCount: number;
-  /** 0–1. Above ~0.5 is worth blocking on; lower is worth showing. */
+  /** 0-1. Above ~0.5 is worth blocking on; lower is worth showing. */
   score: number;
   reason: string;
 }

@@ -113,12 +113,12 @@ async function apiFetch(path: string, options: RequestInit = {}) {
 }
 
 function fmtDate(iso: string | null) {
-  if (!iso) return "—";
+  if (!iso) return "-";
   return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 }
 
 function fmtDateTime(iso: string | null) {
-  if (!iso) return "—";
+  if (!iso) return "-";
   return new Date(iso).toLocaleString("en-GB", {
     day: "numeric", month: "short", year: "numeric",
     hour: "2-digit", minute: "2-digit",
@@ -330,7 +330,7 @@ export default function GroupDetailPage({ params }: { params: Promise<{ id: stri
           { label: "Pending invites", value: pendingInvites.length, icon: UserPlus },
           { label: "Upcoming calls", value: schedules.length, icon: Calendar },
           { label: "Call window", value: group.scheduleSettings?.allowedHours
-              ? `${group.scheduleSettings.allowedHours.start}–${group.scheduleSettings.allowedHours.end}`
+              ? `${group.scheduleSettings.allowedHours.start}-${group.scheduleSettings.allowedHours.end}`
               : "Any time", icon: Clock },
         ].map(({ label, value, icon: Icon }) => (
           <div key={label} className="bg-card rounded-2xl p-4 border border-border/60">
@@ -1035,8 +1035,8 @@ function ScheduleFormModal({
               <p className="text-sm font-medium text-foreground">Show user</p>
               <p className="text-xs text-muted-foreground">
                 {showUser
-                  ? "Partner's name is shown — e.g. Family · John Smith"
-                  : "Partner is anonymous — shows Family only"}
+                  ? "Partner's name is shown - e.g. Family · John Smith"
+                  : "Partner is anonymous - shows Family only"}
               </p>
             </div>
             <Switch

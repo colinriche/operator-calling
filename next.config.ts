@@ -15,7 +15,7 @@ const nextConfig: NextConfig = {
           //
           // `same-origin-allow-popups` keeps cross-origin pages from grabbing a
           // handle on ours while still letting popups we open keep their opener
-          // reference — which is the combination the popup flow needs.
+          // reference - which is the combination the popup flow needs.
           //
           // This is the documented fix for that warning and nothing more. It has
           // no bearing on phone auth: the reCAPTCHA Enterprise → v2 fallback is

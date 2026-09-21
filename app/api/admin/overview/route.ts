@@ -8,13 +8,13 @@ import { getAdminDb } from "@/lib/firebase-admin";
 // Everything the super-admin dashboard used to read straight from the browser.
 //
 // It could not stay there. The client SDK is bound by Firestore rules, and that
-// ruleset is the mobile app's — shared, changed through the main project's
+// ruleset is the mobile app's - shared, changed through the main project's
 // Development branch, and not ours to edit. Three of the five reads were denied
 // outright:
 //
-//   • `schedules`            — no match block, so default deny
-//   • `admin_controls`       — same, for both the read and the write
-//   • `groups`               — the rule is `uid in memberIds || isAdmin()`, and
+//   • `schedules`            - no match block, so default deny
+//   • `admin_controls`       - same, for both the read and the write
+//   • `groups`               - the rule is `uid in memberIds || isAdmin()`, and
 //                              Firestore rejects an unconstrained collection
 //                              query it cannot prove is satisfiable. `isAdmin()`
 //                              also tests `role == 'admin'` exactly, so a
@@ -27,7 +27,7 @@ import { getAdminDb } from "@/lib/firebase-admin";
 // data is admin-only, so it should be gated by the admin check rather than by
 // whatever the app's ruleset happens to permit today.
 //
-// Reads the primary ("dev") project — the one the browser's client SDK talks to,
+// Reads the primary ("dev") project - the one the browser's client SDK talks to,
 // so this route and the rest of the site keep seeing the same data. After the
 // move to a single project (docs/single-project-migration.md) that is
 // operator-calling and nothing here changes.
@@ -105,7 +105,7 @@ export async function GET(req: NextRequest) {
       .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
 
     // Call activity is derived from `schedules` rather than sent as raw
-    // documents — the dashboard only ever showed the counts.
+    // documents - the dashboard only ever showed the counts.
     const now = new Date();
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const thirtyDaysAgo = new Date(now.getTime() - THIRTY_DAYS_MS);
@@ -146,7 +146,7 @@ export async function GET(req: NextRequest) {
 }
 
 /**
- * Platform-wide switches — maintenance mode, new signups, stranger calls.
+ * Platform-wide switches - maintenance mode, new signups, stranger calls.
  *
  * super_admin only. These change the behaviour of the whole product for every
  * user, which is a different order of thing from the day-to-day admin work in

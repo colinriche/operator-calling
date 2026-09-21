@@ -5,7 +5,7 @@
 // most pages' h1.
 //
 // The waitlist page reuses them below its own content, and there the homepage
-// scale reads as two pages stitched together — a 672px column of form, then
+// scale reads as two pages stitched together - a 672px column of form, then
 // something 1280px wide with 96px of air around it. `compact` is the same
 // sections at the waitlist's scale.
 //

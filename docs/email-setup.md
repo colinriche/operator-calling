@@ -1,17 +1,17 @@
-# Email setup — Google Workspace SMTP
+# Email setup - Google Workspace SMTP
 
 Two emails are sent: the registration confirmation carrying the manage link, and
 "your calling group is live" when a community group activates.
 
 **Nothing breaks without this configured.** `sendEmail` logs what it would have
 sent and returns `{ sent: false }`. Registrations, activations and group
-creation all work regardless — mail is a side effect, never a dependency.
+creation all work regardless - mail is a side effect, never a dependency.
 
 ## What you need to do
 
 ### 1. Pick a mailbox
 
-Use a real Workspace mailbox on `operatorcalling.com` — `no-reply@` or
+Use a real Workspace mailbox on `operatorcalling.com` - `no-reply@` or
 `hello@`. It must be a licensed user, not an alias or group, because it has to
 authenticate.
 
@@ -23,7 +23,7 @@ Required before Google will issue an app password. Google Account → Security �
 ### 3. Create an App Password
 
 Google Account → Security → App passwords. Name it something like
-"operatorcalling.com website". You get a 16-character string — that is
+"operatorcalling.com website". You get a 16-character string - that is
 `SMTP_PASS`. **Not** the account's own password, which will not work for SMTP.
 
 ### 4. Set the variables in Vercel
@@ -73,7 +73,7 @@ comes from.
 - **Confirmations only go on a genuinely new registration.** Resubmitting the
   form does not generate another.
 - **Activation claims each recipient before sending.** `notifiedGroupLiveAt` is
-  written first, so a crash mid-run leaves someone un-emailed — recoverable —
+  written first, so a crash mid-run leaves someone un-emailed - recoverable -
   rather than emailed twice, which is not. A failed send clears the stamp so a
   later run retries just that person.
 - **Every message carries the manage link.** Someone who cannot easily stop
@@ -89,7 +89,7 @@ comes from.
 Set the variables, deploy, then register on a tracked link with an address you
 can read. You should get the confirmation within a few seconds.
 
-If nothing arrives, the Vercel logs will say why — `[email] not configured`
+If nothing arrives, the Vercel logs will say why - `[email] not configured`
 means the variables are missing, and `[email] send failed` includes Google's
 own error, which is usually either the app password being wrong or 2-Step
 Verification not being on.
