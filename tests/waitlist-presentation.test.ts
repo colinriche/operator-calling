@@ -387,12 +387,12 @@ describe("connection type", () => {
     }
   });
 
-  it("names the same audience in the preview as on the page, in fewer words", () => {
+  it("keeps the preview description short, and off the topic", () => {
     for (const fields of [COMMUNITY, KNOWN]) {
       const p = buildWaitlistPresentation(contextFor(fields));
-      // Whatever this page is about, the preview says so too — the shared
-      // interest for one type, the group's own name for the other.
-      expect(p.og.description).toContain(p.interestLabel);
+      // The card prints the topic already; the description says what The
+      // Operator does, so a Facebook post does not say it three times over.
+      expect(p.og.description).not.toContain(p.interestLabel);
       expect(p.og.description.length).toBeLessThan(p.lead.length);
     }
   });
@@ -442,16 +442,24 @@ describe("what a link preview says", () => {
     );
   });
 
-  // Facebook hides the description and prints the title under a card that
-  // already shows the name, so it gets a title that says something more.
-  it("gives Facebook a longer title on a family page, and no one else", () => {
-    const p = buildWaitlistPresentation(
+  // Facebook prints its title under a card that already names the page, so it
+  // gets one saying what The Operator is. Everyone else keeps the page's own
+  // title, which their previews print as the headline.
+  it("gives Facebook a title that does not repeat the card", () => {
+    for (const fields of [
+      { waitlistMode: "family", familyName: "the Okonkwo family" },
+      COMMUNITY,
+      { waitlistMode: "global" },
+    ]) {
+      const p = buildWaitlistPresentation(contextFor(fields));
+      expect(p.og.facebookTitle).toBe("The Operator — making the call for you");
+      expect(p.og.facebookTitle).not.toContain(p.heading);
+    }
+
+    const family = buildWaitlistPresentation(
       contextFor({ waitlistMode: "family", familyName: "the Okonkwo family" })
     );
-    expect(p.og.title).toBe("The Okonkwo family");
-    expect(p.og.facebookTitle).toBe(
-      "The Okonkwo family · Keep in touch on The Operator"
-    );
+    expect(family.og.title).toBe("The Okonkwo family");
   });
 
   it("keeps the card's address the same whichever title is sent", () => {
@@ -462,10 +470,32 @@ describe("what a link preview says", () => {
     expect(waitlistOgImageVersion(p)).toBe(waitlistOgImageVersion(plain));
   });
 
-  it("names the topic on a shared-interest page", () => {
+  // The topic belongs on the card, which prints it under the picture. Facebook
+  // shows the card, the title and the description together, so repeating it
+  // here read as three copies of the same words.
+  it("leaves the topic to the card on a shared-interest page", () => {
     const p = buildWaitlistPresentation(contextFor(COMMUNITY));
-    expect(p.og.description).toContain("live poker");
+    expect(p.heading).toBe("Live poker");
+    expect(p.og.description.toLowerCase()).not.toContain("live poker");
     expect(p.og.description.length).toBeLessThanOrEqual(140);
+  });
+
+  it("still lets a source put its own name in the description", () => {
+    const p = buildWaitlistPresentation(
+      contextFor({
+        ...COMMUNITY,
+        wording: {
+          heading: "{topic}",
+          lead: "Lead.",
+          body: "Body.",
+          bodyContinued: "",
+          signoff: "",
+          ogDescription: "Calls about {topic}, arranged for you.",
+          shareText: "",
+        },
+      })
+    );
+    expect(p.og.description).toBe("Calls about live poker, arranged for you.");
   });
 
   it("says nothing about a shared interest on a global page", () => {

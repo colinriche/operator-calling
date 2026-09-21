@@ -271,10 +271,10 @@ export interface WaitlistPresentation {
   og: {
     title: string;
     /**
-     * The title sent to Facebook's link fetcher only. Facebook prints the title
-     * under a card that already shows the name, and hides the description, so
-     * a bare name arrives twice and says nothing else. WhatsApp shows the
-     * description and keeps `title`. Not part of the card's version.
+     * The title sent to Facebook's link fetcher only. Facebook prints it under
+     * a card that already carries the page's name, so repeating the name there
+     * said the same thing twice; this one says what The Operator is. WhatsApp
+     * and the rest keep `title`. Not part of the card's version.
      */
     facebookTitle: string;
     description: string;

@@ -195,6 +195,17 @@ export function globalContext(
 
 const TAGLINE = "The Operator makes the call, so you don't have to.";
 
+/**
+ * The title Facebook's fetcher gets, and nobody else.
+ *
+ * Facebook stacks the card, the title and the description, and the card
+ * already prints what this page is about in the band under the picture. A
+ * title repeating it put the same words twice in two lines, so this one says
+ * what The Operator is instead — the page's own name is in the picture above
+ * it. Everyone else keeps the page's title, since their previews lean on it.
+ */
+const FACEBOOK_TITLE = "The Operator — making the call for you";
+
 /** Capitalise a topic without touching an already-capitalised name. */
 function leadingCapital(value: string): string {
   return value.length === 0 ? value : value[0].toUpperCase() + value.slice(1);
@@ -254,8 +265,15 @@ function bulletsFor(
 //
 // `ogDescription` is deliberately not the opening paragraph, which the preview
 // used to repeat verbatim. A messaging app gives a description two lines and
-// prints it under a title and card it has already shown, so the job is one
-// sentence saying what this is, with the name the page is about inside it.
+// prints it under a title and a card it has already shown, so the job is one
+// sentence saying what this is.
+//
+// It no longer names the topic. The card already prints it, in the band under
+// the picture, and Facebook stacks the card, the title and the description on
+// top of each other — so a topic in all three arrived three times in as many
+// lines. The default is general on purpose: the card says which group this is,
+// and the description says what The Operator does. A source that wants its own
+// name in the description can still put {topic}, {group} or {family} there.
 //
 // ─── Built-in wording ────────────────────────────────────────────────────────
 //
@@ -283,7 +301,7 @@ export const BUILTIN_WORDING: Record<WordingVariant, WaitlistWording> = {
     bodyContinued: "",
     signoff: "",
     ogDescription:
-      "One-to-one voice calls with others who share an interest in {topic}. Say when you're free and the call comes to you.",
+      "One-to-one voice calls with people who enjoy the same things you do. Say when you're free and the call comes to you.",
     shareText:
       "This might interest people who like one-to-one voice calls about {topic}. You make yourself available and The Operator arranges the call.",
   },
@@ -294,7 +312,7 @@ export const BUILTIN_WORDING: Record<WordingVariant, WaitlistWording> = {
     bodyContinued: "",
     signoff: "",
     ogDescription:
-      "The Operator keeps {group} in touch by occasionally bringing two members together for a private one-to-one call.",
+      "The Operator keeps a group in touch by occasionally bringing two of its members together for a private one-to-one call.",
     shareText:
       "A way for {group} to keep in contact by voice — The Operator occasionally brings two members together for a one-to-one call.",
   },
@@ -369,21 +387,13 @@ function fillWording(
       ? emptyHeading
       : leadingCapital(fill(wording.heading));
 
-  // The one piece of the old wording the clause swap does not reproduce.
-  const ogDescription =
-    variant === "community_interest" &&
-    !values.topic &&
-    wording.ogDescription === BUILTIN_WORDING.community_interest.ogDescription
-      ? "One-to-one voice calls with people who enjoy the same things you do. Say when you're free and the call comes to you."
-      : fill(wording.ogDescription);
-
   return {
     heading,
     lead: fill(wording.lead),
     body: fill(wording.body),
     bodyContinued: fill(wording.bodyContinued),
     signoff: fill(wording.signoff),
-    ogDescription,
+    ogDescription: fill(wording.ogDescription),
     // Empty means nobody has written one: wording saved before the share
     // message was editable, or a field cleared. Either way the built-in stands
     // in, rather than a share button carrying nothing.
@@ -481,7 +491,7 @@ export function buildWaitlistPresentation(
       hero: heroFor(context, heading, network),
       og: {
         title: heading,
-        facebookTitle: `${heading} · Keep in touch on The Operator`,
+        facebookTitle: FACEBOOK_TITLE,
         description: w.ogDescription,
       },
     };
@@ -545,7 +555,7 @@ export function buildWaitlistPresentation(
       hero: heroFor(context, heading, network),
       og: {
         title: eyebrow ? `${heading} — ${eyebrow}` : heading,
-        facebookTitle: eyebrow ? `${heading} — ${eyebrow}` : heading,
+        facebookTitle: FACEBOOK_TITLE,
         description: w.ogDescription,
       },
     };
@@ -583,7 +593,7 @@ export function buildWaitlistPresentation(
     hero: heroFor(context, heading, network),
     og: {
       title: heading,
-      facebookTitle: heading,
+      facebookTitle: FACEBOOK_TITLE,
       description: w.ogDescription,
     },
   };
