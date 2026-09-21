@@ -41,79 +41,6 @@ export function resolveDisclaimer(status: RelationshipStatus | string): string {
   }
 }
 
-// ─── Naming the source in plain text ─────────────────────────────────────────
-//
-// Deliberately words, never logos. Reproducing a platform's mark next to an
-// invitation implies that platform is behind it, and most brand guidelines say
-// so explicitly. "from a Facebook group" says the same thing, is instantly
-// recognisable, and claims nothing.
-
-/** What kind of place this is, in the words a visitor would use. */
-export function sourceDescriptor(
-  platformId: string | null | undefined,
-  sourceType: string | null | undefined
-): string {
-  const type = sourceType ?? "";
-
-  switch (platformId) {
-    case "reddit":
-      return type === "post" || type === "comment" || type === "discussion"
-        ? "Reddit thread"
-        : "subreddit";
-    case "facebook":
-      if (type === "social_page") return "Facebook page";
-      if (type === "post" || type === "comment") return "Facebook post";
-      return "Facebook group";
-    case "discord":
-      return "Discord server";
-    case "discourse":
-    case "forum":
-      if (type === "forum_section") return "forum section";
-      if (type === "post" || type === "comment" || type === "discussion")
-        return "forum thread";
-      return "online forum";
-    case "whatsapp":
-      return "WhatsApp group";
-    case "x":
-      return type === "social_page" ? "profile on X" : "post on X";
-    case "linkedin":
-      return type === "group" ? "LinkedIn group" : "LinkedIn post";
-    case "email":
-      return "email";
-    case "private_message":
-      return "private message";
-    default:
-      if (type === "group") return "online group";
-      if (type === "server") return "online server";
-      if (type === "post" || type === "comment" || type === "discussion")
-        return "online discussion";
-      return "online community";
-  }
-}
-
-/** "a"/"an" for the descriptors above — all of which are ordinary words. */
-function article(noun: string): string {
-  return /^[aeiou]/i.test(noun) ? "an" : "a";
-}
-
-/**
- * The line printed directly under the topic: where this link came from.
- *
- * `named` is decided from relationshipStatus by the caller and never from the
- * query string. When it is false the community's own name never appears —
- * not on the page, not in the title, not in the image.
- */
-export function sourceLine(
-  descriptor: string,
-  displayName: string,
-  named: boolean
-): string {
-  const name = displayName.trim();
-  return named && name
-    ? `from ${name}, ${article(descriptor)} ${descriptor}`
-    : `from ${article(descriptor)} ${descriptor}`;
-}
-
 /**
  * The short, prominent independence note for a community page — the one that
  * sits above the form rather than in the fine print.
@@ -121,11 +48,11 @@ export function sourceLine(
  * `resolveDisclaimer` below is still the full statement and still appears at the
  * foot of the page. This is the version somebody actually reads.
  */
-export function independenceNote(
-  status: RelationshipStatus | string,
-  descriptor: string
-): string {
-  const where = `the ${descriptor} where you found this link`;
+export function independenceNote(status: RelationshipStatus | string): string {
+  // Deliberately says nothing about which platform the link was posted on. The
+  // platform is an internal field for filtering and reporting; naming it on a
+  // public page put a brand beside an invitation it had nothing to do with.
+  const where = "the group or discussion where you found this link";
 
   switch (status) {
     case "partnered":

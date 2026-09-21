@@ -31,6 +31,7 @@ function source(over: Partial<DemandSourceRow> = {}): DemandSourceRow {
     sourceUrl: "",
     publicDisplayName: "",
     publicAudienceLabel: "",
+    publicEyebrow: "",
     publicDescription: "",
     waitlistMode: "community",
     connectionType: "shared_interest",

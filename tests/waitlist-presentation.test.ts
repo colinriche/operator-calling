@@ -100,29 +100,55 @@ describe("global mode", () => {
 });
 
 describe("community mode", () => {
-  it("leads with the topic and the source, and carries an independence note", () => {
+  it("leads with the topic and carries an independence note", () => {
     const p = buildWaitlistPresentation(contextFor(COMMUNITY));
 
     expect(p.heading).toBe("Live poker");
-    expect(p.eyebrow).toBe("from a Facebook group");
     expect(p.independenceNote).toContain("independent");
     expect(p.hero.kind).toBe("art");
   });
 
-  it("describes the source in plain words rather than a brand name", () => {
+  it("prints the line an admin wrote above the heading, and nothing otherwise", () => {
+    expect(buildWaitlistPresentation(contextFor(COMMUNITY)).eyebrow).toBeNull();
+
+    const p = buildWaitlistPresentation(
+      contextFor({ ...COMMUNITY, publicEyebrow: "For the Tuesday night league" })
+    );
+    expect(p.eyebrow).toBe("For the Tuesday night league");
+    expect(p.og.title).toBe(`${p.heading} — For the Tuesday night league`);
+  });
+
+  // The platform is an internal field: it decides nothing a visitor reads.
+  it("never names the platform a link was posted on", () => {
     const cases: Array<[string, string, string]> = [
-      ["reddit", "subreddit", "from a subreddit"],
-      ["discord", "server", "from a Discord server"],
-      ["forum", "forum", "from an online forum"],
-      ["whatsapp", "group", "from a WhatsApp group"],
-      ["x", "post", "from a post on X"],
+      ["reddit", "subreddit", "subreddit"],
+      ["discord", "server", "Discord"],
+      ["forum", "forum", "forum"],
+      ["whatsapp", "group", "WhatsApp"],
+      ["x", "post", "on X"],
+      ["facebook", "group", "Facebook"],
     ];
 
-    for (const [platformId, sourceType, expected] of cases) {
+    for (const [platformId, sourceType, brand] of cases) {
       const p = buildWaitlistPresentation(
         contextFor({ ...COMMUNITY, platformId, sourceType })
       );
-      expect(p.eyebrow).toBe(expected);
+      const everything = [
+        p.eyebrow,
+        p.heading,
+        p.lead,
+        p.body,
+        p.formIntro,
+        p.formFootnote,
+        p.successNote,
+        p.shareText,
+        p.independenceNote,
+        p.disclaimer,
+        p.og.title,
+        p.og.description,
+      ].join(" ");
+
+      expect(everything).not.toContain(brand);
     }
   });
 
@@ -153,18 +179,20 @@ describe("naming the community", () => {
     "something_new_nobody_added_here",
   ];
 
-  it("names it only where the relationship supports it", () => {
-    for (const relationshipStatus of named) {
+  // Nothing names it on its own any more: the line above the heading is typed
+  // by an admin, so a community is named only where somebody chose to name it.
+  it("does not name the community by itself, whatever the relationship", () => {
+    for (const relationshipStatus of [...named, ...unnamed]) {
       const p = buildWaitlistPresentation(
         contextFor({ ...COMMUNITY, relationshipStatus })
       );
-      expect(p.eyebrow).toBe("from Poker Players UK, a Facebook group");
-      expect(p.og.title).toContain("Poker Players UK");
+      expect(p.eyebrow).toBeNull();
+      expect(p.og.title).not.toContain("Poker Players UK");
     }
   });
 
-  it("never leaks the name anywhere else when it may not be named", () => {
-    for (const relationshipStatus of unnamed) {
+  it("never leaks the name anywhere else", () => {
+    for (const relationshipStatus of [...named, ...unnamed]) {
       const p = buildWaitlistPresentation(
         contextFor({ ...COMMUNITY, relationshipStatus })
       );

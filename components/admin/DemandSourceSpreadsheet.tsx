@@ -152,6 +152,13 @@ const COLUMNS: Column[] = [
     text: (s) => s.publicAudienceLabel,
   },
   {
+    key: "publicEyebrow",
+    label: "Eyebrow line",
+    width: 200,
+    kind: "text",
+    text: (s) => s.publicEyebrow,
+  },
+  {
     key: "publicDisplayName",
     label: "Public name",
     width: 170,

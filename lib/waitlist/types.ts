@@ -33,6 +33,8 @@ export interface DemandSourceRow {
   sourceUrl: string;
   publicDisplayName: string;
   publicAudienceLabel: string;
+  /** Optional line above the heading, on the page and the card. Admin-written. */
+  publicEyebrow: string;
   publicDescription: string;
   /** Which of the three waitlist pages this source's links render. */
   waitlistMode: WaitlistMode | string;
@@ -182,6 +184,8 @@ export interface WaitlistContext {
   sourceType: SourceType | string | null;
   /** The community's own name. Only ever *shown* when `canNameSource`. */
   publicDisplayName: string;
+  /** The optional line above the heading, exactly as an admin typed it. */
+  publicEyebrow: string;
   /**
    * Decided on the server from relationshipStatus, so a page and its Open Graph
    * tags cannot disagree about whether a community may be named.

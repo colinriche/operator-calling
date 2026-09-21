@@ -76,6 +76,7 @@ export function WaitlistPagePanel({ source, onSaved }: Props) {
       DEFAULT_CONNECTION_TYPE) as ConnectionType
   );
   const [familyName, setFamilyName] = useState(source.familyName ?? "");
+  const [eyebrow, setEyebrow] = useState(source.publicEyebrow ?? "");
 
   const savedChoice = effectiveImageChoice(source);
   const [imageChoice, setImageChoice] = useState(savedChoice);
@@ -94,6 +95,7 @@ export function WaitlistPagePanel({ source, onSaved }: Props) {
     mode !== (source.waitlistMode || "community") ||
     connectionType !== (source.connectionType || DEFAULT_CONNECTION_TYPE) ||
     familyName !== (source.familyName ?? "") ||
+    eyebrow !== (source.publicEyebrow ?? "") ||
     imageDirty ||
     socialDirty ||
     wordingDirty;
@@ -115,13 +117,14 @@ export function WaitlistPagePanel({ source, onSaved }: Props) {
           waitlistMode: mode,
           connectionType,
           familyName,
+          publicEyebrow: eyebrow,
           imageChoice,
           imageChoiceUrl,
           wording,
         },
         library.defaults
       ),
-    [source, mode, connectionType, familyName, imageChoice, imageChoiceUrl, wording, library.defaults]
+    [source, mode, connectionType, familyName, eyebrow, imageChoice, imageChoiceUrl, wording, library.defaults]
   );
 
   const variant = wordingVariantFor(mode, mode === "family" ? "existing_connections" : connectionType);
@@ -141,6 +144,7 @@ export function WaitlistPagePanel({ source, onSaved }: Props) {
           waitlistMode: mode,
           connectionType,
           familyName,
+          publicEyebrow: eyebrow,
           ...(imageDirty ? { imageChoice } : {}),
           ...(socialDirty ? { socialImages } : {}),
           ...(wordingDirty ? { wording, wordingTemplateLabel: templateLabel } : {}),
@@ -296,6 +300,38 @@ export function WaitlistPagePanel({ source, onSaved }: Props) {
       )}
 
       <div>
+        <label htmlFor={`eyebrow-${source.id}`} className={labelClass}>
+          Line above the heading (optional)
+        </label>
+        <input
+          id={`eyebrow-${source.id}`}
+          value={eyebrow}
+          maxLength={80}
+          onChange={(e) => setEyebrow(e.target.value)}
+          placeholder={
+            mode === "family" ? "A private calling group" : "e.g. For the Tuesday night league"
+          }
+          className="w-full h-9 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+        />
+        <p className="text-xs text-muted-foreground mt-1.5">
+          Shown above the heading on the page and on the link preview card, and
+          added to the preview title. Written by you — the platform a link is
+          posted on is never shown publicly.
+          {mode === "community" && !canNameSourcePublicly(source.relationshipStatus) && (
+            <>
+              {" "}
+              This source is marked{" "}
+              <span className="text-foreground">
+                {RELATIONSHIP_STATUSES.find((r) => r.id === source.relationshipStatus)?.label ??
+                  source.relationshipStatus}
+              </span>
+              , so naming the community here would claim more than we can.
+            </>
+          )}
+        </p>
+      </div>
+
+      <div>
         <label className={labelClass}>Picture</label>
         <WaitlistImagePicker
           value={imageChoice}
@@ -392,13 +428,9 @@ export function WaitlistPagePanel({ source, onSaved }: Props) {
             </div>
             {mode === "community" && (
               <p className="text-[11px] text-muted-foreground mt-2">
-                {canNameSourcePublicly(source.relationshipStatus)
-                  ? `Named because this source is marked “${
-                      RELATIONSHIP_STATUSES.find(
-                        (r) => r.id === source.relationshipStatus
-                      )?.label ?? source.relationshipStatus
-                    }”.`
-                  : "The community is not named — the relationship status does not support it. Change the status if that is wrong, rather than the wording."}
+                The line above the heading is whatever you wrote, so it is worth
+                checking it claims no more than this source&apos;s relationship
+                status supports.
               </p>
             )}
           </div>

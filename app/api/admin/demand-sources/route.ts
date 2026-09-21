@@ -176,6 +176,7 @@ export async function GET(req: NextRequest) {
         sourceUrl: data.sourceUrl ?? "",
         publicDisplayName: data.publicDisplayName ?? "",
         publicAudienceLabel: data.publicAudienceLabel ?? "",
+        publicEyebrow: data.publicEyebrow ?? "",
         publicDescription: data.publicDescription ?? "",
         // Sent raw, exactly as stored. The panel resolves the fallback through
         // the same presentation code the page uses rather than second-guessing
@@ -331,6 +332,7 @@ export async function POST(req: NextRequest) {
       sourceUrl: str(body.sourceUrl, 1000),
       publicDisplayName: str(body.publicDisplayName, 200),
       publicAudienceLabel: str(body.publicAudienceLabel, 200),
+      publicEyebrow: str(body.publicEyebrow, 80),
       publicDescription: str(body.publicDescription, 1000),
       waitlistMode: WAITLIST_MODE_IDS.includes(str(body.waitlistMode, 40))
         ? str(body.waitlistMode, 40)

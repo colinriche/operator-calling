@@ -38,6 +38,7 @@ const TEXT_FIELDS: Array<[key: string, max: number]> = [
   ["sourceUrl", 1000],
   ["publicDisplayName", 200],
   ["publicAudienceLabel", 200],
+  ["publicEyebrow", 80],
   ["publicDescription", 1000],
   ["familyName", 120],
   ["internalNotes", 4000],

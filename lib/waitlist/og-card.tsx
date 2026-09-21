@@ -331,6 +331,9 @@ async function render(p: WaitlistPresentation, path: string): Promise<WaitlistCa
   // p.heading, not p.og.title: the latter appends the source line, which is
   // provenance for the metadata rather than a name to set in 56px type.
   const title = clamp(p.heading, 64);
+  // Whatever an admin wrote, never the platform. Absent on most cards, so the
+  // title keeps the whole band when there is nothing to put above it.
+  const eyebrow = p.eyebrow ? clamp(p.eyebrow, 60) : "";
   const label = p.mode === "family" ? "A private calling group" : "One-to-one voice calls";
 
   const image = new ImageResponse(
@@ -385,12 +388,27 @@ async function render(p: WaitlistPresentation, path: string): Promise<WaitlistCa
             borderTop: `4px solid ${GOLD}`,
           }}
         >
+          {eyebrow !== "" && (
+            <div
+              style={{
+                fontSize: 24,
+                color: GOLD,
+                marginBottom: 8,
+                letterSpacing: 0.4,
+              }}
+            >
+              {eyebrow}
+            </div>
+          )}
+
           <div
             style={{
               fontFamily: headingFamily,
               // Two sizes rather than a formula: a long family name has to fit
               // on one line, and everything else should be as large as it can.
-              fontSize: title.length > 30 ? 50 : 62,
+              // Both come down with an eyebrow above them, which the band has
+              // to fit as well.
+              fontSize: (title.length > 30 ? 50 : 62) - (eyebrow ? 8 : 0),
               lineHeight: 1.12,
               color: INK,
               letterSpacing: -1.2,

@@ -31,8 +31,6 @@ import {
   independenceNote,
   resolveAudienceLabel,
   resolveDisclaimer,
-  sourceDescriptor,
-  sourceLine,
 } from "./copy";
 import { builtinImage, FALLBACK_DEFAULT_IMAGE_CHOICE } from "./builtin-images";
 import {
@@ -71,6 +69,7 @@ export interface PublicSourceFields {
   relationshipStatus?: unknown;
   publicDisplayName?: unknown;
   publicAudienceLabel?: unknown;
+  publicEyebrow?: unknown;
   topicName?: unknown;
   includeTopicInUrl?: unknown;
   waitlistMode?: unknown;
@@ -155,6 +154,7 @@ export function waitlistContextFrom(
     connectionType: resolveConnectionType(fields.connectionType, mode),
     sourceType: text(fields.sourceType) || null,
     publicDisplayName: text(fields.publicDisplayName),
+    publicEyebrow: text(fields.publicEyebrow),
     // Decided once, here. Every consumer asks this flag rather than re-deriving
     // the rule, so the page and its link preview cannot disagree about whether
     // a real community may be named.
@@ -459,7 +459,8 @@ export function buildWaitlistPresentation(
     const heading = w.heading;
     return {
       ...common,
-      eyebrow: "A private calling group",
+      // An admin's own line, else what a family page is.
+      eyebrow: context.publicEyebrow || "A private calling group",
       heading,
       lead: w.lead,
       body: w.body,
@@ -487,12 +488,10 @@ export function buildWaitlistPresentation(
   }
 
   if (context.mode === "community") {
-    const descriptor = sourceDescriptor(context.platformId, context.sourceType);
-    const eyebrow = sourceLine(
-      descriptor,
-      context.publicDisplayName,
-      context.canNameSource
-    );
+    // Whatever an admin typed, and nothing otherwise. This line used to be
+    // built from the platform — "from a Facebook group" — which named a
+    // company that had no part in the page.
+    const eyebrow = context.publicEyebrow || null;
 
     // The topic is what the page leads with, so it needs a real value before
     // the audience label's neutral fallback is allowed anywhere near it.
@@ -523,11 +522,11 @@ export function buildWaitlistPresentation(
       lead,
       body,
       disclaimer: context.disclaimer,
-      independenceNote: independenceNote(context.relationshipStatus, descriptor),
+      independenceNote: independenceNote(context.relationshipStatus),
       formIntro: known
         ? `Register your interest in keeping in contact with ${group}.`
         : `Register your interest in talking with people interested in ${label}.`,
-      formFootnote: `Joining records your interest. We may email you about this Operator calling group. The ${descriptor} where you found this link does not receive your details. When enough people register, an Operator calling group may be created for this ${known ? "group" : "interest"}.`,
+      formFootnote: `Joining records your interest. We may email you about this Operator calling group. The group or discussion where you found this link does not receive your details. When enough people register, an Operator calling group may be created for this ${known ? "group" : "interest"}.`,
       successNote: known
         ? `We'll keep your interest linked to ${group}. When enough of the group have registered and a calling group is created, we can let you know.`
         : `We'll keep your interest linked to ${label}. If enough people are interested and a calling group is created, we can let you know.`,
@@ -563,7 +562,7 @@ export function buildWaitlistPresentation(
 
   return {
     ...common,
-    eyebrow: null,
+    eyebrow: context.publicEyebrow || null,
     heading,
     lead: w.lead,
     body: w.body,
@@ -768,6 +767,7 @@ export function demandSourcePresentation(
         publicDisplayName: source.publicDisplayName,
         publicAudienceLabel: source.publicAudienceLabel,
         topicName: source.topicName,
+        publicEyebrow: source.publicEyebrow,
         includeTopicInUrl: source.includeTopicInUrl,
         groupId: source.groupId,
         waitlistMode: source.waitlistMode,
@@ -874,6 +874,7 @@ export function waitlistOgImageVersion(p: WaitlistPresentation): string {
     p.mode,
     p.hero.kind,
     p.hero.src,
+    p.eyebrow ?? "",
     p.og.title,
     p.og.description,
   // A separator no field can contain, so two different value sets cannot
