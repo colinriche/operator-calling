@@ -871,6 +871,9 @@ export function waitlistOgImageVersion(p: WaitlistPresentation): string {
     // How uploads are fitted. Cards stored before pictures stopped being
     // cropped at the sides must not be served again under the same address.
     "fit-width",
+    // The encoder's quality, so cards stored at the softer setting are made
+    // again rather than served from their old address.
+    "q92",
     p.mode,
     p.hero.kind,
     p.hero.src,

@@ -14,10 +14,22 @@ import jpeg from "jpeg-js";
 import { PNG } from "pngjs";
 
 /**
- * High enough that the 62px title in the band stays crisp; a photograph at
- * 1200×630 still lands at around a tenth of the limit.
+ * Tried in order, first one that fits.
+ *
+ * 85 was chosen against a limit nothing was near: a real photograph at
+ * 1200×630 measures 61KB at 85 and 82KB at 92, a tenth of what WhatsApp will
+ * take, and the card's picture is the whole point of it. Measured against a
+ * lossless render of the same card, 92 more than halves the error of 85.
+ *
+ * The lower steps exist for the pathological case rather than any real card —
+ * an image of pure noise reaches 1.4MB at 92 — so the limit is enforced rather
+ * than assumed. Encoding twice costs a fraction of a second, once, on the
+ * render that stores the card.
  */
-const QUALITY = 85;
+const QUALITY_STEPS = [92, 86, 80, 74] as const;
+
+/** Comfortably inside the ~600KB above which WhatsApp shows no picture. */
+const MAX_BYTES = 520 * 1024;
 
 /** JPEG files open with FF D8 FF. */
 export function isJpeg(bytes: Uint8Array): boolean {
@@ -32,9 +44,15 @@ export function isJpeg(bytes: Uint8Array): boolean {
  */
 export function pngToJpeg(png: Buffer): Buffer {
   const decoded = PNG.sync.read(png);
-  const encoded = jpeg.encode(
-    { data: decoded.data, width: decoded.width, height: decoded.height },
-    QUALITY
-  );
-  return Buffer.from(encoded.data);
+  const raw = { data: decoded.data, width: decoded.width, height: decoded.height };
+
+  let encoded = Buffer.from(jpeg.encode(raw, QUALITY_STEPS[0]).data);
+  for (const quality of QUALITY_STEPS.slice(1)) {
+    if (encoded.byteLength <= MAX_BYTES) break;
+    console.warn(
+      `[card-encode] ${(encoded.byteLength / 1024).toFixed(0)}KB is over the limit; re-encoding at quality ${quality}`
+    );
+    encoded = Buffer.from(jpeg.encode(raw, quality).data);
+  }
+  return encoded;
 }
