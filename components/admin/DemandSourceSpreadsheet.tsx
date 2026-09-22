@@ -32,6 +32,7 @@ import {
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
+import { useAdminRole } from "@/hooks/useAdminRole";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 import {
@@ -64,9 +65,15 @@ import type { DemandSourceRow, SimilarSourceRow } from "@/lib/waitlist/types";
 // across two records. Editing the real records directly makes the question
 // impossible to ask.
 //
-// Nothing here deletes. A source is pointed at by tracked links people have
-// already posted, by registrations, visits and outreach history; archiving is
-// the removal this system has, and it keeps all of it.
+// Archiving is the ordinary removal, and it keeps all of that: a source is
+// pointed at by tracked links people have already posted, by registrations,
+// visits and outreach history. Archived sources collapse into one line at the
+// foot of the grid rather than taking a row each.
+//
+// Permanent deletion lives on that line and on the rows under it, for a super
+// admin, and takes the registrations and the history with it. It is a second
+// decision after archiving rather than a shortcut past it - see the DELETE
+// route in app/api/admin/demand-sources/[id]/route.ts.
 
 type Kind = "text" | "number" | "select" | "boolean" | "readonly";
 
@@ -341,11 +348,12 @@ const BLANK_DRAFT: Record<string, string> = {
  * pinned name column beside it. One constant because they cannot disagree:
  * if they do, the name column overlaps the icons or floats away from them.
  *
- * Holds the state dot and three icon buttons on one line. It is sized to stop
- * them wrapping, because a wrapped action cell is the one thing that would
- * make the rows taller.
+ * Holds the state dot and up to four icon buttons on one line - an archived
+ * row carries a delete beside its restore. It is sized to stop them wrapping,
+ * because a wrapped action cell is the one thing that would make the rows
+ * taller.
  */
-const ACTIONS_WIDTH = 108;
+const ACTIONS_WIDTH = 132;
 
 type RowState = "saving" | "saved" | "error";
 type StatusFilter = "active" | "archived" | "all" | string;
@@ -358,6 +366,10 @@ interface PendingEdit {
 
 export function DemandSourceSpreadsheet() {
   const { user } = useAuth();
+  // Governs what the grid offers, not what it is allowed to do: the delete
+  // route re-checks the role. An admin who is not a super admin sees the
+  // archived line and the rows, without the destructive buttons.
+  const { isSuperAdmin } = useAdminRole();
   const [sources, setSources] = useState<DemandSourceRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -396,6 +408,11 @@ export function DemandSourceSpreadsheet() {
   // a time: comparing two sources' links is exactly why anyone opens them.
   const [openLinks, setOpenLinks] = useState<Record<string, boolean>>({});
 
+  // Archived sources are one line until asked for. Closed on every load: the
+  // point of the line is that a tidied source stops taking up the grid.
+  const [archivedOpen, setArchivedOpen] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
+
   const load = useCallback(async () => {
     if (!user) return;
     setLoading(true);
@@ -421,6 +438,12 @@ export function DemandSourceSpreadsheet() {
     if (user && !loaded) void load();
   }, [user, loaded, load]);
 
+  // Picking "Archived only" is asking to look at them, so the line opens
+  // itself. Without this the filter would answer with a single collapsed row.
+  useEffect(() => {
+    if (statusFilter === "archived") setArchivedOpen(true);
+  }, [statusFilter]);
+
   // Focus moves after a commit, once the editor has unmounted and the display
   // cell it hands off to is back in the DOM.
   useEffect(() => {
@@ -431,17 +454,24 @@ export function DemandSourceSpreadsheet() {
 
   // ─── Filtering and sorting ────────────────────────────────────────────────
 
-  const visible = useMemo(() => {
+  /**
+   * The two lists the grid renders: live sources as rows, archived ones behind
+   * the single line at the foot.
+   *
+   * Archived sources are split out here rather than filtered away, because
+   * "collapsed" is not "hidden": the line is present on the active view too,
+   * so a source that was tidied away can still be found, restored or deleted
+   * without first working out which filter puts it back.
+   *
+   * They are left out entirely when the status filter names a particular
+   * status. Asking for "Researching" is asking for one status, not for that
+   * status plus the archive.
+   */
+  const { activeRows, archivedRows } = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const filtered = sources.filter((s) => {
-      // Archived sources are out of the way by default rather than gone. They
-      // keep their registrations, links and history, and picking "Archived" or
-      // "All" brings them back.
-      if (statusFilter === "active") {
-        if (s.status === "archived") return false;
-      } else if (statusFilter !== "all" && s.status !== statusFilter) {
-        return false;
-      }
+
+    // Everything except the status, which the two lists answer differently.
+    const matches = (s: DemandSourceRow) => {
       if (platformFilter !== "all" && s.platformId !== platformFilter) return false;
       if (!q) return true;
       return [
@@ -457,26 +487,60 @@ export function DemandSourceSpreadsheet() {
       ]
         .filter(Boolean)
         .some((field) => String(field).toLowerCase().includes(q));
-    });
+    };
 
     const column = COLUMNS.find((c) => c.key === sortKey);
     const value = (s: DemandSourceRow) =>
       column?.sortBy ? column.sortBy(s) : (column?.text(s) ?? "");
+    const sort = (list: DemandSourceRow[]) =>
+      [...list].sort((a, b) => {
+        const av = value(a);
+        const bv = value(b);
+        const cmp =
+          typeof av === "number" && typeof bv === "number"
+            ? av - bv
+            : String(av).localeCompare(String(bv));
+        return sortDir === "asc" ? cmp : -cmp;
+      });
 
-    const sorted = [...filtered].sort((a, b) => {
-      const av = value(a);
-      const bv = value(b);
-      const cmp =
-        typeof av === "number" && typeof bv === "number"
-          ? av - bv
-          : String(av).localeCompare(String(bv));
-      return sortDir === "asc" ? cmp : -cmp;
-    });
-    return sorted;
+    const showsArchive =
+      statusFilter === "active" || statusFilter === "all" || statusFilter === "archived";
+
+    return {
+      activeRows:
+        statusFilter === "archived"
+          ? []
+          : sort(
+              sources.filter((s) => {
+                if (s.status === "archived") return false;
+                if (statusFilter !== "active" && statusFilter !== "all") {
+                  if (s.status !== statusFilter) return false;
+                }
+                return matches(s);
+              })
+            ),
+      archivedRows: showsArchive
+        ? sort(sources.filter((s) => s.status === "archived" && matches(s)))
+        : [],
+    };
   }, [sources, query, platformFilter, statusFilter, sortKey, sortDir]);
+
+  /** Everything on screen, in the order it appears. */
+  const visible = useMemo(
+    () => [...activeRows, ...archivedRows],
+    [activeRows, archivedRows]
+  );
 
   const archivedCount = sources.filter((s) => s.status === "archived").length;
   const savingCount = Object.values(rowState).filter((v) => v === "saving").length;
+
+  const archivedTotals = archivedRows.reduce(
+    (acc, s) => ({
+      registrations: acc.registrations + s.uniqueRegistrationCount,
+      links: acc.links + s.links.length,
+    }),
+    { registrations: 0, links: 0 }
+  );
 
   function toggleSort(key: string) {
     if (sortKey === key) {
@@ -798,6 +862,118 @@ export function DemandSourceSpreadsheet() {
     await load();
   }
 
+  // ─── Permanent deletion ───────────────────────────────────────────────────
+  //
+  // Only archived sources, only a super admin, and the name has to be typed.
+  // The route enforces all three - this is the part a person sees.
+
+  /** Everything this source would take with it, as a sentence. */
+  function deletionSummary(source: DemandSourceRow): string {
+    const parts = [
+      `${source.uniqueRegistrationCount} registration${source.uniqueRegistrationCount === 1 ? "" : "s"}`,
+      `${source.links.length} tracked link${source.links.length === 1 ? "" : "s"}`,
+      `${source.uniqueVisitCount} unique visit${source.uniqueVisitCount === 1 ? "" : "s"}`,
+      `${source.outreachCount} outreach record${source.outreachCount === 1 ? "" : "s"}`,
+    ];
+    return parts.join(", ");
+  }
+
+  /** The request itself. The caller decides how the human confirmed it. */
+  async function deleteSource(
+    source: DemandSourceRow
+  ): Promise<{ ok: boolean; error?: string }> {
+    if (!user) return { ok: false, error: "Not signed in" };
+    const token = await user.getIdToken();
+    const res = await fetch(`/api/admin/demand-sources/${source.id}`, {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      // The source's own name, which the route checks against the record. It
+      // is what the admin typed for a single delete; for "delete all" the
+      // confirmation is the one on the whole set, not one prompt per row.
+      body: JSON.stringify({ confirmName: source.sourceName }),
+    });
+    const data = await res.json().catch(() => ({}));
+    return res.ok ? { ok: true } : { ok: false, error: data.error ?? "Failed to delete" };
+  }
+
+  async function removeForGood(source: DemandSourceRow) {
+    // A source that became a group is the record of how that group came to
+    // exist. The group and its members are untouched by this, which is exactly
+    // why it is worth saying out loud before the record of it goes.
+    const groupNote = source.groupId
+      ? "This source already created a group. The group and its members stay; " +
+        "the record of who signed up and where they came from does not.\n\n"
+      : "";
+
+    const typed = window.prompt(
+      `Permanently delete "${source.sourceName}"?\n\n` +
+        `This destroys ${deletionSummary(source)}, its share events, its link ` +
+        "preview cards and any uploaded photograph. Its tracked links stop " +
+        "resolving to anything. There is no undo and nothing is archived.\n\n" +
+        groupNote +
+        "Type the source's name to confirm:"
+    );
+    if (typed === null) return;
+    if (typed.trim() !== source.sourceName.trim()) {
+      toast.error("That did not match the source's name - nothing was deleted");
+      return;
+    }
+
+    setDeleting(source.id);
+    const result = await deleteSource(source);
+    setDeleting(null);
+    if (!result.ok) {
+      toast.error(result.error ?? "Failed to delete");
+      return;
+    }
+    toast.success(`${source.sourceName} deleted for good`);
+    await load();
+  }
+
+  async function removeAllArchived() {
+    const count = archivedRows.length;
+    if (count === 0) return;
+
+    const typed = window.prompt(
+      `Permanently delete all ${count} archived source${count === 1 ? "" : "s"}?\n\n` +
+        `This destroys ${archivedTotals.registrations} registration` +
+        `${archivedTotals.registrations === 1 ? "" : "s"}, ${archivedTotals.links} tracked ` +
+        `link${archivedTotals.links === 1 ? "" : "s"} and all of their visits, share events, ` +
+        "outreach history, preview cards and uploaded photographs. There is no undo.\n\n" +
+        "Type DELETE to confirm:"
+    );
+    if (typed === null) return;
+    if (typed.trim().toUpperCase() !== "DELETE") {
+      toast.error("Not confirmed - nothing was deleted");
+      return;
+    }
+
+    // One at a time, and it stops at the first failure. A partial sweep whose
+    // survivors are listed is recoverable; one that carried on past an error
+    // nobody saw is not.
+    let done = 0;
+    for (const source of archivedRows) {
+      setDeleting(source.id);
+      const result = await deleteSource(source);
+      if (!result.ok) {
+        setDeleting(null);
+        await load();
+        toast.error(
+          `Stopped at "${source.sourceName}": ${result.error ?? "failed to delete"}` +
+            (done > 0 ? ` (${done} already deleted)` : "")
+        );
+        return;
+      }
+      done += 1;
+    }
+    setDeleting(null);
+    await load();
+    toast.success(`${done} archived source${done === 1 ? "" : "s"} deleted for good`);
+  }
+
   // ─── Export ───────────────────────────────────────────────────────────────
 
   function exportCsv() {
@@ -977,6 +1153,175 @@ export function DemandSourceSpreadsheet() {
     );
   }
 
+  /**
+   * One source's row, and the tracked-link panel under it when open.
+   *
+   * A function rather than the map's body: the same row is rendered in two
+   * places now - above the archived line, and under it once it is opened -
+   * and two copies of it would drift.
+   */
+  function renderRow(source: DemandSourceRow) {
+    const state = rowState[source.id];
+    const archived = source.status === "archived";
+    // Built by the server from this deployment's origin, so the
+    // preview opens the same URL that gets posted. This one is the
+    // first link; every other link has its own preview in the panel.
+    const trackedUrl = source.links[0]?.trackedUrl ?? "";
+    return (
+      <Fragment key={source.id}>
+        <tr
+          className={cn(
+            "border-b border-border/50 hover:bg-muted/30",
+            archived && "opacity-60"
+          )}
+        >
+          <td className="sticky left-0 z-10 bg-card border-r border-border px-1 py-1">
+            <div className="flex items-center gap-0.5">
+              {state === "saving" ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground shrink-0" />
+              ) : state === "saved" ? (
+                <Check className="w-3.5 h-3.5 text-primary shrink-0" />
+              ) : state === "error" ? (
+                <AlertCircle className="w-3.5 h-3.5 text-destructive shrink-0" />
+              ) : (
+                <span className="w-3.5 shrink-0" />
+              )}
+              <button
+                type="button"
+                onClick={() =>
+                  archived ? void unarchive(source) : void archive(source)
+                }
+                aria-label={
+                  archived
+                    ? `Restore ${source.sourceName} to its previous status`
+                    : `Archive ${source.sourceName} - keeps registrations, links and history`
+                }
+                className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
+              >
+                {archived ? (
+                  <ArchiveRestore className="w-3.5 h-3.5" />
+                ) : (
+                  <Trash2 className="w-3.5 h-3.5" />
+                )}
+              </button>
+              <RowWaitlistImageButton source={source} onSaved={load} />
+              {trackedUrl ? (
+                // A real link, not a window.open: middle-click and
+                // ctrl-click work, and it opens the actual waitlist
+                // route rather than any spreadsheet-only rendering of
+                // it, so what loads is what a visitor would get.
+                <a
+                  href={trackedUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Preview waitlist"
+                  aria-label={`Preview the waitlist page for ${source.sourceName}`}
+                  className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground shrink-0"
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                </a>
+              ) : (
+                <span
+                  aria-label="No tracked link to preview"
+                  className="p-1 text-muted-foreground/30 shrink-0"
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                </span>
+              )}
+              {/* Only on an archived row, and only for a super admin - the
+                  same two conditions the route enforces. Destructive colour
+                  because the identical icon one button to the left means
+                  "archive", which keeps everything. */}
+              {archived && isSuperAdmin && (
+                <button
+                  type="button"
+                  onClick={() => void removeForGood(source)}
+                  disabled={deleting !== null}
+                  title="Delete for good"
+                  aria-label={`Permanently delete ${source.sourceName} and everything kept with it`}
+                  className="p-1 rounded text-destructive/70 hover:text-destructive hover:bg-destructive/10 disabled:opacity-40 shrink-0"
+                >
+                  {deleting === source.id ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Trash2 className="w-3.5 h-3.5" />
+                  )}
+                </button>
+              )}
+            </div>
+          </td>
+          {COLUMNS.map((column, index) => (
+            <td
+              key={column.key}
+              style={index === 0 ? { left: ACTIONS_WIDTH } : undefined}
+              className={cn(
+                "border-r border-border/40 p-0 align-middle",
+                index === 0 && "sticky z-10 bg-card border-r-border"
+              )}
+            >
+              {renderCell(source, column)}
+            </td>
+          ))}
+        </tr>
+        {openLinks[source.id] === true && source.links.length > 0 && (
+          <tr className="border-b border-border/50 bg-muted/20">
+            {/* Spans the grid, and its contents are pinned to the
+                left edge: a panel that scrolled away with column 20
+                would be unreadable on a table this wide. */}
+            <td colSpan={COLUMNS.length + 1} className="p-0">
+              <div
+                id={`links-${source.id}`}
+                className="sticky left-0 w-[760px] max-w-full px-3 py-2 space-y-1"
+              >
+                {source.links.map((link) => (
+                  <div
+                    key={link.id}
+                    className="flex flex-wrap items-center gap-2 rounded-md border border-border/50 bg-background px-2 py-1.5"
+                  >
+                    <code className="font-mono text-xs text-foreground">
+                      {link.sourceCode}
+                    </code>
+                    <span className="text-xs text-muted-foreground truncate max-w-[200px]">
+                      {link.label || "Untitled link"}
+                    </span>
+                    {link.status !== "active" && (
+                      <span className="text-[11px] uppercase tracking-wide text-muted-foreground border border-border/60 rounded px-1">
+                        {link.status}
+                      </span>
+                    )}
+                    <span className="text-xs text-muted-foreground tabular-nums ml-auto">
+                      {link.uniqueVisitCount} unique · {link.signupCount}{" "}
+                      joined · {link.shareClickCount} shares
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => void copy(link.trackedUrl, "Link copied")}
+                      aria-label={`Copy the tracked link ${link.sourceCode}`}
+                      title="Copy link"
+                      className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground shrink-0"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                    </button>
+                    <a
+                      href={link.trackedUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={`Preview the waitlist page for ${link.sourceCode}`}
+                      title="Preview waitlist"
+                      className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground shrink-0"
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                    </a>
+                  </div>
+                ))}
+              </div>
+            </td>
+          </tr>
+        )}
+      </Fragment>
+    );
+  }
+
   // ─── Render ───────────────────────────────────────────────────────────────
 
   const selectClass =
@@ -1002,7 +1347,7 @@ export function DemandSourceSpreadsheet() {
           className={selectClass}
           aria-label="Filter by status"
         >
-          <option value="active">Active (hide archived)</option>
+          <option value="active">Active (archive collapsed)</option>
           <option value="all">All including archived</option>
           <option value="archived">Archived only{archivedCount ? ` (${archivedCount})` : ""}</option>
           {STATUS_OPTIONS.filter((s) => s.id !== "archived").map((s) => (
@@ -1199,147 +1544,68 @@ export function DemandSourceSpreadsheet() {
               </tr>
             </thead>
             <tbody>
-              {visible.map((source) => {
-                const state = rowState[source.id];
-                const archived = source.status === "archived";
-                // Built by the server from this deployment's origin, so the
-                // preview opens the same URL that gets posted. This one is the
-                // first link; every other link has its own preview in the panel.
-                const trackedUrl = source.links[0]?.trackedUrl ?? "";
-                return (
-                  <Fragment key={source.id}>
-                    <tr
-                      className={cn(
-                        "border-b border-border/50 hover:bg-muted/30",
-                        archived && "opacity-60"
-                      )}
-                    >
-                      <td className="sticky left-0 z-10 bg-card border-r border-border px-1 py-1">
-                        <div className="flex items-center gap-0.5">
-                          {state === "saving" ? (
-                            <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground shrink-0" />
-                          ) : state === "saved" ? (
-                            <Check className="w-3.5 h-3.5 text-primary shrink-0" />
-                          ) : state === "error" ? (
-                            <AlertCircle className="w-3.5 h-3.5 text-destructive shrink-0" />
+              {activeRows.map(renderRow)}
+
+              {/* Everything archived, as one line. It sits at the foot whatever
+                  the sort is: these are records kept for their history, and
+                  interleaving them with live sources is what made the grid
+                  half history in the first place. */}
+              {archivedRows.length > 0 && (
+                <Fragment>
+                  <tr className="border-b border-border/50 bg-muted/20">
+                    <td colSpan={COLUMNS.length + 1} className="p-0">
+                      {/* Pinned to the left edge, like the links panel: a
+                          summary that scrolled away with column 20 would never
+                          be read. */}
+                      <div className="sticky left-0 w-[860px] max-w-full flex flex-wrap items-center gap-x-3 gap-y-1 px-2 py-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setArchivedOpen((v) => !v)}
+                          aria-expanded={archivedOpen}
+                          className="flex items-center gap-1.5 text-xs font-medium text-foreground rounded px-1 py-0.5 hover:bg-muted"
+                        >
+                          {archivedOpen ? (
+                            <ChevronDown className="w-3.5 h-3.5" />
                           ) : (
-                            <span className="w-3.5 shrink-0" />
+                            <ChevronRight className="w-3.5 h-3.5" />
                           )}
+                          {archivedRows.length} archived source
+                          {archivedRows.length === 1 ? "" : "s"}
+                        </button>
+
+                        <span className="text-xs text-muted-foreground tabular-nums">
+                          still holding {archivedTotals.registrations} registration
+                          {archivedTotals.registrations === 1 ? "" : "s"} and{" "}
+                          {archivedTotals.links} tracked link
+                          {archivedTotals.links === 1 ? "" : "s"}
+                        </span>
+
+                        {isSuperAdmin ? (
                           <button
                             type="button"
-                            onClick={() =>
-                              archived ? void unarchive(source) : void archive(source)
-                            }
-                            aria-label={
-                              archived
-                                ? `Restore ${source.sourceName} to its previous status`
-                                : `Archive ${source.sourceName} - keeps registrations, links and history`
-                            }
-                            className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
+                            onClick={() => void removeAllArchived()}
+                            disabled={deleting !== null}
+                            aria-label={`Permanently delete all ${archivedRows.length} archived sources and everything kept with them`}
+                            className="ml-auto flex items-center gap-1 text-xs text-destructive rounded px-1.5 py-0.5 hover:bg-destructive/10 disabled:opacity-50"
                           >
-                            {archived ? (
-                              <ArchiveRestore className="w-3.5 h-3.5" />
+                            {deleting !== null ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
                             ) : (
                               <Trash2 className="w-3.5 h-3.5" />
                             )}
+                            Delete all for good
                           </button>
-                          <RowWaitlistImageButton source={source} onSaved={load} />
-                          {trackedUrl ? (
-                            // A real link, not a window.open: middle-click and
-                            // ctrl-click work, and it opens the actual waitlist
-                            // route rather than any spreadsheet-only rendering of
-                            // it, so what loads is what a visitor would get.
-                            <a
-                              href={trackedUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              title="Preview waitlist"
-                              aria-label={`Preview the waitlist page for ${source.sourceName}`}
-                              className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground shrink-0"
-                            >
-                              <Eye className="w-3.5 h-3.5" />
-                            </a>
-                          ) : (
-                            <span
-                              aria-label="No tracked link to preview"
-                              className="p-1 text-muted-foreground/30 shrink-0"
-                            >
-                              <Eye className="w-3.5 h-3.5" />
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      {COLUMNS.map((column, index) => (
-                        <td
-                          key={column.key}
-                          style={index === 0 ? { left: ACTIONS_WIDTH } : undefined}
-                          className={cn(
-                            "border-r border-border/40 p-0 align-middle",
-                            index === 0 && "sticky z-10 bg-card border-r-border"
-                          )}
-                        >
-                          {renderCell(source, column)}
-                        </td>
-                      ))}
-                    </tr>
-                    {openLinks[source.id] === true && source.links.length > 0 && (
-                      <tr className="border-b border-border/50 bg-muted/20">
-                        {/* Spans the grid, and its contents are pinned to the
-                            left edge: a panel that scrolled away with column 20
-                            would be unreadable on a table this wide. */}
-                        <td colSpan={COLUMNS.length + 1} className="p-0">
-                          <div
-                            id={`links-${source.id}`}
-                            className="sticky left-0 w-[760px] max-w-full px-3 py-2 space-y-1"
-                          >
-                            {source.links.map((link) => (
-                              <div
-                                key={link.id}
-                                className="flex flex-wrap items-center gap-2 rounded-md border border-border/50 bg-background px-2 py-1.5"
-                              >
-                                <code className="font-mono text-xs text-foreground">
-                                  {link.sourceCode}
-                                </code>
-                                <span className="text-xs text-muted-foreground truncate max-w-[200px]">
-                                  {link.label || "Untitled link"}
-                                </span>
-                                {link.status !== "active" && (
-                                  <span className="text-[11px] uppercase tracking-wide text-muted-foreground border border-border/60 rounded px-1">
-                                    {link.status}
-                                  </span>
-                                )}
-                                <span className="text-xs text-muted-foreground tabular-nums ml-auto">
-                                  {link.uniqueVisitCount} unique · {link.signupCount}{" "}
-                                  joined · {link.shareClickCount} shares
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => void copy(link.trackedUrl, "Link copied")}
-                                  aria-label={`Copy the tracked link ${link.sourceCode}`}
-                                  title="Copy link"
-                                  className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground shrink-0"
-                                >
-                                  <Copy className="w-3.5 h-3.5" />
-                                </button>
-                                <a
-                                  href={link.trackedUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  aria-label={`Preview the waitlist page for ${link.sourceCode}`}
-                                  title="Preview waitlist"
-                                  className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground shrink-0"
-                                >
-                                  <Eye className="w-3.5 h-3.5" />
-                                </a>
-                              </div>
-                            ))}
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </Fragment>
-                );
-              })}
+                        ) : (
+                          <span className="ml-auto text-xs text-muted-foreground/70">
+                            Deleting for good needs a super admin
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                  {archivedOpen && archivedRows.map(renderRow)}
+                </Fragment>
+              )}
             </tbody>
           </table>
         </div>
@@ -1348,9 +1614,7 @@ export function DemandSourceSpreadsheet() {
           <p className="text-sm text-muted-foreground p-6 text-center">
             {sources.length === 0
               ? "No demand sources yet. Add one to generate a tracked waitlist link."
-              : statusFilter === "active" && archivedCount > 0
-                ? `No sources match those filters. ${archivedCount} archived source${archivedCount === 1 ? " is" : "s are"} hidden - switch the status filter to see ${archivedCount === 1 ? "it" : "them"}.`
-                : "No sources match those filters."}
+              : "No sources match those filters."}
           </p>
         )}
       </div>
@@ -1360,8 +1624,8 @@ export function DemandSourceSpreadsheet() {
         <span>
           {visible.length} of {sources.length} source
           {sources.length === 1 ? "" : "s"}
-          {statusFilter === "active" && archivedCount > 0 && (
-            <> · {archivedCount} archived hidden</>
+          {archivedRows.length > 0 && (
+            <> · {archivedRows.length} of them archived</>
           )}
         </span>
         <span className="flex items-center gap-1.5">

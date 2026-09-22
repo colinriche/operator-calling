@@ -88,6 +88,29 @@ export function cardBucketName(): string {
   return getAdminBucket().name;
 }
 
+/**
+ * Every stored card for a source code: the page's, and each network's beneath
+ * it. Returns how many objects were removed.
+ *
+ * Unlike the rest of this file a failure is not swallowed. This is called when
+ * a source is being deleted, and a card is a public URL built out of the page -
+ * on a family page, with the family's photograph in its pixels. A delete that
+ * quietly left those behind would be the opposite of what was asked for, so the
+ * caller gets the error and can stop before it touches anything else.
+ *
+ * A source with no code of its own removes nothing. `folder` answers "_global"
+ * for a code it does not recognise, and the global card belongs to no source.
+ */
+export async function deleteWaitlistCards(sourceCode: string | null): Promise<number> {
+  const prefix = `${folder(sourceCode)}/`;
+  if (prefix === `${PREFIX}/_global/`) return 0;
+
+  const bucket = getAdminBucket();
+  const [files] = await bucket.getFiles({ prefix });
+  await Promise.all(files.map((f) => f.delete({ ignoreNotFound: true })));
+  return files.length;
+}
+
 /** Whether the card has been rendered and stored already. */
 export async function waitlistCardExists(path: string): Promise<boolean> {
   try {

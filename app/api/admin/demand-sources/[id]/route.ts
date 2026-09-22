@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { requireAdmin } from "@/lib/admin-auth";
+import { getAdminBucket } from "@/lib/firebase-admin";
 import { warmWaitlistCardsForSource } from "@/lib/waitlist/og-card";
+import { deleteWaitlistCards } from "@/lib/waitlist/og-store";
+import { OUTREACH_RECORDS_COLLECTION } from "@/lib/waitlist/outreach";
 import {
   COLLECTIONS,
   CONNECTION_TYPE_IDS,
   DEMAND_STATUS_IDS,
+  GENERAL_DEMAND_SOURCE_ID,
   PLATFORM_IDS,
   RELATIONSHIP_STATUS_IDS,
   SOURCE_TYPE_IDS,
@@ -21,7 +25,9 @@ import { sanitiseWording } from "@/lib/waitlist/library";
 import { resolveImageChoice, resolveSocialImages } from "@/lib/waitlist/library-server";
 import { isTopicArtId } from "@/lib/waitlist/topic-art";
 
-// PATCH /api/admin/demand-sources/[id] - edit a demand source.
+// PATCH  /api/admin/demand-sources/[id] - edit a demand source.
+// DELETE /api/admin/demand-sources/[id] - remove one for good, with everything
+//                                         keyed to it. See the note above it.
 //
 // Relationship status is settable here and nowhere else: it must be an
 // explicit act by an authorised user, never inferred from traffic, signups or
@@ -310,6 +316,174 @@ export async function PATCH(
     return NextResponse.json({ success: true, similar: advisory });
   } catch (err) {
     console.error("[admin/demand-sources PATCH]", err);
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
+  }
+}
+
+// ─── Permanent deletion ──────────────────────────────────────────────────────
+//
+// DELETE /api/admin/demand-sources/[id] - the source and everything keyed to
+// it, gone for good.
+//
+// Archiving above is still the ordinary removal, and this does not replace it.
+// A source is pointed at by tracked links people have already posted, by
+// registrations, visits and outreach history, and none of that should vanish
+// because somebody tidied a table. So this route is fenced on all four sides:
+//
+//   - super admin only, the same bar as permanently removing a user Archive.
+//   - the source must already be archived, so deleting is a second, separate
+//     decision taken after the first one has been lived with.
+//   - the caller has to echo the source's name back. A request that can be
+//     fired by a mis-click on the wrong row is a request that eventually is.
+//   - `_general` is refused outright. It is not a source anybody created; it
+//     is where registrations that arrived without a valid code are counted.
+//
+// What goes, in the order it goes:
+//
+//   1. The stored objects - the social cards under each of its codes, and the
+//      family photograph. First, and allowed to fail the whole request, because
+//      these are public URLs. A "deleted" source whose photograph is still
+//      being served is the one outcome nobody would forgive.
+//   2. Everything in Firestore keyed by demandSourceId.
+//   3. The source document itself, last. A failure part-way then leaves a
+//      source that is still visible and can be deleted again, rather than
+//      orphaned rows nothing points at.
+
+/** Doc ids to delete in one batch. Firestore's own limit is 500. */
+const DELETE_BATCH = 400;
+
+/**
+ * Delete every document in a collection keyed to this source, and say how many.
+ *
+ * Paged rather than read-all-then-delete: a busy source's visits and share
+ * events are unbounded, and holding all of them in memory to build one write
+ * is how a tidy-up takes a function down.
+ */
+async function deleteByDemandSource(
+  db: FirebaseFirestore.Firestore,
+  collection: string,
+  sourceId: string
+): Promise<number> {
+  let deleted = 0;
+  for (;;) {
+    const snap = await db
+      .collection(collection)
+      .where("demandSourceId", "==", sourceId)
+      .limit(DELETE_BATCH)
+      .get();
+    if (snap.empty) return deleted;
+
+    const batch = db.batch();
+    for (const doc of snap.docs) batch.delete(doc.ref);
+    await batch.commit();
+    deleted += snap.size;
+
+    if (snap.size < DELETE_BATCH) return deleted;
+  }
+}
+
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const caller = await requireAdmin(req, { superAdminOnly: true });
+  if (!caller) {
+    return NextResponse.json(
+      { error: "Only a super admin can permanently delete a source" },
+      { status: 403 }
+    );
+  }
+
+  const { id } = await params;
+
+  if (id === GENERAL_DEMAND_SOURCE_ID) {
+    return NextResponse.json(
+      {
+        error:
+          "The general source counts registrations that arrived without a code, " +
+          "and cannot be deleted",
+      },
+      { status: 400 }
+    );
+  }
+
+  let body: { confirmName?: unknown };
+  try {
+    body = (await req.json()) as { confirmName?: unknown };
+  } catch {
+    return NextResponse.json({ error: "Invalid body" }, { status: 400 });
+  }
+
+  try {
+    const db = waitlistDb();
+    const ref = db.collection(COLLECTIONS.demandSources).doc(id);
+    const snap = await ref.get();
+    if (!snap.exists) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+    const source = snap.data() ?? {};
+
+    if (source.status !== "archived") {
+      return NextResponse.json(
+        { error: "Archive the source first - deleting it is a separate decision" },
+        { status: 409 }
+      );
+    }
+
+    const name = typeof source.sourceName === "string" ? source.sourceName : "";
+    if (typeof body.confirmName !== "string" || body.confirmName.trim() !== name.trim()) {
+      return NextResponse.json(
+        { error: `Type the source's name exactly to confirm: ${name}` },
+        { status: 400 }
+      );
+    }
+
+    // Read before anything is removed: the codes name the card folders, and
+    // once the links are deleted there is no way back to them.
+    const links = await db
+      .collection(COLLECTIONS.sourceLinks)
+      .where("demandSourceId", "==", id)
+      .get();
+    const codes = links.docs
+      .map((doc) => doc.data().sourceCode)
+      .filter((code): code is string => typeof code === "string" && code !== "");
+
+    // 1. Storage. Not swallowed - see the note above.
+    let cards = 0;
+    for (const code of codes) cards += await deleteWaitlistCards(code);
+    const heroPath = typeof source.heroImagePath === "string" ? source.heroImagePath : "";
+    if (heroPath) {
+      await getAdminBucket().file(heroPath).delete({ ignoreNotFound: true });
+    }
+    // The whole folder, not just the current path: replacing a photograph
+    // stores a new object, and an upload that failed to record itself would
+    // otherwise be left behind with nothing pointing at it.
+    await getAdminBucket().deleteFiles({ prefix: `waitlist-hero/${id}/` });
+
+    // 2. Everything keyed to the source.
+    const counts = {
+      links: await deleteByDemandSource(db, COLLECTIONS.sourceLinks, id),
+      registrations: await deleteByDemandSource(db, COLLECTIONS.waitlistEntries, id),
+      visits: await deleteByDemandSource(db, COLLECTIONS.sourceVisits, id),
+      shares: await deleteByDemandSource(db, COLLECTIONS.shareEvents, id),
+      outreach: await deleteByDemandSource(db, OUTREACH_RECORDS_COLLECTION, id),
+      cards,
+    };
+
+    // 3. The source itself.
+    await ref.delete();
+
+    // There is no undo and no archive of this, so the log is the only record
+    // that it happened. Named, counted, and attributed to whoever asked.
+    console.warn(
+      `[admin/demand-sources DELETE] ${caller.email} permanently deleted "${name}" (${id}): ` +
+        `${counts.registrations} registrations, ${counts.links} links, ${counts.visits} visits, ` +
+        `${counts.shares} share events, ${counts.outreach} outreach records, ${counts.cards} cards`
+    );
+
+    return NextResponse.json({ success: true, deleted: counts });
+  } catch (err) {
+    console.error("[admin/demand-sources DELETE]", err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }

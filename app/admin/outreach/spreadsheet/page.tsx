@@ -22,7 +22,9 @@ export default function AdminOutreachSpreadsheetPage() {
           Every demand source in one grid. Edits save to the record as you make
           them - this is the same data as the outreach page, not a copy of it.
           Removing a source means archiving it, which keeps its registrations,
-          tracked links and history.
+          tracked links and history; archived sources collapse into one line at
+          the foot of the grid. A super admin can delete an archived source for
+          good from there, which does not keep any of it.
         </p>
       </div>
 
