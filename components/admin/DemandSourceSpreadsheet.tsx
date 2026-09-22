@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import {
+  Fragment,
   useCallback,
   useEffect,
   useMemo,
@@ -16,6 +17,9 @@ import {
   ArrowLeft,
   ArrowUp,
   Check,
+  ChevronDown,
+  ChevronRight,
+  Copy,
   Download,
   Eye,
   Loader2,
@@ -72,6 +76,12 @@ interface Column {
   /** Sortable value; falls back to the display text. */
   sortBy?: (s: DemandSourceRow) => string | number;
   numeric?: boolean;
+  /**
+   * The cell opens a panel under the row instead of an editor. A source can
+   * carry any number of tracked links and the row has one line for them, so
+   * the extras have to live somewhere that is not the cell itself.
+   */
+  expands?: boolean;
 }
 
 const PLATFORM_OPTIONS = PLATFORMS as readonly { id: string; label: string }[];
@@ -277,11 +287,15 @@ const COLUMNS: Column[] = [
     sortBy: (s) => s.outreachCount,
   },
   {
+    // Sorts by how many links a source has, which is the question this column
+    // answers at a glance - sorting 22 sources by code text answers nothing.
     key: "sourceCodes",
-    label: "Codes",
-    width: 130,
+    label: "Links",
+    width: 140,
     kind: "readonly",
+    expands: true,
     text: (s) => s.links.map((l) => l.sourceCode).join(" "),
+    sortBy: (s) => s.links.length,
   },
   {
     key: "updatedAt",
@@ -366,6 +380,10 @@ export function DemandSourceSpreadsheet() {
 
   const cellRefs = useRef<Record<string, HTMLElement | null>>({});
   const [pendingFocus, setPendingFocus] = useState<string | null>(null);
+
+  // Which rows have their tracked links listed. Per row rather than one open at
+  // a time: comparing two sources' links is exactly why anyone opens them.
+  const [openLinks, setOpenLinks] = useState<Record<string, boolean>>({});
 
   const load = useCallback(async () => {
     if (!user) return;
@@ -744,8 +762,64 @@ export function DemandSourceSpreadsheet() {
   const cellClass =
     "block w-full h-full px-2 py-1.5 text-xs truncate outline-none focus:ring-2 focus:ring-inset focus:ring-primary/60 rounded-sm";
 
+  async function copy(text: string, label: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success(label);
+    } catch {
+      toast.error("Could not copy - check clipboard permissions");
+    }
+  }
+
+  /**
+   * The Links cell: the first code, how many more there are, and a toggle for
+   * the panel that lists them. It stays one line whatever the count, because a
+   * cell that grows with the number of links makes the whole row taller.
+   */
+  function renderLinksCell(source: DemandSourceRow) {
+    const count = source.links.length;
+    if (count === 0) {
+      return (
+        <span className={cn(cellClass, "text-muted-foreground/50")}>no links</span>
+      );
+    }
+
+    const open = openLinks[source.id] === true;
+    const extra = count - 1;
+    return (
+      <button
+        type="button"
+        onClick={() =>
+          setOpenLinks((prev) => ({ ...prev, [source.id]: !open }))
+        }
+        aria-expanded={open}
+        aria-controls={`links-${source.id}`}
+        aria-label={
+          count === 1
+            ? `Show the tracked link for ${source.sourceName}`
+            : `Show all ${count} tracked links for ${source.sourceName}`
+        }
+        // Not cellClass: that lays a cell out as a block, and this one has to
+        // keep a chevron, a code and a count on one line.
+        className="flex w-full h-full items-center gap-1 px-2 py-1.5 rounded-sm text-xs text-left text-muted-foreground hover:bg-muted/60 outline-none focus:ring-2 focus:ring-inset focus:ring-primary/60"
+      >
+        {open ? (
+          <ChevronDown className="w-3 h-3 shrink-0" />
+        ) : (
+          <ChevronRight className="w-3 h-3 shrink-0" />
+        )}
+        <code className="font-mono truncate min-w-0">
+          {source.links[0].sourceCode}
+        </code>
+        {extra > 0 && <span className="shrink-0 tabular-nums">+{extra}</span>}
+      </button>
+    );
+  }
+
   function renderCell(source: DemandSourceRow, column: Column) {
     const text = column.text(source);
+
+    if (column.expands) return renderLinksCell(source);
 
     if (column.kind === "readonly") {
       return (
@@ -1071,84 +1145,141 @@ export function DemandSourceSpreadsheet() {
                 const state = rowState[source.id];
                 const archived = source.status === "archived";
                 // Built by the server from this deployment's origin, so the
-                // preview opens the same URL that gets posted.
+                // preview opens the same URL that gets posted. This one is the
+                // first link; every other link has its own preview in the panel.
                 const trackedUrl = source.links[0]?.trackedUrl ?? "";
                 return (
-                  <tr
-                    key={source.id}
-                    className={cn(
-                      "border-b border-border/50 hover:bg-muted/30",
-                      archived && "opacity-60"
-                    )}
-                  >
-                    <td className="sticky left-0 z-10 bg-card border-r border-border px-1 py-1">
-                      <div className="flex items-center gap-0.5">
-                        {state === "saving" ? (
-                          <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground shrink-0" />
-                        ) : state === "saved" ? (
-                          <Check className="w-3.5 h-3.5 text-primary shrink-0" />
-                        ) : state === "error" ? (
-                          <AlertCircle className="w-3.5 h-3.5 text-destructive shrink-0" />
-                        ) : (
-                          <span className="w-3.5 shrink-0" />
-                        )}
-                        <button
-                          type="button"
-                          onClick={() =>
-                            archived ? void unarchive(source) : void archive(source)
-                          }
-                          aria-label={
-                            archived
-                              ? `Restore ${source.sourceName} to its previous status`
-                              : `Archive ${source.sourceName} - keeps registrations, links and history`
-                          }
-                          className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
-                        >
-                          {archived ? (
-                            <ArchiveRestore className="w-3.5 h-3.5" />
+                  <Fragment key={source.id}>
+                    <tr
+                      className={cn(
+                        "border-b border-border/50 hover:bg-muted/30",
+                        archived && "opacity-60"
+                      )}
+                    >
+                      <td className="sticky left-0 z-10 bg-card border-r border-border px-1 py-1">
+                        <div className="flex items-center gap-0.5">
+                          {state === "saving" ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground shrink-0" />
+                          ) : state === "saved" ? (
+                            <Check className="w-3.5 h-3.5 text-primary shrink-0" />
+                          ) : state === "error" ? (
+                            <AlertCircle className="w-3.5 h-3.5 text-destructive shrink-0" />
                           ) : (
-                            <Trash2 className="w-3.5 h-3.5" />
+                            <span className="w-3.5 shrink-0" />
                           )}
-                        </button>
-                        <RowWaitlistImageButton source={source} onSaved={load} />
-                        {trackedUrl ? (
-                          // A real link, not a window.open: middle-click and
-                          // ctrl-click work, and it opens the actual waitlist
-                          // route rather than any spreadsheet-only rendering of
-                          // it, so what loads is what a visitor would get.
-                          <a
-                            href={trackedUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            title="Preview waitlist"
-                            aria-label={`Preview the waitlist page for ${source.sourceName}`}
-                            className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground shrink-0"
+                          <button
+                            type="button"
+                            onClick={() =>
+                              archived ? void unarchive(source) : void archive(source)
+                            }
+                            aria-label={
+                              archived
+                                ? `Restore ${source.sourceName} to its previous status`
+                                : `Archive ${source.sourceName} - keeps registrations, links and history`
+                            }
+                            className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
                           >
-                            <Eye className="w-3.5 h-3.5" />
-                          </a>
-                        ) : (
-                          <span
-                            aria-label="No tracked link to preview"
-                            className="p-1 text-muted-foreground/30 shrink-0"
-                          >
-                            <Eye className="w-3.5 h-3.5" />
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    {COLUMNS.map((column, index) => (
-                      <td
-                        key={column.key}
-                        style={index === 0 ? { left: ACTIONS_WIDTH } : undefined}
-                        className={cn(
-                          "border-r border-border/40 p-0 align-middle",
-                          index === 0 && "sticky z-10 bg-card border-r-border"
-                        )}
-                      >
-                        {renderCell(source, column)}
+                            {archived ? (
+                              <ArchiveRestore className="w-3.5 h-3.5" />
+                            ) : (
+                              <Trash2 className="w-3.5 h-3.5" />
+                            )}
+                          </button>
+                          <RowWaitlistImageButton source={source} onSaved={load} />
+                          {trackedUrl ? (
+                            // A real link, not a window.open: middle-click and
+                            // ctrl-click work, and it opens the actual waitlist
+                            // route rather than any spreadsheet-only rendering of
+                            // it, so what loads is what a visitor would get.
+                            <a
+                              href={trackedUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title="Preview waitlist"
+                              aria-label={`Preview the waitlist page for ${source.sourceName}`}
+                              className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground shrink-0"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                            </a>
+                          ) : (
+                            <span
+                              aria-label="No tracked link to preview"
+                              className="p-1 text-muted-foreground/30 shrink-0"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                            </span>
+                          )}
+                        </div>
                       </td>
-                    ))}
-                  </tr>
+                      {COLUMNS.map((column, index) => (
+                        <td
+                          key={column.key}
+                          style={index === 0 ? { left: ACTIONS_WIDTH } : undefined}
+                          className={cn(
+                            "border-r border-border/40 p-0 align-middle",
+                            index === 0 && "sticky z-10 bg-card border-r-border"
+                          )}
+                        >
+                          {renderCell(source, column)}
+                        </td>
+                      ))}
+                    </tr>
+                    {openLinks[source.id] === true && source.links.length > 0 && (
+                      <tr className="border-b border-border/50 bg-muted/20">
+                        {/* Spans the grid, and its contents are pinned to the
+                            left edge: a panel that scrolled away with column 20
+                            would be unreadable on a table this wide. */}
+                        <td colSpan={COLUMNS.length + 1} className="p-0">
+                          <div
+                            id={`links-${source.id}`}
+                            className="sticky left-0 w-[760px] max-w-full px-3 py-2 space-y-1"
+                          >
+                            {source.links.map((link) => (
+                              <div
+                                key={link.id}
+                                className="flex flex-wrap items-center gap-2 rounded-md border border-border/50 bg-background px-2 py-1.5"
+                              >
+                                <code className="font-mono text-xs text-foreground">
+                                  {link.sourceCode}
+                                </code>
+                                <span className="text-xs text-muted-foreground truncate max-w-[200px]">
+                                  {link.label || "Untitled link"}
+                                </span>
+                                {link.status !== "active" && (
+                                  <span className="text-[11px] uppercase tracking-wide text-muted-foreground border border-border/60 rounded px-1">
+                                    {link.status}
+                                  </span>
+                                )}
+                                <span className="text-xs text-muted-foreground tabular-nums ml-auto">
+                                  {link.uniqueVisitCount} unique · {link.signupCount}{" "}
+                                  joined · {link.shareClickCount} shares
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => void copy(link.trackedUrl, "Link copied")}
+                                  aria-label={`Copy the tracked link ${link.sourceCode}`}
+                                  title="Copy link"
+                                  className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground shrink-0"
+                                >
+                                  <Copy className="w-3.5 h-3.5" />
+                                </button>
+                                <a
+                                  href={link.trackedUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  aria-label={`Preview the waitlist page for ${link.sourceCode}`}
+                                  title="Preview waitlist"
+                                  className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground shrink-0"
+                                >
+                                  <Eye className="w-3.5 h-3.5" />
+                                </a>
+                              </div>
+                            ))}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 );
               })}
             </tbody>
