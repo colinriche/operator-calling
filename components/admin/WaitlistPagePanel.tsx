@@ -349,6 +349,7 @@ export function WaitlistPagePanel({ source, onSaved }: Props) {
           baseChoice={imageChoice}
           platformId={source.platformId}
           ownImageUrl={mode === "family" ? source.heroImageUrl : null}
+          mode={mode}
         />
       </div>
 

@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { BUILTIN_CARDS } from "@/lib/waitlist/builtin-card-data";
+import { builtinImage, WHATSAPP_DEFAULT_IMAGE_CHOICE } from "@/lib/waitlist/builtin-images";
 import {
+  builtInNetworkImageChoice,
   EMPTY_WAITLIST_DEFAULTS,
   sanitiseDefaults,
   sanitiseSocialImages,
@@ -57,10 +60,12 @@ describe("recognising a preview fetcher", () => {
 });
 
 describe("per-network pictures", () => {
+  // WhatsApp is the exception throughout this file: it has a picture of its
+  // own before anybody chooses one. See "WhatsApp's own picture" below.
   it("uses the page's picture on every network until one is chosen", () => {
     const context = contextFor({ imageChoice: "art:cards" });
     const page = buildWaitlistPresentation(context);
-    for (const network of ["facebook", "whatsapp", "x"] as const) {
+    for (const network of ["facebook", "x", "reddit"] as const) {
       expect(buildWaitlistPresentation(context, network).hero.src).toBe(page.hero.src);
       expect(cardNetwork(context, network)).toBeNull();
     }
@@ -101,14 +106,15 @@ describe("per-network pictures", () => {
   it("applies the default's per-network picture to pages using the default", () => {
     const defaults = {
       ...EMPTY_WAITLIST_DEFAULTS,
-      socialImages: { whatsapp: "builtin:incoming-call" },
+      socialImages: { facebook: "builtin:incoming-call" },
     };
     const onDefault = globalContext(null, defaults);
-    expect(cardNetwork(onDefault, "whatsapp")).toBe("whatsapp");
+    expect(cardNetwork(onDefault, "facebook")).toBe("facebook");
 
-    // A page with its own picture keeps it on every network.
+    // A page with its own picture keeps it on every network that has not been
+    // given one of its own.
     const ownPicture = contextFor({ imageChoice: "art:cards" }, defaults);
-    expect(cardNetwork(ownPicture, "whatsapp")).toBeNull();
+    expect(cardNetwork(ownPicture, "facebook")).toBeNull();
   });
 
   it("ignores unknown networks and invalid choices", () => {
@@ -140,5 +146,100 @@ describe("per-network pictures", () => {
   it("offers the source's own platform first", () => {
     expect(suggestedNetworks("reddit")).toEqual(["reddit", "whatsapp", "facebook"]);
     expect(suggestedNetworks("email")).toEqual(["whatsapp", "facebook"]);
+  });
+});
+
+// ─── WhatsApp ────────────────────────────────────────────────────────────────
+//
+// The one network with a picture before anyone picks one: the call buttons,
+// everywhere except a family page. See WHATSAPP_DEFAULT_IMAGE_CHOICE.
+
+describe("WhatsApp's own picture", () => {
+  function familyContext(fields: PublicSourceFields = {}) {
+    return contextFor({
+      waitlistMode: "family",
+      familyName: "Okonjo",
+      connectionType: "existing_connections",
+      ...fields,
+    });
+  }
+
+  it("replaces the page's picture on a community page", () => {
+    const context = contextFor({ imageChoice: "art:cards" });
+    const whatsapp = buildWaitlistPresentation(context, "whatsapp");
+
+    expect(whatsapp.hero.kind === "builtin" && whatsapp.hero.builtinId).toBe("call-buttons");
+    expect(cardNetwork(context, "whatsapp")).toBe("whatsapp");
+    // The page, and every other network, are untouched.
+    expect(buildWaitlistPresentation(context).hero.kind).toBe("art");
+    expect(cardNetwork(context, "facebook")).toBeNull();
+  });
+
+  it("replaces the default picture on a global page", () => {
+    const context = globalContext(null);
+    const whatsapp = buildWaitlistPresentation(context, "whatsapp");
+
+    expect(whatsapp.hero.kind === "builtin" && whatsapp.hero.builtinId).toBe("call-buttons");
+    expect(cardNetwork(context, "whatsapp")).toBe("whatsapp");
+  });
+
+  it("leaves a family page alone", () => {
+    const withPhoto = familyContext({ heroImageUrl: "https://example.com/okonjos.jpg" });
+    expect(buildWaitlistPresentation(withPhoto, "whatsapp").hero.src).toBe(
+      "https://example.com/okonjos.jpg"
+    );
+    expect(cardNetwork(withPhoto, "whatsapp")).toBeNull();
+
+    // Including a family that has not uploaded one, which shows the default.
+    const noPhoto = familyContext();
+    const page = buildWaitlistPresentation(noPhoto);
+    expect(buildWaitlistPresentation(noPhoto, "whatsapp").hero.src).toBe(page.hero.src);
+    expect(cardNetwork(noPhoto, "whatsapp")).toBeNull();
+  });
+
+  it("gives way to a picture chosen for WhatsApp on the source", () => {
+    const context = contextFor({
+      imageChoice: "art:cards",
+      socialImages: { whatsapp: "builtin:incoming-call" },
+    });
+    const whatsapp = buildWaitlistPresentation(context, "whatsapp");
+    expect(whatsapp.hero.kind === "builtin" && whatsapp.hero.builtinId).toBe("incoming-call");
+  });
+
+  it("gives way to a WhatsApp picture on the site-wide defaults", () => {
+    const context = contextFor(
+      { imageChoice: "art:cards" },
+      { ...EMPTY_WAITLIST_DEFAULTS, socialImages: { whatsapp: "builtin:incoming-call" } }
+    );
+    const whatsapp = buildWaitlistPresentation(context, "whatsapp");
+    expect(whatsapp.hero.kind === "builtin" && whatsapp.hero.builtinId).toBe("incoming-call");
+  });
+
+  it("steps aside when WhatsApp is set to the default", () => {
+    // "default" on a network means the default as it applies to that network,
+    // and is the way to ask for the default rather than the built-in picture.
+    const context = contextFor(
+      { imageChoice: "art:cards", socialImages: { whatsapp: "default" } },
+      { ...EMPTY_WAITLIST_DEFAULTS, imageChoice: "builtin:incoming-call" }
+    );
+    const whatsapp = buildWaitlistPresentation(context, "whatsapp");
+    expect(whatsapp.hero.kind === "builtin" && whatsapp.hero.builtinId).toBe("incoming-call");
+  });
+
+  it("ships a card strip for the picture it points at", () => {
+    const choice = builtInNetworkImageChoice("whatsapp", "community");
+    expect(choice).toBe(WHATSAPP_DEFAULT_IMAGE_CHOICE);
+    const id = choice.slice("builtin:".length);
+    expect(builtinImage(id)).not.toBeNull();
+    expect(BUILTIN_CARDS[id]?.startsWith("data:image/png;base64,")).toBe(true);
+  });
+
+  it("has nothing to say about any other network", () => {
+    for (const network of ["facebook", "x", "linkedin", "reddit", "discord", "telegram", "slack"] as const) {
+      expect(builtInNetworkImageChoice(network, "community")).toBe("");
+    }
+    expect(builtInNetworkImageChoice("whatsapp", "family")).toBe("");
+    // The site-wide defaults have no mode of their own.
+    expect(builtInNetworkImageChoice("whatsapp", null)).toBe(WHATSAPP_DEFAULT_IMAGE_CHOICE);
   });
 });

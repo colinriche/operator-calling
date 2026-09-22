@@ -32,6 +32,7 @@
 // a source from; choosing one copies its text into the source, and later edits
 // to the template do not reach pages that already used it.
 
+import { WHATSAPP_DEFAULT_IMAGE_CHOICE } from "./builtin-images";
 import type { ConnectionType, WaitlistMode } from "./constants";
 
 // ─── Images ──────────────────────────────────────────────────────────────────
@@ -182,6 +183,26 @@ export function sameSocialImages(a: SocialImages, b: SocialImages): boolean {
 export function suggestedNetworks(platformId: string | null | undefined): SocialNetwork[] {
   const first = isSocialNetwork(platformId) ? [platformId] : [];
   return [...new Set<SocialNetwork>([...first, "whatsapp", "facebook"])];
+}
+
+/**
+ * The picture a network shows when nobody has chosen one for it, or "" when
+ * that is simply the page's picture.
+ *
+ * Only WhatsApp has one - see WHATSAPP_DEFAULT_IMAGE_CHOICE for why, and for
+ * why a family page is excluded. It lives here rather than in heroFor so the
+ * admin panel can label a network honestly: a WhatsApp tile that reads "same
+ * as the page" while the card says otherwise is worse than no tile at all.
+ *
+ * `mode` is null where the mode is not known - the site-wide defaults, which
+ * are not a page and have no mode of their own.
+ */
+export function builtInNetworkImageChoice(
+  network: SocialNetwork,
+  mode: WaitlistMode | null
+): string {
+  if (network !== "whatsapp" || mode === "family") return "";
+  return WHATSAPP_DEFAULT_IMAGE_CHOICE;
 }
 
 // ─── Wording ─────────────────────────────────────────────────────────────────

@@ -6,7 +6,9 @@ import { Button } from "@/components/ui/button";
 import { WaitlistImagePicker, describeImageChoice } from "@/components/admin/WaitlistImagePicker";
 import { useWaitlistLibrary } from "@/hooks/useWaitlistLibrary";
 import { cn } from "@/lib/utils";
+import type { WaitlistMode } from "@/lib/waitlist/constants";
 import {
+  builtInNetworkImageChoice,
   SOCIAL_NETWORKS,
   suggestedNetworks,
   type SocialImages,
@@ -35,6 +37,8 @@ interface Props {
   ownImageUrl?: string | null;
   /** Offer "Default" in the picker. Off for the defaults themselves. */
   allowDefault?: boolean;
+  /** This page's mode, or null for the site-wide defaults, which have none. */
+  mode?: WaitlistMode | null;
   disabled?: boolean;
 }
 
@@ -45,6 +49,7 @@ export function SocialImageOverrides({
   platformId = null,
   ownImageUrl = null,
   allowDefault = true,
+  mode = null,
   disabled = false,
 }: Props) {
   const { library } = useWaitlistLibrary();
@@ -59,6 +64,18 @@ export function SocialImageOverrides({
 
   const base = describeImageChoice(baseChoice, library, ownImageUrl);
 
+  /**
+   * What a network shows with nothing chosen for it. Usually the page's
+   * picture; WhatsApp ships with one of its own, so the tile has to say so
+   * rather than claiming the card matches the page when it does not.
+   */
+  function builtInFor(id: SocialNetwork) {
+    const choice = builtInNetworkImageChoice(id, mode);
+    return choice ? describeImageChoice(choice, library, ownImageUrl) : null;
+  }
+
+  const anyBuiltIn = shown.some((id) => builtInNetworkImageChoice(id, mode) !== "");
+
   function set(network: SocialNetwork, choice: string | null) {
     const next = { ...value };
     if (choice) next[network] = choice;
@@ -72,7 +89,9 @@ export function SocialImageOverrides({
     <div className="space-y-3">
       <p className="text-xs text-muted-foreground">
         {customised.length === 0
-          ? "Every network shows the page's picture. Pick a network to give it a different one."
+          ? anyBuiltIn
+            ? "Each network shows the page's picture unless it has one of its own. Pick a network to change it."
+            : "Every network shows the page's picture. Pick a network to give it a different one."
           : `${customised.length} network${customised.length === 1 ? " has its" : "s have their"} own picture; the rest show the page's.`}
       </p>
 
@@ -80,7 +99,8 @@ export function SocialImageOverrides({
         {shown.map((id) => {
           const network = SOCIAL_NETWORKS.find((n) => n.id === id)!;
           const own = value[id] ? describeImageChoice(value[id]!, library, ownImageUrl) : null;
-          const thumb = own ?? base;
+          const builtIn = own ? null : builtInFor(id);
+          const thumb = own ?? builtIn ?? base;
           return (
             <button
               key={id}
@@ -112,7 +132,7 @@ export function SocialImageOverrides({
               <span className="text-left leading-tight">
                 <span className="block font-medium text-foreground">{network.label}</span>
                 <span className="block text-[10px] text-muted-foreground">
-                  {own ? "Own picture" : "Same as page"}
+                  {own ? "Own picture" : builtIn ? "Built-in picture" : "Same as page"}
                 </span>
               </span>
             </button>
@@ -148,7 +168,9 @@ export function SocialImageOverrides({
               onClick={() => set(editingNetwork.id, null)}
             >
               {!value[editingNetwork.id] && <Check className="w-3.5 h-3.5" />}
-              Same as the page
+              {builtInNetworkImageChoice(editingNetwork.id, mode)
+                ? "Back to the built-in picture"
+                : "Same as the page"}
             </Button>
           </div>
           <WaitlistImagePicker

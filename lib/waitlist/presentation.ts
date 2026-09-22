@@ -34,6 +34,7 @@ import {
 } from "./copy";
 import { builtinImage, FALLBACK_DEFAULT_IMAGE_CHOICE } from "./builtin-images";
 import {
+  builtInNetworkImageChoice,
   EMPTY_WAITLIST_DEFAULTS,
   parseImageChoice,
   sanitiseSocialImages,
@@ -661,6 +662,11 @@ function heroFor(
       );
       if (hero) return hero;
     }
+
+    // Nothing chosen for this network, but a network can still have a picture
+    // of its own: WhatsApp does, on every page that is not a family's.
+    const builtIn = builtInNetworkHero(context, heading, network);
+    if (builtIn) return builtIn;
   }
 
   const chosen = parseImageChoice(context.imageChoice);
@@ -681,6 +687,39 @@ function heroFor(
   }
 
   return defaultHero(context, heading, network);
+}
+
+/**
+ * A network's own picture where the site gives it one, ahead of the page's.
+ *
+ * This is deliberately above the page's picture and below every choice an
+ * admin made. WhatsApp having its own card is the whole point - a rule that
+ * only applied to pages nobody had chosen a picture for would apply to almost
+ * nothing - but it is a default, and a WhatsApp picture somebody sat down and
+ * picked, on the source or on the site-wide defaults, is not a default.
+ */
+function builtInNetworkHero(
+  context: WaitlistContext,
+  heading: string,
+  network: SocialNetwork
+): WaitlistHero | null {
+  const choice = parseImageChoice(builtInNetworkImageChoice(network, context.mode));
+  if (!choice) return null;
+
+  // The defaults' own picture for this network first: setting one there is an
+  // instruction about this exact network, and outranks what ships with it.
+  const configured = parseImageChoice(context.defaults.socialImages[network]);
+  if (configured && configured.type !== "default" && configured.type !== "own") {
+    const hero = heroFromChoice(
+      configured,
+      context.defaults.socialImageUrls[network] ?? null,
+      context,
+      heading
+    );
+    if (hero) return hero;
+  }
+
+  return heroFromChoice(choice, null, context, heading);
 }
 
 function defaultHero(

@@ -282,6 +282,7 @@ export function RowWaitlistImageButton({ source, onSaved }: Props) {
               baseChoice={choice}
               platformId={source.platformId}
               ownImageUrl={mode === "family" ? source.heroImageUrl : null}
+              mode={mode}
               disabled={savingSocial}
             />
           </section>
