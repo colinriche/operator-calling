@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  ChevronDown,
+  ChevronRight,
   Copy,
   Download,
   ExternalLink,
@@ -60,6 +62,11 @@ import type { DemandSourceRow, SimilarSourceRow } from "@/lib/waitlist/types";
 // Adding a source here creates no Operator group. One is created automatically
 // when demand clears the threshold, then flagged for review - with its calls
 // off until a group admin is appointed and turns them on.
+//
+// Archived sources collapse into one line at the foot. They are kept, not
+// deleted, and this panel is the wrong place to work on them: archiving,
+// restoring and deleting all live on the spreadsheet, which is where a source
+// is removed in the first place.
 
 type SortKey =
   | "recent"
@@ -190,6 +197,9 @@ export function OutreachSourcesPanel() {
   const [savingTopicUrl, setSavingTopicUrl] = useState<string | null>(null);
   const [openOutreach, setOpenOutreach] = useState<string | null>(null);
   const [openPage, setOpenPage] = useState<string | null>(null);
+  // Archived sources are one line until asked for. Closed on every load: the
+  // point of the line is that a tidied source stops taking up the panel.
+  const [archivedOpen, setArchivedOpen] = useState(false);
   const [sourceThresholdDraft, setSourceThresholdDraft] = useState<
     Record<string, string>
   >({});
@@ -638,7 +648,15 @@ export function OutreachSourcesPanel() {
     }
   }
 
-  const visible = useMemo(() => {
+  /**
+   * The live sources, and the archived ones held back for the line at the foot.
+   *
+   * Archived is not a status you can reach from this panel - it is set on the
+   * spreadsheet - so before this there was no way to stop one taking up a card
+   * here for good. Split rather than dropped: they are still searchable, and
+   * still exported.
+   */
+  const { activeRows, archivedRows } = useMemo(() => {
     const q = query.trim().toLowerCase();
     const filtered = sources.filter((s) => {
       if (platformFilter !== "all" && s.platformId !== platformFilter) return false;
@@ -681,18 +699,672 @@ export function OutreachSourcesPanel() {
           return (b.createdAt ?? "").localeCompare(a.createdAt ?? "");
       }
     });
-    return sorted;
+    return {
+      activeRows: sorted.filter((s) => s.status !== "archived"),
+      archivedRows: sorted.filter((s) => s.status === "archived"),
+    };
   }, [sources, query, sort, platformFilter]);
+
+  /** Everything on screen, in the order it appears. */
+  const visible = useMemo(
+    () => [...activeRows, ...archivedRows],
+    [activeRows, archivedRows]
+  );
+
+  const archivedRegistrations = archivedRows.reduce(
+    (total, s) => total + s.uniqueRegistrationCount,
+    0
+  );
 
   // Only sources still awaiting a decision. thresholdReachedAt stays stamped
   // after review as a historical fact, so filtering on it alone would leave the
   // banner up forever once a group had been created.
+  // Archived sources are left out: a source that cleared the threshold and was
+  // then archived is a decision already taken, and naming it here would be the
+  // banner asking for a review of something deliberately put away.
   const thresholdReached = sources.filter(
-    (s) => s.thresholdReachedAt && !s.groupId
+    (s) => s.thresholdReachedAt && !s.groupId && s.status !== "archived"
   );
 
   const inputClass =
     "w-full h-10 px-3 rounded-lg border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40";
+
+  /**
+   * One source's card.
+   *
+   * A function rather than the map's body: the same card is rendered above
+   * the archived line and under it once it is opened, and two copies of six
+   * hundred lines would drift apart within a week.
+   */
+  function renderSource(source: DemandSourceRow) {
+    // Progress tracks the count the threshold is actually judged on.
+    const registrationCount = source.uniqueRegistrationCount;
+    const pct =
+      source.effectiveThreshold > 0
+        ? Math.min(
+            100,
+            Math.round((registrationCount / source.effectiveThreshold) * 100)
+          )
+        : 0;
+    const statusLabel =
+      DEMAND_STATUSES.find((s) => s.id === source.status)?.label ?? source.status;
+    const relLabel =
+      RELATIONSHIP_STATUSES.find((r) => r.id === source.relationshipStatus)
+        ?.label ?? source.relationshipStatus;
+
+    return (
+      <div
+        key={source.id}
+        className="rounded-xl border border-border/60 bg-card p-5 space-y-4"
+      >
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2 mb-1">
+              <h3 className="font-heading font-semibold text-base text-foreground">
+                {source.sourceName}
+              </h3>
+              <Badge variant="outline" className="text-xs">
+                {platformLabel(source.platformId)}
+              </Badge>
+              <Badge
+                variant={source.thresholdReachedAt ? "default" : "secondary"}
+                className="text-xs"
+              >
+                {statusLabel}
+              </Badge>
+              <Badge
+                variant="outline"
+                className={cn(
+                  "text-xs",
+                  source.relationshipStatus === "unverified" &&
+                    "text-muted-foreground"
+                )}
+              >
+                {relLabel}
+              </Badge>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              {source.topicName || "No topic recorded"}
+              {source.publicAudienceLabel && (
+                <>
+                  {" · public label: "}
+                  <span className="text-foreground">
+                    {source.publicAudienceLabel}
+                  </span>
+                </>
+              )}
+            </p>
+          </div>
+
+          <div className="flex gap-2 shrink-0">
+            {source.sourceUrl && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => window.open(source.sourceUrl, "_blank", "noopener")}
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                Open source
+              </Button>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void addLink(source.id)}
+            >
+              <Link2 className="w-3.5 h-3.5" />
+              New link
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void toggleRegistrations(source.id)}
+            >
+              <UsersRound className="w-3.5 h-3.5" />
+              {openRegistrations === source.id ? "Hide" : "Registrations"}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                setOpenPage((cur) => (cur === source.id ? null : source.id))
+              }
+            >
+              <LayoutTemplate className="w-3.5 h-3.5" />
+              {openPage === source.id ? "Hide" : "Waitlist page"}
+            </Button>
+            <Button
+              variant={
+                source.status === "do_not_contact" ? "outline" : "outline"
+              }
+              size="sm"
+              onClick={() =>
+                setOpenOutreach((cur) =>
+                  cur === source.id ? null : source.id
+                )
+              }
+            >
+              <MessageSquare className="w-3.5 h-3.5" />
+              {openOutreach === source.id ? "Hide" : "Outreach"}
+            </Button>
+            {!source.groupId && (
+              <Button
+                variant={source.thresholdReachedAt ? "default" : "outline"}
+                size="sm"
+                onClick={() => void toggleReview(source)}
+              >
+                <GitBranch className="w-3.5 h-3.5" />
+                {openReview === source.id ? "Cancel" : "Review demand"}
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* Demand */}
+        <div>
+          <div className="flex flex-wrap justify-between gap-2 text-xs text-muted-foreground mb-1.5">
+            <span>
+              {registrationCount} of {source.effectiveThreshold} registrations
+              {source.demandThreshold === null && " (global default)"}
+            </span>
+            <span className="flex items-center gap-1.5">
+              <label htmlFor={`threshold-${source.id}`} className="sr-only">
+                Threshold override for {source.sourceName}
+              </label>
+              <input
+                id={`threshold-${source.id}`}
+                type="number"
+                min={1}
+                placeholder={String(globalThreshold)}
+                value={
+                  sourceThresholdDraft[source.id] ??
+                  (source.demandThreshold === null
+                    ? ""
+                    : String(source.demandThreshold))
+                }
+                onChange={(e) =>
+                  setSourceThresholdDraft((prev) => ({
+                    ...prev,
+                    [source.id]: e.target.value,
+                  }))
+                }
+                className="h-7 w-16 px-2 rounded-md border border-border bg-background text-xs"
+              />
+              {sourceThresholdDraft[source.id] !== undefined && (
+                <button
+                  type="button"
+                  className="text-primary underline underline-offset-2"
+                  onClick={() =>
+                    void saveSourceThreshold(
+                      source.id,
+                      sourceThresholdDraft[source.id]
+                    )
+                  }
+                >
+                  Save
+                </button>
+              )}
+              <span>{pct}%</span>
+            </span>
+          </div>
+          <Progress value={pct} className="h-2" />
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-6 gap-3 text-sm">
+          {[
+            { label: "Visits", value: source.totalVisitCount },
+            { label: "Unique", value: source.uniqueVisitCount },
+            { label: "Registrations", value: registrationCount },
+            { label: "Testers", value: source.testerCount },
+            { label: "Organisers", value: source.organiserInterestCount },
+            {
+              label: "Conversion",
+              value: `${Math.round(source.conversionRate * 100)}%`,
+            },
+          ].map((stat) => (
+            <div key={stat.label}>
+              <p className="text-xs text-muted-foreground">{stat.label}</p>
+              <p className="font-heading font-semibold text-foreground">
+                {stat.value}
+              </p>
+            </div>
+          ))}
+        </div>
+
+        {/* Tracked links */}
+        <div className="space-y-2 pt-1">
+          {/* Only offered where there is a topic to put in the URL. */}
+          {topicSlug(source.topicName) && (
+            <label className="flex items-center gap-2 text-xs text-muted-foreground">
+              <input
+                type="checkbox"
+                checked={source.includeTopicInUrl}
+                disabled={savingTopicUrl === source.id}
+                onChange={(e) =>
+                  void toggleTopicInUrl(source.id, e.target.checked)
+                }
+                className="w-4 h-4 shrink-0 rounded border-border accent-primary"
+              />
+              Include the topic in these links -{" "}
+              <code className="font-mono">
+                &amp;t={topicSlug(source.topicName)}
+              </code>
+            </label>
+          )}
+          {source.links.length === 0 && (
+            <p className="text-xs text-muted-foreground">
+              No tracked links yet.
+            </p>
+          )}
+          {source.links.map((link) => (
+            <div
+              key={link.id}
+              className="flex flex-wrap items-center gap-2 rounded-lg border border-border/60 bg-background px-3 py-2"
+            >
+              <code className="text-xs font-mono text-foreground">
+                {link.sourceCode}
+              </code>
+              <span className="text-xs text-muted-foreground truncate max-w-[220px]">
+                {link.label}
+              </span>
+              <span className="text-xs text-muted-foreground ml-auto">
+                {link.uniqueVisitCount} unique · {link.signupCount} joined ·{" "}
+                {link.shareClickCount} shares
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => void copy(link.trackedUrl, "Link copied")}
+              >
+                <Copy className="w-3.5 h-3.5" />
+                Copy
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() =>
+                  window.open(
+                    `${link.trackedUrl}&preview=1`,
+                    "_blank",
+                    "noopener"
+                  )
+                }
+              >
+                Preview
+              </Button>
+            </div>
+          ))}
+        </div>
+
+        {openPage === source.id && (
+          <WaitlistPagePanel source={source} onSaved={load} />
+        )}
+
+        {source.groupId && (
+          <div className="border-t border-border/60 pt-3 space-y-1.5">
+            <p className="text-xs text-muted-foreground flex flex-wrap items-center gap-1.5">
+              <GitBranch className="w-3.5 h-3.5 text-primary shrink-0" />
+              {source.autoCreatedGroupAt
+                ? "Group activated automatically"
+                : "Linked to group"}{" "}
+              <code className="font-mono text-foreground">
+                {source.groupId}
+              </code>
+            </p>
+            {/* Interest and membership are different things - a group can
+                open on 20 expressions of interest while only 2 of those
+                people have accounts yet. Showing one number would imply
+                20 callable members. */}
+            <p className="text-xs text-muted-foreground">
+              <strong className="text-foreground">
+                {registrationCount} interested
+              </strong>{" "}
+              ·{" "}
+              <strong className="text-foreground">
+                {source.activeMemberCount} active member
+                {source.activeMemberCount !== 1 ? "s" : ""}
+              </strong>{" "}
+              · {source.pendingMemberCount} awaiting an account, joined
+              automatically when they sign up
+            </p>
+            {/* Whether the group is actually calling is a different
+                question from whether it exists, and needs to be obvious
+                at a glance. */}
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <span
+                className={cn(
+                  "text-xs px-2 py-0.5 rounded-full border font-medium",
+                  source.callsEnabled
+                    ? "border-primary/40 bg-primary/10 text-foreground"
+                    : "border-border bg-muted/60 text-muted-foreground"
+                )}
+              >
+                {source.callsEnabled ? "Calls on" : "Calls paused"}
+              </span>
+              {!source.callsEnabled && source.callsPausedReason && (
+                <span className="text-xs text-muted-foreground">
+                  {source.callsPausedReason === "awaiting_group_admin"
+                    ? "awaiting group admin"
+                    : source.callsPausedReason === "admin_paused"
+                      ? "paused by an administrator"
+                      : "paused by the group admin"}
+                </span>
+              )}
+              {source.callsPausedReason === "awaiting_group_admin" && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void appointGroupAdmin(source.groupId!)}
+                >
+                  <UsersRound className="w-3.5 h-3.5" />
+                  Appoint group admin
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={togglingCalls === source.groupId}
+                onClick={() =>
+                  void toggleCalls(source.groupId!, !source.callsEnabled)
+                }
+              >
+                {togglingCalls === source.groupId && (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                )}
+                {source.callsEnabled ? "Turn calls off" : "Turn calls on"}
+              </Button>
+            </div>
+            {source.reviewRequiredAfterCreate && (
+              <p className="text-xs text-primary flex items-center gap-1.5">
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                Created without review - check the name and that it is not a
+                duplicate.
+              </p>
+            )}
+          </div>
+        )}
+
+        {openReview === source.id && (
+          <div className="border-t border-border/60 pt-4 space-y-4">
+            {loadingReview ? (
+              <p className="text-xs text-muted-foreground flex items-center gap-2">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                Checking for similar groups…
+              </p>
+            ) : review ? (
+              <>
+                {review.similar.length > 0 && (
+                  <div className="rounded-lg border border-primary/40 bg-primary/10 p-3">
+                    <p className="text-xs font-semibold text-foreground mb-2 flex items-center gap-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5 text-primary" />
+                      {review.similar.length} existing group
+                      {review.similar.length !== 1 ? "s" : ""} may already cover
+                      this audience
+                    </p>
+                    <ul className="space-y-1.5">
+                      {review.similar.map((s) => (
+                        <li
+                          key={s.id}
+                          className="text-xs text-muted-foreground flex flex-wrap gap-x-2"
+                        >
+                          <span className="text-foreground font-medium">
+                            {s.name}
+                          </span>
+                          <span>
+                            {s.memberCount} member
+                            {s.memberCount !== 1 ? "s" : ""}
+                          </span>
+                          <span>· {s.reason}</span>
+                          <button
+                            type="button"
+                            className="text-primary underline underline-offset-2"
+                            onClick={() => {
+                              setReviewMode("link");
+                              setLinkGroupId(s.id);
+                            }}
+                          >
+                            Link to this instead
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                <div className="flex gap-2">
+                  {(["create", "link"] as const).map((mode) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => setReviewMode(mode)}
+                      className={cn(
+                        "px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors",
+                        reviewMode === mode
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : "bg-background text-muted-foreground border-border hover:border-primary/40"
+                      )}
+                    >
+                      {mode === "create"
+                        ? "Create new group"
+                        : "Link existing group"}
+                    </button>
+                  ))}
+                </div>
+
+                {reviewMode === "create" ? (
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-foreground mb-1.5">
+                        Group name *
+                      </label>
+                      <input
+                        value={groupName}
+                        onChange={(e) => setGroupName(e.target.value)}
+                        className={inputClass}
+                      />
+                    </div>
+                    <div className="flex items-end pb-2">
+                      <label className="flex items-center gap-2 text-xs text-foreground">
+                        <input
+                          type="checkbox"
+                          checked={groupPrivate}
+                          onChange={(e) => setGroupPrivate(e.target.checked)}
+                          className="w-4 h-4 rounded border-border accent-primary"
+                        />
+                        Private group
+                      </label>
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="block text-xs font-medium text-foreground mb-1.5">
+                        Description
+                      </label>
+                      <textarea
+                        value={groupDescription}
+                        onChange={(e) => setGroupDescription(e.target.value)}
+                        rows={2}
+                        className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/40"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-xs font-medium text-foreground mb-1.5">
+                      Existing group
+                    </label>
+                    <select
+                      value={linkGroupId}
+                      onChange={(e) => setLinkGroupId(e.target.value)}
+                      className={inputClass}
+                    >
+                      <option value="">Select a group…</option>
+                      {review.groups.map((g) => (
+                        <option key={g.id} value={g.id}>
+                          {g.name} ({g.memberCount} member
+                          {g.memberCount !== 1 ? "s" : ""})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {reviewMode === "create" &&
+                  review.similar.some(
+                    (s) => s.score >= review.strongDuplicateScore
+                  ) && (
+                    <label className="flex items-start gap-2 text-xs text-foreground">
+                      <input
+                        type="checkbox"
+                        checked={acknowledgeDuplicates}
+                        onChange={(e) =>
+                          setAcknowledgeDuplicates(e.target.checked)
+                        }
+                        className="mt-0.5 w-4 h-4 shrink-0 rounded border-border accent-primary"
+                      />
+                      I&apos;ve checked the groups above and this is genuinely a
+                      different audience.
+                    </label>
+                  )}
+
+                <div className="flex items-center gap-3">
+                  <Button
+                    size="sm"
+                    disabled={
+                      savingGroup ||
+                      (reviewMode === "link"
+                        ? !linkGroupId
+                        : !groupName.trim())
+                    }
+                    onClick={() => void submitGroup(source.id)}
+                  >
+                    {savingGroup && (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    )}
+                    {reviewMode === "link"
+                      ? "Link this group"
+                      : "Create group"}
+                  </Button>
+                  <span className="text-xs text-muted-foreground">
+                    Group lands in the{" "}
+                    <code className="font-mono">{review.groupProject}</code>{" "}
+                    project
+                  </span>
+                </div>
+              </>
+            ) : null}
+          </div>
+        )}
+
+        {openOutreach === source.id && (
+          <div className="border-t border-border/60 pt-4">
+            <OutreachComposer
+              sourceId={source.id}
+              sourceName={source.sourceName}
+              doNotContact={source.status === "do_not_contact"}
+              postingRules={source.postingRules}
+              trackedUrl={source.links[0]?.trackedUrl ?? ""}
+              sourceCode={source.links[0]?.sourceCode ?? null}
+              lastPostedAt={source.lastPostedAt}
+            />
+          </div>
+        )}
+
+        {openRegistrations === source.id && (
+          <div className="border-t border-border/60 pt-3">
+            {loadingRegistrations ? (
+              <p className="text-xs text-muted-foreground flex items-center gap-2">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                Loading registrations…
+              </p>
+            ) : registrations.length === 0 ? (
+              <p className="text-xs text-muted-foreground">
+                No registrations yet.
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-left text-muted-foreground">
+                      <th className="pb-2 pr-3 font-medium">Email</th>
+                      <th className="pb-2 pr-3 font-medium">Name</th>
+                      <th className="pb-2 pr-3 font-medium">Country</th>
+                      <th className="pb-2 pr-3 font-medium">First language</th>
+                      <th className="pb-2 pr-3 font-medium">Tester</th>
+                      <th className="pb-2 pr-3 font-medium">Time zone</th>
+                      <th className="pb-2 pr-3 font-medium">Organiser</th>
+                      <th className="pb-2 pr-3 font-medium">Code</th>
+                      <th className="pb-2 font-medium">Joined</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {registrations.map((r) => (
+                      <tr key={r.id} className="border-t border-border/40">
+                        <td className="py-2 pr-3 text-foreground">{r.email}</td>
+                        <td className="py-2 pr-3 text-muted-foreground">
+                          {r.displayName || "-"}
+                        </td>
+                        <td className="py-2 pr-3 text-muted-foreground">
+                          {r.country ? countryName(r.country) : "-"}
+                        </td>
+                        <td className="py-2 pr-3 text-muted-foreground">
+                          {r.englishFirstLanguage
+                            ? "English"
+                            : r.firstLanguage
+                              ? languageName(r.firstLanguage)
+                              : "-"}
+                        </td>
+                        <td className="py-2 pr-3">
+                          {r.testerStatus === "none" ? (
+                            <span className="text-muted-foreground">-</span>
+                          ) : (
+                            <span
+                              title={
+                                r.testerConsentAt
+                                  ? `Consented ${new Date(r.testerConsentAt).toLocaleString()} (${r.testerConsentVersion ?? "unknown version"})`
+                                  : undefined
+                              }
+                              className={cn(
+                                "capitalize",
+                                r.testerStatus === "active"
+                                  ? "text-primary font-medium"
+                                  : "text-muted-foreground"
+                              )}
+                            >
+                              {r.testerStatus}
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-2 pr-3 text-muted-foreground">
+                          {r.timezone ?? "-"}
+                        </td>
+                        <td className="py-2 pr-3 text-muted-foreground">
+                          {r.interestedInOrganising ? "Yes" : "-"}
+                        </td>
+                        <td className="py-2 pr-3 font-mono text-muted-foreground">
+                          {r.sourceCode ?? "-"}
+                        </td>
+                        <td className="py-2 text-muted-foreground">
+                          {r.createdAt
+                            ? new Date(r.createdAt).toLocaleDateString()
+                            : "-"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {source.postingRules && (
+          <p className="text-xs text-muted-foreground border-t border-border/60 pt-3">
+            <span className="font-medium text-foreground">Posting rules:</span>{" "}
+            {source.postingRules}
+          </p>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -1102,635 +1774,49 @@ export function OutreachSourcesPanel() {
       )}
 
       <div className="space-y-3">
-        {visible.map((source) => {
-          // Progress tracks the count the threshold is actually judged on.
-          const registrationCount = source.uniqueRegistrationCount;
-          const pct =
-            source.effectiveThreshold > 0
-              ? Math.min(
-                  100,
-                  Math.round((registrationCount / source.effectiveThreshold) * 100)
-                )
-              : 0;
-          const statusLabel =
-            DEMAND_STATUSES.find((s) => s.id === source.status)?.label ?? source.status;
-          const relLabel =
-            RELATIONSHIP_STATUSES.find((r) => r.id === source.relationshipStatus)
-              ?.label ?? source.relationshipStatus;
+        {activeRows.map(renderSource)}
 
-          return (
-            <div
-              key={source.id}
-              className="rounded-xl border border-border/60 bg-card p-5 space-y-4"
-            >
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2 mb-1">
-                    <h3 className="font-heading font-semibold text-base text-foreground">
-                      {source.sourceName}
-                    </h3>
-                    <Badge variant="outline" className="text-xs">
-                      {platformLabel(source.platformId)}
-                    </Badge>
-                    <Badge
-                      variant={source.thresholdReachedAt ? "default" : "secondary"}
-                      className="text-xs"
-                    >
-                      {statusLabel}
-                    </Badge>
-                    <Badge
-                      variant="outline"
-                      className={cn(
-                        "text-xs",
-                        source.relationshipStatus === "unverified" &&
-                          "text-muted-foreground"
-                      )}
-                    >
-                      {relLabel}
-                    </Badge>
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    {source.topicName || "No topic recorded"}
-                    {source.publicAudienceLabel && (
-                      <>
-                        {" · public label: "}
-                        <span className="text-foreground">
-                          {source.publicAudienceLabel}
-                        </span>
-                      </>
-                    )}
-                  </p>
-                </div>
-
-                <div className="flex gap-2 shrink-0">
-                  {source.sourceUrl && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => window.open(source.sourceUrl, "_blank", "noopener")}
-                    >
-                      <ExternalLink className="w-3.5 h-3.5" />
-                      Open source
-                    </Button>
-                  )}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => void addLink(source.id)}
-                  >
-                    <Link2 className="w-3.5 h-3.5" />
-                    New link
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => void toggleRegistrations(source.id)}
-                  >
-                    <UsersRound className="w-3.5 h-3.5" />
-                    {openRegistrations === source.id ? "Hide" : "Registrations"}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() =>
-                      setOpenPage((cur) => (cur === source.id ? null : source.id))
-                    }
-                  >
-                    <LayoutTemplate className="w-3.5 h-3.5" />
-                    {openPage === source.id ? "Hide" : "Waitlist page"}
-                  </Button>
-                  <Button
-                    variant={
-                      source.status === "do_not_contact" ? "outline" : "outline"
-                    }
-                    size="sm"
-                    onClick={() =>
-                      setOpenOutreach((cur) =>
-                        cur === source.id ? null : source.id
-                      )
-                    }
-                  >
-                    <MessageSquare className="w-3.5 h-3.5" />
-                    {openOutreach === source.id ? "Hide" : "Outreach"}
-                  </Button>
-                  {!source.groupId && (
-                    <Button
-                      variant={source.thresholdReachedAt ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => void toggleReview(source)}
-                    >
-                      <GitBranch className="w-3.5 h-3.5" />
-                      {openReview === source.id ? "Cancel" : "Review demand"}
-                    </Button>
-                  )}
-                </div>
-              </div>
-
-              {/* Demand */}
-              <div>
-                <div className="flex flex-wrap justify-between gap-2 text-xs text-muted-foreground mb-1.5">
-                  <span>
-                    {registrationCount} of {source.effectiveThreshold} registrations
-                    {source.demandThreshold === null && " (global default)"}
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <label htmlFor={`threshold-${source.id}`} className="sr-only">
-                      Threshold override for {source.sourceName}
-                    </label>
-                    <input
-                      id={`threshold-${source.id}`}
-                      type="number"
-                      min={1}
-                      placeholder={String(globalThreshold)}
-                      value={
-                        sourceThresholdDraft[source.id] ??
-                        (source.demandThreshold === null
-                          ? ""
-                          : String(source.demandThreshold))
-                      }
-                      onChange={(e) =>
-                        setSourceThresholdDraft((prev) => ({
-                          ...prev,
-                          [source.id]: e.target.value,
-                        }))
-                      }
-                      className="h-7 w-16 px-2 rounded-md border border-border bg-background text-xs"
-                    />
-                    {sourceThresholdDraft[source.id] !== undefined && (
-                      <button
-                        type="button"
-                        className="text-primary underline underline-offset-2"
-                        onClick={() =>
-                          void saveSourceThreshold(
-                            source.id,
-                            sourceThresholdDraft[source.id]
-                          )
-                        }
-                      >
-                        Save
-                      </button>
-                    )}
-                    <span>{pct}%</span>
-                  </span>
-                </div>
-                <Progress value={pct} className="h-2" />
-              </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-6 gap-3 text-sm">
-                {[
-                  { label: "Visits", value: source.totalVisitCount },
-                  { label: "Unique", value: source.uniqueVisitCount },
-                  { label: "Registrations", value: registrationCount },
-                  { label: "Testers", value: source.testerCount },
-                  { label: "Organisers", value: source.organiserInterestCount },
-                  {
-                    label: "Conversion",
-                    value: `${Math.round(source.conversionRate * 100)}%`,
-                  },
-                ].map((stat) => (
-                  <div key={stat.label}>
-                    <p className="text-xs text-muted-foreground">{stat.label}</p>
-                    <p className="font-heading font-semibold text-foreground">
-                      {stat.value}
-                    </p>
-                  </div>
-                ))}
-              </div>
-
-              {/* Tracked links */}
-              <div className="space-y-2 pt-1">
-                {/* Only offered where there is a topic to put in the URL. */}
-                {topicSlug(source.topicName) && (
-                  <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <input
-                      type="checkbox"
-                      checked={source.includeTopicInUrl}
-                      disabled={savingTopicUrl === source.id}
-                      onChange={(e) =>
-                        void toggleTopicInUrl(source.id, e.target.checked)
-                      }
-                      className="w-4 h-4 shrink-0 rounded border-border accent-primary"
-                    />
-                    Include the topic in these links -{" "}
-                    <code className="font-mono">
-                      &amp;t={topicSlug(source.topicName)}
-                    </code>
-                  </label>
+        {/* Everything archived, as one line. Archiving happens on the
+            spreadsheet and is not undoable from here, so this says where to go
+            rather than pretending otherwise. */}
+        {archivedRows.length > 0 && (
+          <div className="rounded-xl border border-border/60 bg-muted/20">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-5 py-3">
+              <button
+                type="button"
+                onClick={() => setArchivedOpen((v) => !v)}
+                aria-expanded={archivedOpen}
+                className="flex items-center gap-1.5 text-sm font-medium text-foreground rounded px-1 py-0.5 hover:bg-muted"
+              >
+                {archivedOpen ? (
+                  <ChevronDown className="w-4 h-4" />
+                ) : (
+                  <ChevronRight className="w-4 h-4" />
                 )}
-                {source.links.length === 0 && (
-                  <p className="text-xs text-muted-foreground">
-                    No tracked links yet.
-                  </p>
-                )}
-                {source.links.map((link) => (
-                  <div
-                    key={link.id}
-                    className="flex flex-wrap items-center gap-2 rounded-lg border border-border/60 bg-background px-3 py-2"
-                  >
-                    <code className="text-xs font-mono text-foreground">
-                      {link.sourceCode}
-                    </code>
-                    <span className="text-xs text-muted-foreground truncate max-w-[220px]">
-                      {link.label}
-                    </span>
-                    <span className="text-xs text-muted-foreground ml-auto">
-                      {link.uniqueVisitCount} unique · {link.signupCount} joined ·{" "}
-                      {link.shareClickCount} shares
-                    </span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => void copy(link.trackedUrl, "Link copied")}
-                    >
-                      <Copy className="w-3.5 h-3.5" />
-                      Copy
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() =>
-                        window.open(
-                          `${link.trackedUrl}&preview=1`,
-                          "_blank",
-                          "noopener"
-                        )
-                      }
-                    >
-                      Preview
-                    </Button>
-                  </div>
-                ))}
-              </div>
+                {archivedRows.length} archived source
+                {archivedRows.length === 1 ? "" : "s"}
+              </button>
 
-              {openPage === source.id && (
-                <WaitlistPagePanel source={source} onSaved={load} />
-              )}
+              <span className="text-xs text-muted-foreground tabular-nums">
+                still holding {archivedRegistrations} registration
+                {archivedRegistrations === 1 ? "" : "s"}
+              </span>
 
-              {source.groupId && (
-                <div className="border-t border-border/60 pt-3 space-y-1.5">
-                  <p className="text-xs text-muted-foreground flex flex-wrap items-center gap-1.5">
-                    <GitBranch className="w-3.5 h-3.5 text-primary shrink-0" />
-                    {source.autoCreatedGroupAt
-                      ? "Group activated automatically"
-                      : "Linked to group"}{" "}
-                    <code className="font-mono text-foreground">
-                      {source.groupId}
-                    </code>
-                  </p>
-                  {/* Interest and membership are different things - a group can
-                      open on 20 expressions of interest while only 2 of those
-                      people have accounts yet. Showing one number would imply
-                      20 callable members. */}
-                  <p className="text-xs text-muted-foreground">
-                    <strong className="text-foreground">
-                      {registrationCount} interested
-                    </strong>{" "}
-                    ·{" "}
-                    <strong className="text-foreground">
-                      {source.activeMemberCount} active member
-                      {source.activeMemberCount !== 1 ? "s" : ""}
-                    </strong>{" "}
-                    · {source.pendingMemberCount} awaiting an account, joined
-                    automatically when they sign up
-                  </p>
-                  {/* Whether the group is actually calling is a different
-                      question from whether it exists, and needs to be obvious
-                      at a glance. */}
-                  <div className="flex flex-wrap items-center gap-2 pt-1">
-                    <span
-                      className={cn(
-                        "text-xs px-2 py-0.5 rounded-full border font-medium",
-                        source.callsEnabled
-                          ? "border-primary/40 bg-primary/10 text-foreground"
-                          : "border-border bg-muted/60 text-muted-foreground"
-                      )}
-                    >
-                      {source.callsEnabled ? "Calls on" : "Calls paused"}
-                    </span>
-                    {!source.callsEnabled && source.callsPausedReason && (
-                      <span className="text-xs text-muted-foreground">
-                        {source.callsPausedReason === "awaiting_group_admin"
-                          ? "awaiting group admin"
-                          : source.callsPausedReason === "admin_paused"
-                            ? "paused by an administrator"
-                            : "paused by the group admin"}
-                      </span>
-                    )}
-                    {source.callsPausedReason === "awaiting_group_admin" && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => void appointGroupAdmin(source.groupId!)}
-                      >
-                        <UsersRound className="w-3.5 h-3.5" />
-                        Appoint group admin
-                      </Button>
-                    )}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={togglingCalls === source.groupId}
-                      onClick={() =>
-                        void toggleCalls(source.groupId!, !source.callsEnabled)
-                      }
-                    >
-                      {togglingCalls === source.groupId && (
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      )}
-                      {source.callsEnabled ? "Turn calls off" : "Turn calls on"}
-                    </Button>
-                  </div>
-                  {source.reviewRequiredAfterCreate && (
-                    <p className="text-xs text-primary flex items-center gap-1.5">
-                      <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                      Created without review - check the name and that it is not a
-                      duplicate.
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {openReview === source.id && (
-                <div className="border-t border-border/60 pt-4 space-y-4">
-                  {loadingReview ? (
-                    <p className="text-xs text-muted-foreground flex items-center gap-2">
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      Checking for similar groups…
-                    </p>
-                  ) : review ? (
-                    <>
-                      {review.similar.length > 0 && (
-                        <div className="rounded-lg border border-primary/40 bg-primary/10 p-3">
-                          <p className="text-xs font-semibold text-foreground mb-2 flex items-center gap-1.5">
-                            <AlertTriangle className="w-3.5 h-3.5 text-primary" />
-                            {review.similar.length} existing group
-                            {review.similar.length !== 1 ? "s" : ""} may already cover
-                            this audience
-                          </p>
-                          <ul className="space-y-1.5">
-                            {review.similar.map((s) => (
-                              <li
-                                key={s.id}
-                                className="text-xs text-muted-foreground flex flex-wrap gap-x-2"
-                              >
-                                <span className="text-foreground font-medium">
-                                  {s.name}
-                                </span>
-                                <span>
-                                  {s.memberCount} member
-                                  {s.memberCount !== 1 ? "s" : ""}
-                                </span>
-                                <span>· {s.reason}</span>
-                                <button
-                                  type="button"
-                                  className="text-primary underline underline-offset-2"
-                                  onClick={() => {
-                                    setReviewMode("link");
-                                    setLinkGroupId(s.id);
-                                  }}
-                                >
-                                  Link to this instead
-                                </button>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-
-                      <div className="flex gap-2">
-                        {(["create", "link"] as const).map((mode) => (
-                          <button
-                            key={mode}
-                            type="button"
-                            onClick={() => setReviewMode(mode)}
-                            className={cn(
-                              "px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors",
-                              reviewMode === mode
-                                ? "bg-primary text-primary-foreground border-primary"
-                                : "bg-background text-muted-foreground border-border hover:border-primary/40"
-                            )}
-                          >
-                            {mode === "create"
-                              ? "Create new group"
-                              : "Link existing group"}
-                          </button>
-                        ))}
-                      </div>
-
-                      {reviewMode === "create" ? (
-                        <div className="grid sm:grid-cols-2 gap-3">
-                          <div>
-                            <label className="block text-xs font-medium text-foreground mb-1.5">
-                              Group name *
-                            </label>
-                            <input
-                              value={groupName}
-                              onChange={(e) => setGroupName(e.target.value)}
-                              className={inputClass}
-                            />
-                          </div>
-                          <div className="flex items-end pb-2">
-                            <label className="flex items-center gap-2 text-xs text-foreground">
-                              <input
-                                type="checkbox"
-                                checked={groupPrivate}
-                                onChange={(e) => setGroupPrivate(e.target.checked)}
-                                className="w-4 h-4 rounded border-border accent-primary"
-                              />
-                              Private group
-                            </label>
-                          </div>
-                          <div className="sm:col-span-2">
-                            <label className="block text-xs font-medium text-foreground mb-1.5">
-                              Description
-                            </label>
-                            <textarea
-                              value={groupDescription}
-                              onChange={(e) => setGroupDescription(e.target.value)}
-                              rows={2}
-                              className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/40"
-                            />
-                          </div>
-                        </div>
-                      ) : (
-                        <div>
-                          <label className="block text-xs font-medium text-foreground mb-1.5">
-                            Existing group
-                          </label>
-                          <select
-                            value={linkGroupId}
-                            onChange={(e) => setLinkGroupId(e.target.value)}
-                            className={inputClass}
-                          >
-                            <option value="">Select a group…</option>
-                            {review.groups.map((g) => (
-                              <option key={g.id} value={g.id}>
-                                {g.name} ({g.memberCount} member
-                                {g.memberCount !== 1 ? "s" : ""})
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      )}
-
-                      {reviewMode === "create" &&
-                        review.similar.some(
-                          (s) => s.score >= review.strongDuplicateScore
-                        ) && (
-                          <label className="flex items-start gap-2 text-xs text-foreground">
-                            <input
-                              type="checkbox"
-                              checked={acknowledgeDuplicates}
-                              onChange={(e) =>
-                                setAcknowledgeDuplicates(e.target.checked)
-                              }
-                              className="mt-0.5 w-4 h-4 shrink-0 rounded border-border accent-primary"
-                            />
-                            I&apos;ve checked the groups above and this is genuinely a
-                            different audience.
-                          </label>
-                        )}
-
-                      <div className="flex items-center gap-3">
-                        <Button
-                          size="sm"
-                          disabled={
-                            savingGroup ||
-                            (reviewMode === "link"
-                              ? !linkGroupId
-                              : !groupName.trim())
-                          }
-                          onClick={() => void submitGroup(source.id)}
-                        >
-                          {savingGroup && (
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                          )}
-                          {reviewMode === "link"
-                            ? "Link this group"
-                            : "Create group"}
-                        </Button>
-                        <span className="text-xs text-muted-foreground">
-                          Group lands in the{" "}
-                          <code className="font-mono">{review.groupProject}</code>{" "}
-                          project
-                        </span>
-                      </div>
-                    </>
-                  ) : null}
-                </div>
-              )}
-
-              {openOutreach === source.id && (
-                <div className="border-t border-border/60 pt-4">
-                  <OutreachComposer
-                    sourceId={source.id}
-                    sourceName={source.sourceName}
-                    doNotContact={source.status === "do_not_contact"}
-                    postingRules={source.postingRules}
-                    trackedUrl={source.links[0]?.trackedUrl ?? ""}
-                    sourceCode={source.links[0]?.sourceCode ?? null}
-                    lastPostedAt={source.lastPostedAt}
-                  />
-                </div>
-              )}
-
-              {openRegistrations === source.id && (
-                <div className="border-t border-border/60 pt-3">
-                  {loadingRegistrations ? (
-                    <p className="text-xs text-muted-foreground flex items-center gap-2">
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      Loading registrations…
-                    </p>
-                  ) : registrations.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">
-                      No registrations yet.
-                    </p>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-xs">
-                        <thead>
-                          <tr className="text-left text-muted-foreground">
-                            <th className="pb-2 pr-3 font-medium">Email</th>
-                            <th className="pb-2 pr-3 font-medium">Name</th>
-                            <th className="pb-2 pr-3 font-medium">Country</th>
-                            <th className="pb-2 pr-3 font-medium">First language</th>
-                            <th className="pb-2 pr-3 font-medium">Tester</th>
-                            <th className="pb-2 pr-3 font-medium">Time zone</th>
-                            <th className="pb-2 pr-3 font-medium">Organiser</th>
-                            <th className="pb-2 pr-3 font-medium">Code</th>
-                            <th className="pb-2 font-medium">Joined</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {registrations.map((r) => (
-                            <tr key={r.id} className="border-t border-border/40">
-                              <td className="py-2 pr-3 text-foreground">{r.email}</td>
-                              <td className="py-2 pr-3 text-muted-foreground">
-                                {r.displayName || "-"}
-                              </td>
-                              <td className="py-2 pr-3 text-muted-foreground">
-                                {r.country ? countryName(r.country) : "-"}
-                              </td>
-                              <td className="py-2 pr-3 text-muted-foreground">
-                                {r.englishFirstLanguage
-                                  ? "English"
-                                  : r.firstLanguage
-                                    ? languageName(r.firstLanguage)
-                                    : "-"}
-                              </td>
-                              <td className="py-2 pr-3">
-                                {r.testerStatus === "none" ? (
-                                  <span className="text-muted-foreground">-</span>
-                                ) : (
-                                  <span
-                                    title={
-                                      r.testerConsentAt
-                                        ? `Consented ${new Date(r.testerConsentAt).toLocaleString()} (${r.testerConsentVersion ?? "unknown version"})`
-                                        : undefined
-                                    }
-                                    className={cn(
-                                      "capitalize",
-                                      r.testerStatus === "active"
-                                        ? "text-primary font-medium"
-                                        : "text-muted-foreground"
-                                    )}
-                                  >
-                                    {r.testerStatus}
-                                  </span>
-                                )}
-                              </td>
-                              <td className="py-2 pr-3 text-muted-foreground">
-                                {r.timezone ?? "-"}
-                              </td>
-                              <td className="py-2 pr-3 text-muted-foreground">
-                                {r.interestedInOrganising ? "Yes" : "-"}
-                              </td>
-                              <td className="py-2 pr-3 font-mono text-muted-foreground">
-                                {r.sourceCode ?? "-"}
-                              </td>
-                              <td className="py-2 text-muted-foreground">
-                                {r.createdAt
-                                  ? new Date(r.createdAt).toLocaleDateString()
-                                  : "-"}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {source.postingRules && (
-                <p className="text-xs text-muted-foreground border-t border-border/60 pt-3">
-                  <span className="font-medium text-foreground">Posting rules:</span>{" "}
-                  {source.postingRules}
-                </p>
-              )}
+              <Link
+                href="/admin/outreach/spreadsheet"
+                className="ml-auto text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
+              >
+                Restore or delete on the spreadsheet
+              </Link>
             </div>
-          );
-        })}
+
+            {archivedOpen && (
+              <div className="space-y-3 px-3 pb-3">
+                {archivedRows.map(renderSource)}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
