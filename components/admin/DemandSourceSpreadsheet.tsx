@@ -45,6 +45,11 @@ import {
 import { csvFilename, demandSourcesToCsv, downloadCsv } from "@/lib/waitlist/csv";
 import { DuplicateSourceWarning } from "@/components/admin/DuplicateSourceWarning";
 import { RowWaitlistImageButton } from "@/components/admin/RowWaitlistImageButton";
+import {
+  applySourceUrlInference,
+  inferSourceFromUrl,
+  type SourceUrlInferenceKey,
+} from "@/lib/waitlist/parse-source-url";
 import type { DemandSourceRow, SimilarSourceRow } from "@/lib/waitlist/types";
 
 // ─── Demand sources, as a spreadsheet ────────────────────────────────────────
@@ -370,6 +375,9 @@ export function DemandSourceSpreadsheet() {
 
   const [adding, setAdding] = useState(false);
   const [newRow, setNewRow] = useState<Record<string, string>>({ ...BLANK_DRAFT });
+  const [lockedNewFields, setLockedNewFields] = useState<Set<SourceUrlInferenceKey>>(
+    () => new Set()
+  );
   const [creating, setCreating] = useState(false);
 
   // Refused as a duplicate. `pendingEdit` is the change that was refused, kept
@@ -672,6 +680,34 @@ export function DemandSourceSpreadsheet() {
 
   // ─── Create ───────────────────────────────────────────────────────────────
 
+  function lockNewField(key: SourceUrlInferenceKey) {
+    setLockedNewFields((prev) => {
+      if (prev.has(key)) return prev;
+      const next = new Set(prev);
+      next.add(key);
+      return next;
+    });
+  }
+
+  function updateNewRowField(key: string, value: string) {
+    if (key === "sourceName" || key === "platformId" || key === "sourceType") {
+      lockNewField(key);
+    }
+    if (key === "sourceUrl") {
+      setNewRow((prev) =>
+        applySourceUrlInference(
+          { ...prev, sourceUrl: value },
+          inferSourceFromUrl(value),
+          lockedNewFields
+        )
+      );
+      setDuplicates([]);
+      return;
+    }
+    setNewRow((prev) => ({ ...prev, [key]: value }));
+    setDuplicates([]);
+  }
+
   async function createRow(acknowledge = false) {
     if (!user) return;
     if (!newRow.sourceName.trim()) {
@@ -708,6 +744,7 @@ export function DemandSourceSpreadsheet() {
       setDuplicateNotice(true);
       setDuplicates(data.similar ?? []);
       setNewRow({ ...BLANK_DRAFT });
+      setLockedNewFields(new Set());
       setAdding(false);
       toast.success(`Created - tracked link ${data.sourceCode}`);
       await load();
@@ -1069,10 +1106,7 @@ export function DemandSourceSpreadsheet() {
                   {column.kind === "select" ? (
                     <select
                       value={newRow[key]}
-                      onChange={(e) => {
-                        setNewRow({ ...newRow, [key]: e.target.value });
-                        setDuplicates([]);
-                      }}
+                      onChange={(e) => updateNewRowField(key, e.target.value)}
                       className={cn(selectClass, "w-full")}
                     >
                       {column.options?.map((o) => (
@@ -1084,10 +1118,7 @@ export function DemandSourceSpreadsheet() {
                   ) : (
                     <input
                       value={newRow[key]}
-                      onChange={(e) => {
-                        setNewRow({ ...newRow, [key]: e.target.value });
-                        setDuplicates([]);
-                      }}
+                      onChange={(e) => updateNewRowField(key, e.target.value)}
                       className="w-full h-9 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
                     />
                   )}
@@ -1106,6 +1137,7 @@ export function DemandSourceSpreadsheet() {
               onClick={() => {
                 setAdding(false);
                 setNewRow({ ...BLANK_DRAFT });
+                setLockedNewFields(new Set());
                 setDuplicates([]);
               }}
             >

@@ -44,6 +44,11 @@ import {
 import { DuplicateSourceWarning } from "@/components/admin/DuplicateSourceWarning";
 import { OutreachComposer } from "@/components/admin/OutreachComposer";
 import { WaitlistPagePanel } from "@/components/admin/WaitlistPagePanel";
+import {
+  applySourceUrlInference,
+  inferSourceFromUrl,
+  type SourceUrlInferenceKey,
+} from "@/lib/waitlist/parse-source-url";
 import type { DemandSourceRow, SimilarSourceRow } from "@/lib/waitlist/types";
 
 // ─── Outreach sources ────────────────────────────────────────────────────────
@@ -144,6 +149,12 @@ export function OutreachSourcesPanel() {
 
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ ...BLANK_FORM });
+  // Fields the admin typed themselves. URL autofill skips these so a paste
+  // never overwrites a deliberate choice; defaults and earlier autofills stay
+  // eligible to update when the URL changes.
+  const [lockedFields, setLockedFields] = useState<Set<SourceUrlInferenceKey>>(
+    () => new Set()
+  );
   const [saving, setSaving] = useState(false);
   // Sources the server refused this one as a duplicate of. Cleared whenever the
   // name or URL changes, so a stale warning never sits above a corrected form.
@@ -216,6 +227,39 @@ export function OutreachSourcesPanel() {
     setDuplicates([]);
   }, [form.sourceName, form.sourceUrl]);
 
+  function lockField(key: SourceUrlInferenceKey) {
+    setLockedFields((prev) => {
+      if (prev.has(key)) return prev;
+      const next = new Set(prev);
+      next.add(key);
+      return next;
+    });
+  }
+
+  function updateFormField<K extends keyof typeof BLANK_FORM>(
+    key: K,
+    value: (typeof BLANK_FORM)[K]
+  ) {
+    if (
+      key === "sourceName" ||
+      key === "platformId" ||
+      key === "sourceType"
+    ) {
+      lockField(key);
+    }
+    setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function updateSourceUrl(value: string) {
+    setForm((prev) =>
+      applySourceUrlInference(
+        { ...prev, sourceUrl: value },
+        inferSourceFromUrl(value),
+        lockedFields
+      )
+    );
+  }
+
   async function copy(text: string, label: string) {
     try {
       await navigator.clipboard.writeText(text);
@@ -272,6 +316,7 @@ export function OutreachSourcesPanel() {
       setDuplicates(data.similar ?? []);
       await copy(data.trackedUrl, "Source created - waitlist link copied");
       setForm({ ...BLANK_FORM });
+      setLockedFields(new Set());
       setShowForm(false);
       await load();
     } catch (err) {
@@ -806,7 +851,7 @@ export function OutreachSourcesPanel() {
               <input
                 required
                 value={form.sourceName}
-                onChange={(e) => setForm({ ...form, sourceName: e.target.value })}
+                onChange={(e) => updateFormField("sourceName", e.target.value)}
                 placeholder="e.g. r/phonecalls"
                 className={inputClass}
               />
@@ -918,7 +963,7 @@ export function OutreachSourcesPanel() {
               </label>
               <select
                 value={form.platformId}
-                onChange={(e) => setForm({ ...form, platformId: e.target.value })}
+                onChange={(e) => updateFormField("platformId", e.target.value)}
                 className={inputClass}
               >
                 {PLATFORMS.map((p) => (
@@ -934,7 +979,7 @@ export function OutreachSourcesPanel() {
               </label>
               <select
                 value={form.sourceType}
-                onChange={(e) => setForm({ ...form, sourceType: e.target.value })}
+                onChange={(e) => updateFormField("sourceType", e.target.value)}
                 className={inputClass}
               >
                 {SOURCE_TYPES.map((s) => (
@@ -950,7 +995,7 @@ export function OutreachSourcesPanel() {
               </label>
               <input
                 value={form.sourceUrl}
-                onChange={(e) => setForm({ ...form, sourceUrl: e.target.value })}
+                onChange={(e) => updateSourceUrl(e.target.value)}
                 placeholder="https://…"
                 className={inputClass}
               />
@@ -1024,6 +1069,8 @@ export function OutreachSourcesPanel() {
               onClick={() => {
                 setShowForm(false);
                 setDuplicates([]);
+                setLockedFields(new Set());
+                setForm({ ...BLANK_FORM });
               }}
             >
               Cancel
