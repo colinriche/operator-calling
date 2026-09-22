@@ -8,13 +8,19 @@ import type { SimilarSourceRow } from "@/lib/waitlist/types";
 
 // ─── "You may already be tracking this" ──────────────────────────────────────
 //
-// Shown when the server refuses a create or an edit with 409. Shared by the
-// outreach panel's Add-source form and the spreadsheet view so both refusals
-// read identically - the same wording, the same matches, the same override.
+// Shared by the outreach panel's Add-source form and the spreadsheet view so
+// both read identically - the same wording, the same matches.
 //
-// The override is a real button rather than a hidden flag: two sources for one
-// subreddit is sometimes genuinely right, and the person deciding that should
-// be able to say so in one click after seeing what they are duplicating.
+// Two registers, decided by whether the caller passes `onOverride`:
+//
+//   a refusal   the server would not write it, because another source has this
+//               exact URL. The override is a real button rather than a hidden
+//               flag: two records for one URL is occasionally right, and the
+//               person deciding that should say so after seeing what they are
+//               duplicating.
+//   a notice    the write already went through, and this is what it resembles.
+//               A matching name is a judgement, not evidence, so it is never
+//               allowed to stand in the way of a correct create.
 
 function statusLabel(id: string): string {
   return DEMAND_STATUSES.find((s) => s.id === id)?.label ?? id;
@@ -25,7 +31,8 @@ interface Props {
   /** What the admin was trying to do, for the heading. */
   action: "create" | "save";
   onDismiss: () => void;
-  onOverride: () => void;
+  /** Absent when the write already happened: then this is a notice, not a gate. */
+  onOverride?: () => void;
   overriding?: boolean;
 }
 
@@ -38,7 +45,7 @@ export function DuplicateSourceWarning({
 }: Props) {
   if (matches.length === 0) return null;
 
-  const exact = matches.some((m) => m.exactUrl);
+  const notice = !onOverride;
   const archived = matches.filter((m) => m.status === "archived");
 
   return (
@@ -47,14 +54,19 @@ export function DuplicateSourceWarning({
         <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-500 shrink-0 mt-0.5" />
         <div className="min-w-0">
           <p className="font-heading font-semibold text-sm text-foreground">
-            {exact
-              ? "A source with this URL already exists"
-              : `This looks like ${matches.length === 1 ? "a source" : "sources"} you already track`}
+            {notice
+              ? `${action === "create" ? "Created" : "Saved"} - but ${
+                  matches.length === 1 ? "another source has" : "other sources have"
+                } this name`
+              : "A source with this URL already exists"}
           </p>
           <p className="text-sm text-muted-foreground mt-1">
             Two records for one place split its registrations, so neither ever
             reaches the threshold. Edit the existing source instead where you
             can.
+            {notice &&
+              " Nothing was blocked - only an identical URL does that, and these" +
+                " are name matches, which are often two genuinely different places."}
           </p>
         </div>
       </div>
@@ -116,21 +128,23 @@ export function DuplicateSourceWarning({
 
       <div className="flex flex-wrap gap-2">
         <Button variant="outline" size="sm" onClick={onDismiss}>
-          Go back and edit
+          {notice ? "Got it" : "Go back and edit"}
         </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onOverride}
-          disabled={overriding}
-          className="text-amber-700 dark:text-amber-500"
-        >
-          {overriding
-            ? "Working…"
-            : action === "create"
-              ? "Create anyway - it is a different place"
-              : "Save anyway - it is a different place"}
-        </Button>
+        {onOverride && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onOverride}
+            disabled={overriding}
+            className="text-amber-700 dark:text-amber-500"
+          >
+            {overriding
+              ? "Working…"
+              : action === "create"
+                ? "Create anyway - it is a different place"
+                : "Save anyway - it is a different place"}
+          </Button>
+        )}
       </div>
     </div>
   );

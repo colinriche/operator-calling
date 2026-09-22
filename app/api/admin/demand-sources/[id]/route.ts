@@ -13,6 +13,7 @@ import {
 } from "@/lib/waitlist/constants";
 import { getGlobalThreshold, waitlistDb } from "@/lib/waitlist/server";
 import {
+  advisoryDuplicates,
   blockingDuplicates,
   findSimilarDemandSources,
 } from "@/lib/waitlist/duplicate-sources";
@@ -209,10 +210,14 @@ export async function PATCH(
     // creating a duplicate, arrived at from the other direction - the same
     // guard the create route applies, minus this row so it cannot match itself.
     const identityEdited =
-      typeof update.sourceName === "string" || typeof update.sourceUrl === "string";
+      typeof update.sourceName === "string" ||
+      typeof update.sourceUrl === "string" ||
+      typeof update.platformId === "string";
+    let advisory: Awaited<ReturnType<typeof findSimilarDemandSources>> = [];
     if (identityEdited && body.acknowledgeDuplicates !== true) {
       const matches = await findSimilarDemandSources(db, {
         sourceName: (update.sourceName as string) ?? existing.sourceName ?? "",
+        platformId: (update.platformId as string) ?? existing.platformId ?? "",
         topicName: (update.topicName as string) ?? existing.topicName ?? "",
         audienceLabel:
           (update.publicAudienceLabel as string) ??
@@ -225,15 +230,15 @@ export async function PATCH(
       if (blocking.length > 0) {
         return NextResponse.json(
           {
-            error: blocking[0].exactUrl
-              ? "Another source already has this URL"
-              : "This now looks like a source you already track",
+            error: "Another source already has this URL",
             similar: blocking,
             requiresAcknowledgement: true,
           },
           { status: 409 }
         );
       }
+      // Saved, with the resemblance reported rather than enforced.
+      advisory = advisoryDuplicates(matches);
     }
 
     if (archiveRequested) update.status = "archived";
@@ -302,7 +307,7 @@ export async function PATCH(
     // so make it now rather than on the first share, which WhatsApp will not
     // wait for. After the response, so saving is not slowed by a render.
     after(() => warmWaitlistCardsForSource(id));
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, similar: advisory });
   } catch (err) {
     console.error("[admin/demand-sources PATCH]", err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });

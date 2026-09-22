@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import { csvCell, demandSourcesToCsv, toCsv } from "@/lib/waitlist/csv";
 import { demandSourcePresentation } from "@/lib/waitlist/presentation";
 import {
+  advisoryDuplicates,
   blockingDuplicates,
   findSimilarDemandSources,
 } from "@/lib/waitlist/duplicate-sources";
+import { canonicalSourceUrl } from "@/lib/waitlist/source-identity";
 import type { DemandSourceRow } from "@/lib/waitlist/types";
 
 // No Firestore here, per this project's testing rule - the duplicate scan takes
@@ -163,6 +165,55 @@ const existing = [
   },
 ];
 
+// The whole guard rests on this: if two ways of writing the same URL produce
+// different keys, the block never fires; if two different URLs produce one key,
+// it fires on a correct create and gets clicked past.
+describe("canonicalSourceUrl", () => {
+  it("reduces the ways one place gets written down to one key", () => {
+    const canonical = "reddit.com/r/phonecalls";
+    for (const variant of [
+      "https://www.reddit.com/r/phonecalls",
+      "http://REDDIT.com/r/PhoneCalls/",
+      "  https://old.reddit.com/r/phonecalls//  ",
+      "reddit.com/r/phonecalls#comments",
+      "https://m.reddit.com/r/phonecalls?utm_source=share&utm_medium=web",
+      "https://www.reddit.com/r/phonecalls/?ref=footer&fbclid=abc123",
+      "(https://www.reddit.com/r/phonecalls).",
+    ]) {
+      expect(canonicalSourceUrl(variant)).toBe(canonical);
+    }
+  });
+
+  // The reason this does not simply drop the query string the way the outreach
+  // destination normaliser does: here it is the whole address.
+  it("keeps the parameters that say which place it is", () => {
+    expect(canonicalSourceUrl("https://youtube.com/watch?v=aaa")).not.toBe(
+      canonicalSourceUrl("https://youtube.com/watch?v=bbb")
+    );
+    expect(canonicalSourceUrl("https://youtube.com/watch?v=aaa&utm_source=x")).toBe(
+      canonicalSourceUrl("https://www.youtube.com/watch?v=aaa")
+    );
+    // Order is not identity.
+    expect(canonicalSourceUrl("https://example.com/f?b=2&a=1")).toBe(
+      canonicalSourceUrl("https://example.com/f?a=1&b=2")
+    );
+  });
+
+  it("identifies nothing when the URL names only a platform", () => {
+    expect(canonicalSourceUrl("https://www.facebook.com/")).toBe("");
+    expect(canonicalSourceUrl("reddit.com")).toBe("");
+    expect(canonicalSourceUrl("not a url")).toBe("");
+    expect(canonicalSourceUrl("")).toBe("");
+  });
+
+  // A forum with no path is still that forum, unlike a bare platform domain.
+  it("keeps a site that is itself the place", () => {
+    expect(canonicalSourceUrl("https://www.cornishswimming.org")).toBe(
+      "cornishswimming.org"
+    );
+  });
+});
+
 describe("findSimilarDemandSources", () => {
   it("treats the same thread reached differently as the same place", async () => {
     const matches = await findSimilarDemandSources(stubDb(existing), {
@@ -178,16 +229,86 @@ describe("findSimilarDemandSources", () => {
     expect(blockingDuplicates(matches)).toHaveLength(1);
   });
 
-  it("catches a renamed source by its name and topic alone", async () => {
+  // "UK" and "Group" carry no identity, so this is the same name written twice
+  // - worth saying so, and not worth refusing the write over. Somebody naming
+  // two genuinely different WhatsApp groups the same thing is allowed to.
+  it("warns about a matching name without blocking it", async () => {
     const matches = await findSimilarDemandSources(stubDb(existing), {
-      sourceName: "Yorkshire Terrier Owners UK",
+      sourceName: "The Yorkshire Terrier Owners Group (UK)",
+      platformId: "facebook",
       topicName: "dogs",
       audienceLabel: "",
       sourceUrl: "",
     });
     expect(matches[0].id).toBe("existing2");
     expect(matches[0].exactUrl).toBe(false);
-    expect(blockingDuplicates(matches).length).toBeGreaterThan(0);
+    expect(blockingDuplicates(matches)).toHaveLength(0);
+    expect(advisoryDuplicates(matches)).toHaveLength(1);
+  });
+
+  // The one thing that does stop a write.
+  it("blocks only on an identical canonical URL", async () => {
+    const matches = await findSimilarDemandSources(stubDb(existing), {
+      sourceName: "Something else entirely",
+      topicName: "",
+      audienceLabel: "",
+      sourceUrl: "https://www.reddit.com/r/PhoneCalls/",
+    });
+    expect(blockingDuplicates(matches)).toHaveLength(1);
+    expect(blockingDuplicates(matches)[0].id).toBe("existing1");
+  });
+
+  // The false positive this was rebuilt to remove: every birdwatching source
+  // overlapped every other one, and the warning became noise to click past.
+  it("says nothing about a different place on the same topic", async () => {
+    const matches = await findSimilarDemandSources(stubDb(existing), {
+      sourceName: "r/telephonecollectors",
+      platformId: "reddit",
+      topicName: "phone calls",
+      audienceLabel: "",
+      sourceUrl: "https://www.reddit.com/r/telephonecollectors",
+    });
+    expect(matches).toHaveLength(0);
+  });
+
+  // Same name, different platform: a subreddit and a Facebook group called the
+  // same thing are two places, and warning about it is a false positive.
+  it("does not match the same name across different platforms", async () => {
+    const matches = await findSimilarDemandSources(stubDb(existing), {
+      sourceName: "Yorkshire Terrier Owners",
+      platformId: "reddit",
+      topicName: "",
+      audienceLabel: "",
+      sourceUrl: "",
+    });
+    expect(matches).toHaveLength(0);
+  });
+
+  // Two subreddits can be called the same thing. Once both URLs are known and
+  // different, the name has nothing left to say.
+  it("ignores a matching name when the two URLs are different places", async () => {
+    const matches = await findSimilarDemandSources(stubDb(existing), {
+      sourceName: "r/phonecalls",
+      platformId: "reddit",
+      topicName: "",
+      audienceLabel: "",
+      sourceUrl: "https://www.reddit.com/r/phonecallsuk",
+    });
+    expect(matches).toHaveLength(0);
+  });
+
+  // Two half-filled URL fields are not evidence of anything.
+  it("never treats a bare platform domain as the same place", async () => {
+    const withBareDomain = [
+      { id: "bare", data: { sourceName: "Some group", sourceUrl: "https://facebook.com" } },
+    ];
+    const matches = await findSimilarDemandSources(stubDb(withBareDomain), {
+      sourceName: "A different group",
+      topicName: "",
+      audienceLabel: "",
+      sourceUrl: "https://www.facebook.com/",
+    });
+    expect(matches).toHaveLength(0);
   });
 
   // Archiving a source and then adding it again is the likeliest route to two
@@ -221,7 +342,7 @@ describe("findSimilarDemandSources", () => {
       audienceLabel: "",
       sourceUrl: "https://example.com/swim",
     });
-    expect(blockingDuplicates(matches)).toHaveLength(0);
+    expect(matches).toHaveLength(0);
   });
 
   it("has nothing to say about a source with no name and no URL", async () => {

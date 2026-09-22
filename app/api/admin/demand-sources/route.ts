@@ -15,6 +15,7 @@ import {
   WAITLIST_MODE_IDS,
 } from "@/lib/waitlist/constants";
 import {
+  advisoryDuplicates,
   blockingDuplicates,
   findSimilarDemandSources,
 } from "@/lib/waitlist/duplicate-sources";
@@ -299,11 +300,16 @@ export async function POST(req: NextRequest) {
     // Duplicate guard. Enforced here rather than in either caller so it holds
     // for the outreach panel, the spreadsheet view and anything written later:
     // a check that only one screen performs is a check that eventually gets
-    // routed around. Same shape as the group-creation guard - refuse, name the
-    // matches, and let a person decide it really is a different place.
+    // routed around.
+    //
+    // Only an identical canonical URL refuses the create. A matching name is
+    // returned with the created source instead, for the caller to show - it is
+    // worth knowing about and not worth blocking a correct create over.
+    let advisory: Awaited<ReturnType<typeof findSimilarDemandSources>> = [];
     if (body.acknowledgeDuplicates !== true) {
       const matches = await findSimilarDemandSources(db, {
         sourceName,
+        platformId,
         topicName,
         audienceLabel: str(body.publicAudienceLabel, 200),
         sourceUrl: str(body.sourceUrl, 1000),
@@ -312,15 +318,14 @@ export async function POST(req: NextRequest) {
       if (blocking.length > 0) {
         return NextResponse.json(
           {
-            error: blocking[0].exactUrl
-              ? "A source with this URL already exists"
-              : "This looks like a source you already track",
+            error: "A source with this URL already exists",
             similar: blocking,
             requiresAcknowledgement: true,
           },
           { status: 409 }
         );
       }
+      advisory = advisoryDuplicates(matches);
     }
 
     const sourceRef = await db.collection(COLLECTIONS.demandSources).add({
@@ -407,6 +412,8 @@ export async function POST(req: NextRequest) {
         topicName,
         includeTopicInUrl,
       }),
+      // Created, and here is what it resembles. Empty unless a name matched.
+      similar: advisory,
     });
   } catch (err) {
     console.error("[admin/demand-sources POST]", err);

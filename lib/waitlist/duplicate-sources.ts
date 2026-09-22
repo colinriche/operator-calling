@@ -12,25 +12,37 @@
 //
 // Two signals, deliberately different in kind:
 //
-//   the URL     evidence. Two sources pointing at the same normalised URL are
-//               the same place, whatever they are called.
-//   the name    a guess. Scored with the same tokeniser group matching uses,
-//               and only ever advisory - an admin can override it.
+//   the URL     evidence. Two sources whose canonical URL is identical are the
+//               same place, whatever they are called. This one, and only this
+//               one, refuses the write until somebody says otherwise.
+//   the name    a warning. The same name on a compatible platform is worth
+//               reading before creating a second record, and nothing more:
+//               it is shown and the write goes through.
+//
+// What is deliberately NOT a signal any more: a shared topic or audience
+// label. Every birdwatching source overlaps every other birdwatching source,
+// so scoring that overlap flagged sources that had nothing to do with each
+// other and taught whoever saw it to click straight past the warning. Two
+// records for one place are found by URL or by name, or they are not found.
 
 import type { Firestore } from "firebase-admin/firestore";
 import { COLLECTIONS } from "./constants";
 import { tokenise } from "./group-linking";
-import { normaliseDestinationUrl } from "./outreach";
+import {
+  canonicalSourceUrl,
+  nameContains,
+  platformsCompatible,
+  sameName,
+} from "./source-identity";
 import type { SimilarSourceRow } from "./types";
 
 /** Wire shape lives in types.ts so client components can render these. */
 export type SimilarSource = SimilarSourceRow;
 
-/** Above this, creating without an explicit acknowledgement is refused. */
-export const STRONG_DUPLICATE_SOURCE_SCORE = 0.5;
-
 export interface DuplicateSourceInput {
   sourceName: string;
+  /** Narrows name matches: two named, different platforms are two places. */
+  platformId?: string;
   topicName: string;
   audienceLabel: string;
   sourceUrl: string;
@@ -50,15 +62,14 @@ export async function findSimilarDemandSources(
   db: Firestore,
   input: DuplicateSourceInput
 ): Promise<SimilarSource[]> {
-  const normalisedUrl = normaliseDestinationUrl(input.sourceUrl ?? "");
-  const needleText = [input.sourceName, input.topicName, input.audienceLabel]
-    .filter(Boolean)
-    .join(" ");
-  const needle = new Set(tokenise(needleText));
+  const url = canonicalSourceUrl(input.sourceUrl ?? "");
+  const name = new Set(tokenise(input.sourceName ?? ""));
+  const platform = input.platformId ?? "";
 
-  // Nothing to match on at all. A source with no name and no URL is caught by
-  // the route's own validation, not here.
-  if (needle.size === 0 && !normalisedUrl) return [];
+  // Nothing identifying to match on. A URL that canonicalises to "" is a bare
+  // platform domain or a typo, and a name of nothing but stopwords says as
+  // little - neither is grounds for warning about anything.
+  if (name.size === 0 && !url) return [];
 
   // Bounded scan, as in findSimilarGroups: the collection is small and this
   // avoids needing a composite index for a check that runs once per create.
@@ -71,9 +82,15 @@ export async function findSimilarDemandSources(
 
     const sourceName = (data.sourceName ?? "") as string;
     const sourceUrl = (data.sourceUrl ?? "") as string;
+    const sourcePlatform = (data.platformId ?? "") as string;
 
-    const exactUrl =
-      !!normalisedUrl && normaliseDestinationUrl(sourceUrl) === normalisedUrl;
+    const otherUrl = canonicalSourceUrl(sourceUrl);
+    const exactUrl = !!url && otherUrl === url;
+
+    // Both point somewhere identifying, and it is not the same somewhere.
+    // Two subreddits can be called the same thing; they are still two places,
+    // and the name is not worth mentioning once the URLs have answered.
+    if (!exactUrl && url && otherUrl) continue;
 
     let score = 0;
     let reason = "";
@@ -81,33 +98,17 @@ export async function findSimilarDemandSources(
     if (exactUrl) {
       score = 1;
       reason = "Same URL - this is the same place";
-    } else if (needle.size > 0) {
-      const hay = new Set(
-        tokenise(
-          [
-            sourceName,
-            data.topicName ?? "",
-            data.publicAudienceLabel ?? "",
-            data.publicDisplayName ?? "",
-          ].join(" ")
-        )
-      );
-      if (hay.size === 0) continue;
-
-      let shared = 0;
-      for (const token of needle) if (hay.has(token)) shared++;
-      if (shared === 0) continue;
-
-      // Relative to the shorter side, so a source with a long audience label
-      // does not dilute an otherwise exact name match.
-      score = shared / Math.min(needle.size, hay.size);
-
-      const nameTokens = new Set(tokenise(sourceName));
-      let nameShared = 0;
-      for (const token of needle) if (nameTokens.has(token)) nameShared++;
-
-      score = Math.min(1, nameShared > 0 ? score + 0.25 : score);
-      reason = nameShared > 0 ? "Name overlaps" : "Topic or audience overlaps";
+    } else if (name.size > 0 && platformsCompatible(platform, sourcePlatform)) {
+      const other = new Set(tokenise(sourceName));
+      if (sameName(name, other)) {
+        score = 0.8;
+        reason = "Same name, ignoring case, punctuation and words like \"group\"";
+      } else if (nameContains(name, other)) {
+        score = 0.6;
+        reason = "One name is the other with extra words";
+      } else {
+        continue;
+      }
     } else {
       continue;
     }
@@ -133,9 +134,21 @@ export async function findSimilarDemandSources(
   return results.sort((a, b) => b.score - a.score).slice(0, 8);
 }
 
-/** The matches worth stopping for, as opposed to the ones worth mentioning. */
+/**
+ * The matches worth refusing a write over, as opposed to the ones worth
+ * reading.
+ *
+ * Only an identical canonical URL qualifies. A name is a judgement - "Leeds
+ * 2009 housemates" is a perfectly good name for two different WhatsApp groups
+ * - and a guard that refuses writes on a judgement is one that gets overridden
+ * by reflex. The name matches are still returned to the caller and still shown;
+ * they just do not stand in the way.
+ */
 export function blockingDuplicates(matches: SimilarSource[]): SimilarSource[] {
-  return matches.filter(
-    (m) => m.exactUrl || m.score >= STRONG_DUPLICATE_SOURCE_SCORE
-  );
+  return matches.filter((m) => m.exactUrl);
+}
+
+/** The matches to show without stopping anything: everything else. */
+export function advisoryDuplicates(matches: SimilarSource[]): SimilarSource[] {
+  return matches.filter((m) => !m.exactUrl);
 }

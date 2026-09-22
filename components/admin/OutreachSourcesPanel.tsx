@@ -148,6 +148,9 @@ export function OutreachSourcesPanel() {
   // Sources the server refused this one as a duplicate of. Cleared whenever the
   // name or URL changes, so a stale warning never sits above a corrected form.
   const [duplicates, setDuplicates] = useState<SimilarSourceRow[]>([]);
+  // A refusal to be overridden, or a notice about a create that already went
+  // through. Only an identical URL produces the first.
+  const [duplicateNotice, setDuplicateNotice] = useState(false);
 
   // Registrations are loaded per source on demand - emails are the most
   // sensitive thing here, so they are never bulk-loaded with the list. The
@@ -251,17 +254,22 @@ export function OutreachSourcesPanel() {
       });
       const data = await res.json();
 
-      // The server checks for an existing source covering the same place. It
-      // is a refusal, not a warning: the form stays open with the matches above
-      // it until someone either edits it or says it really is different.
+      // Another source with this exact URL is a refusal, not a warning: the
+      // form stays open with the matches above it until someone either edits it
+      // or says it really is a different place.
       if (res.status === 409 && data.requiresAcknowledgement) {
+        setDuplicateNotice(false);
         setDuplicates(data.similar ?? []);
         toast.error(data.error ?? "This may already be tracked");
         return;
       }
       if (!res.ok) throw new Error(data.error ?? "Failed to create source");
 
-      setDuplicates([]);
+      // A matching name is the other register: created, and here is what it
+      // resembles. Kept on screen after the form closes so it is read rather
+      // than flashed past in a toast.
+      setDuplicateNotice(true);
+      setDuplicates(data.similar ?? []);
       await copy(data.trackedUrl, "Source created - waitlist link copied");
       setForm({ ...BLANK_FORM });
       setShowForm(false);
@@ -780,7 +788,7 @@ export function OutreachSourcesPanel() {
             created.
           </p>
 
-          {duplicates.length > 0 && (
+          {duplicates.length > 0 && !duplicateNotice && (
             <DuplicateSourceWarning
               matches={duplicates}
               action="create"
@@ -1022,6 +1030,19 @@ export function OutreachSourcesPanel() {
             </Button>
           </div>
         </form>
+      )}
+
+      {/* Created, with something worth knowing about it. Rendered outside the
+          form because the form has closed by the time this appears. */}
+      {duplicateNotice && duplicates.length > 0 && (
+        <DuplicateSourceWarning
+          matches={duplicates}
+          action="create"
+          onDismiss={() => {
+            setDuplicates([]);
+            setDuplicateNotice(false);
+          }}
+        />
       )}
 
       {/* Rows */}

@@ -376,6 +376,9 @@ export function DemandSourceSpreadsheet() {
   // so "save anyway" can replay exactly it rather than reconstructing it.
   const [duplicates, setDuplicates] = useState<SimilarSourceRow[]>([]);
   const [duplicateAction, setDuplicateAction] = useState<"create" | "save">("create");
+  // Whether what is shown is a refusal to be overridden or a notice about a
+  // write that already happened. Only a matching URL produces the first.
+  const [duplicateNotice, setDuplicateNotice] = useState(false);
   const [pendingEdit, setPendingEdit] = useState<PendingEdit | null>(null);
 
   const cellRefs = useRef<Record<string, HTMLElement | null>>({});
@@ -491,7 +494,12 @@ export function DemandSourceSpreadsheet() {
     async (
       id: string,
       body: Record<string, unknown>
-    ): Promise<{ ok: boolean; duplicates?: SimilarSourceRow[]; error?: string }> => {
+    ): Promise<{
+      ok: boolean;
+      duplicates?: SimilarSourceRow[];
+      similar?: SimilarSourceRow[];
+      error?: string;
+    }> => {
       if (!user) return { ok: false, error: "Not signed in" };
       const token = await user.getIdToken();
       const res = await fetch(`/api/admin/demand-sources/${id}`, {
@@ -507,7 +515,7 @@ export function DemandSourceSpreadsheet() {
         return { ok: false, duplicates: data.similar ?? [], error: data.error };
       }
       if (!res.ok) return { ok: false, error: data.error ?? "Failed to save" };
-      return { ok: true };
+      return { ok: true, similar: data.similar ?? [] };
     },
     [user]
   );
@@ -539,6 +547,7 @@ export function DemandSourceSpreadsheet() {
         markRow(id, null);
         setPendingEdit({ id, key, value });
         setDuplicateAction("save");
+        setDuplicateNotice(false);
         setDuplicates(result.duplicates);
         toast.error(result.error ?? "This may already be tracked");
         return;
@@ -551,6 +560,13 @@ export function DemandSourceSpreadsheet() {
       }
 
       markRow(id, "saved");
+      // Saved, and it resembles something. Shown rather than enforced - see
+      // blockingDuplicates in lib/waitlist/duplicate-sources.ts.
+      if (result.similar?.length) {
+        setDuplicateAction("save");
+        setDuplicateNotice(true);
+        setDuplicates(result.similar);
+      }
       // Server-side effects - statusBeforeArchive, threshold re-evaluation -
       // are not guessed at locally, so the row is refetched rather than assumed.
       if (key === "status" || key === "demandThreshold") await load();
@@ -681,13 +697,16 @@ export function DemandSourceSpreadsheet() {
 
       if (res.status === 409 && data.requiresAcknowledgement) {
         setDuplicateAction("create");
+        setDuplicateNotice(false);
         setDuplicates(data.similar ?? []);
         toast.error(data.error ?? "This may already be tracked");
         return;
       }
       if (!res.ok) throw new Error(data.error ?? "Failed to create source");
 
-      setDuplicates([]);
+      setDuplicateAction("create");
+      setDuplicateNotice(true);
+      setDuplicates(data.similar ?? []);
       setNewRow({ ...BLANK_DRAFT });
       setAdding(false);
       toast.success(`Created - tracked link ${data.sourceCode}`);
@@ -1008,18 +1027,25 @@ export function DemandSourceSpreadsheet() {
           overriding={creating}
           onDismiss={() => {
             setDuplicates([]);
+            setDuplicateNotice(false);
             setPendingEdit(null);
           }}
-          onOverride={() => {
-            if (duplicateAction === "create") {
-              void createRow(true);
-            } else if (pendingEdit) {
-              const edit = pendingEdit;
-              setDuplicates([]);
-              setPendingEdit(null);
-              void saveField(edit.id, edit.key, edit.value, true);
-            }
-          }}
+          onOverride={
+            // A notice reports a write that already happened, so there is
+            // nothing to override and no button for it.
+            duplicateNotice
+              ? undefined
+              : () => {
+                  if (duplicateAction === "create") {
+                    void createRow(true);
+                  } else if (pendingEdit) {
+                    const edit = pendingEdit;
+                    setDuplicates([]);
+                    setPendingEdit(null);
+                    void saveField(edit.id, edit.key, edit.value, true);
+                  }
+                }
+          }
         />
       )}
 
