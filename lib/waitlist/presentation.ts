@@ -348,7 +348,7 @@ interface WordingValues {
 
 /** Headings used when a heading is only a placeholder with nothing to fill it. */
 const EMPTY_TOPIC_HEADINGS: Partial<Record<WordingVariant, string>> = {
-  community_interest: "Talking with people who share your interests",
+  community_interest: "Talk with people who share your interests",
   community_known: "Keeping your group in contact",
 };
 
