@@ -22,7 +22,7 @@ const steps = [
   {
     n: "04",
     title: "Both phones ring",
-    desc: "When the moment comes, The Operator dials both of you simultaneously. No one waits. No one is caught off guard.",
+    desc: "When you're up for a chat, both phones ring and you are connected to the right person at the right time. The Operator connects you with the right person at the right time. If you can't take the call, no worries, you'll get invited again.",
   },
   {
     n: "05",
