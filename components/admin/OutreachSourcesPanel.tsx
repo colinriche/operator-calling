@@ -142,6 +142,22 @@ const BLANK_FORM = {
   demandThreshold: "",
 };
 
+// Text an admin typed, as a link to open - or null when it is not a web
+// address. Only http(s) qualifies, so a pasted javascript: URL is never linked.
+function asWebUrl(value: string): string | null {
+  const v = value.trim();
+  if (!v || /\s/.test(v)) return null;
+  try {
+    const u = new URL(/^[a-z][a-z0-9+.-]*:/i.test(v) ? v : `https://${v}`);
+    return (u.protocol === "http:" || u.protocol === "https:") &&
+      u.hostname.includes(".")
+      ? u.href
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 export function OutreachSourcesPanel({
   onActivity,
 }: {
@@ -738,6 +754,8 @@ export function OutreachSourcesPanel({
     (s) => s.thresholdReachedAt && !s.groupId && s.status !== "archived"
   );
 
+  const typedSourceLink = asWebUrl(form.sourceUrl);
+
   const inputClass =
     "w-full h-10 px-3 rounded-lg border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40";
 
@@ -976,9 +994,20 @@ export function OutreachSourcesPanel({
               <code className="text-xs font-mono text-foreground">
                 {link.sourceCode}
               </code>
-              <span className="text-xs text-muted-foreground truncate max-w-[220px]">
-                {link.label}
-              </span>
+              {asWebUrl(link.label) ? (
+                <a
+                  href={asWebUrl(link.label) ?? undefined}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-primary underline underline-offset-2 truncate max-w-[220px]"
+                >
+                  {link.label}
+                </a>
+              ) : (
+                <span className="text-xs text-muted-foreground truncate max-w-[220px]">
+                  {link.label}
+                </span>
+              )}
               <span className="text-xs text-muted-foreground ml-auto">
                 {link.uniqueVisitCount} unique · {link.signupCount} joined ·{" "}
                 {link.shareClickCount} shares
@@ -1683,6 +1712,17 @@ export function OutreachSourcesPanel({
                 placeholder="https://…"
                 className={inputClass}
               />
+              {typedSourceLink && (
+                <a
+                  href={typedSourceLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-1.5 inline-flex items-center gap-1 text-xs text-primary underline underline-offset-2 break-all"
+                >
+                  <ExternalLink className="w-3 h-3 shrink-0" />
+                  Open {typedSourceLink}
+                </a>
+              )}
             </div>
             <div className="sm:col-span-2">
               <label className="block text-xs font-medium text-foreground mb-1.5">
