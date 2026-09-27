@@ -158,6 +158,8 @@ export interface SourceLinkRow {
   shareClickCount: number;
   /** Ticked by an admin once this link has actually been posted or sent. */
   posted: boolean;
+  /** Tidied out of the admin list. Nothing else reads this: the link still serves. */
+  hidden: boolean;
 }
 
 // ─── Resolved public context ─────────────────────────────────────────────────

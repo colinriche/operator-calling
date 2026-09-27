@@ -6,6 +6,9 @@ import {
   ChevronDown,
   ChevronRight,
   Copy,
+  Eye,
+  EyeOff,
+  Info,
   Download,
   ExternalLink,
   Link2,
@@ -222,6 +225,9 @@ export function OutreachSourcesPanel({
   // Archived sources are one line until asked for. Closed on every load: the
   // point of the line is that a tidied source stops taking up the panel.
   const [archivedOpen, setArchivedOpen] = useState(false);
+  // Sources whose hidden links are currently being shown. Hiding a link only
+  // takes it out of this list; it is never deleted.
+  const [revealHidden, setRevealHidden] = useState<Set<string>>(() => new Set());
   const [sourceThresholdDraft, setSourceThresholdDraft] = useState<
     Record<string, string>
   >({});
@@ -413,7 +419,12 @@ export function OutreachSourcesPanel({
   }
 
   // Optimistic: the box flips at once and is put back if the save fails.
-  async function setLinkPosted(sourceId: string, linkId: string, posted: boolean) {
+  async function setLinkFlag(
+    sourceId: string,
+    linkId: string,
+    field: "posted" | "hidden",
+    next: boolean
+  ) {
     if (!user) return;
     const apply = (value: boolean) =>
       setSources((prev) =>
@@ -422,13 +433,13 @@ export function OutreachSourcesPanel({
             ? {
                 ...s,
                 links: s.links.map((l) =>
-                  l.id === linkId ? { ...l, posted: value } : l
+                  l.id === linkId ? { ...l, [field]: value } : l
                 ),
               }
             : s
         )
       );
-    apply(posted);
+    apply(next);
     try {
       const token = await user.getIdToken();
       const res = await fetch("/api/admin/source-links", {
@@ -437,13 +448,13 @@ export function OutreachSourcesPanel({
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ id: linkId, posted }),
+        body: JSON.stringify({ id: linkId, [field]: next }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to save");
     } catch (err) {
       console.error(err);
-      apply(!posted);
+      apply(!next);
       toast.error(err instanceof Error ? err.message : "Failed to save");
     }
   }
@@ -819,6 +830,12 @@ export function OutreachSourcesPanel({
       RELATIONSHIP_STATUSES.find((r) => r.id === source.relationshipStatus)
         ?.label ?? source.relationshipStatus;
 
+    const showHidden = revealHidden.has(source.id);
+    const hiddenCount = source.links.filter((l) => l.hidden).length;
+    const shownLinks = showHidden
+      ? source.links
+      : source.links.filter((l) => !l.hidden);
+
     return (
       <CollapsibleCard
         key={source.id}
@@ -1031,10 +1048,34 @@ export function OutreachSourcesPanel({
               No tracked links yet.
             </p>
           )}
-          {source.links.map((link) => (
+          {hiddenCount > 0 && (
+            <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+              <span>
+                {hiddenCount} hidden link{hiddenCount === 1 ? "" : "s"}
+              </span>
+              <button
+                type="button"
+                className="text-primary underline underline-offset-2"
+                onClick={() =>
+                  setRevealHidden((prev) => {
+                    const next = new Set(prev);
+                    if (next.has(source.id)) next.delete(source.id);
+                    else next.add(source.id);
+                    return next;
+                  })
+                }
+              >
+                {showHidden ? "Stop showing hidden" : "Show hidden"}
+              </button>
+            </div>
+          )}
+          {shownLinks.map((link) => (
             <div
               key={link.id}
-              className="flex flex-wrap items-center gap-2 rounded-lg border border-border/60 bg-background px-3 py-2"
+              className={cn(
+                "flex flex-wrap items-center gap-2 rounded-lg border border-border/60 bg-background px-3 py-2",
+                link.hidden && "opacity-60"
+              )}
             >
               {/* The tooltip sits above the box and ignores the pointer, so it
                   can never cover or intercept the checkbox. */}
@@ -1043,7 +1084,7 @@ export function OutreachSourcesPanel({
                   type="checkbox"
                   checked={link.posted}
                   onChange={(e) =>
-                    void setLinkPosted(source.id, link.id, e.target.checked)
+                    void setLinkFlag(source.id, link.id, "posted", e.target.checked)
                   }
                   aria-label="Posted/sent"
                   className="w-4 h-4 rounded border-border accent-primary"
@@ -1097,6 +1138,31 @@ export function OutreachSourcesPanel({
               >
                 Preview
               </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() =>
+                  void setLinkFlag(source.id, link.id, "hidden", !link.hidden)
+                }
+              >
+                {link.hidden ? (
+                  <Eye className="w-3.5 h-3.5" />
+                ) : (
+                  <EyeOff className="w-3.5 h-3.5" />
+                )}
+                {link.hidden ? "Unhide" : "Hide"}
+              </Button>
+              {/* Tooltip only, not a button. Above the icon and pointer-proof. */}
+              <span className="relative group inline-flex shrink-0 text-muted-foreground">
+                <Info className="w-3.5 h-3.5" aria-hidden />
+                <span
+                  role="tooltip"
+                  className="pointer-events-none absolute right-0 bottom-full mb-2 w-56 rounded-md bg-foreground px-2 py-1.5 text-xs text-background opacity-0 transition-opacity group-hover:opacity-100"
+                >
+                  Hide only removes this row from the list. The link, its code
+                  and its data are kept, and the waitlist URL still works.
+                </span>
+              </span>
             </div>
           ))}
         </div>

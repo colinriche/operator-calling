@@ -74,6 +74,7 @@ export async function POST(req: NextRequest) {
       organiserInterestCount: 0,
       shareClickCount: 0,
       posted: false,
+      hidden: false,
     });
 
     // A new link has no card yet. Made now, so it is ready before anyone can
@@ -120,6 +121,11 @@ export async function PATCH(req: NextRequest) {
   }
   if (typeof body.posted === "boolean") {
     update.posted = body.posted;
+  }
+  // Admin-list tidying only. It touches no status, code or counter, so the
+  // link and its waitlist URL behave exactly as before.
+  if (typeof body.hidden === "boolean") {
+    update.hidden = body.hidden;
   }
 
   if (Object.keys(update).length === 0) {

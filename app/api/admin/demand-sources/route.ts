@@ -82,6 +82,7 @@ function buildLinkRow(
     organiserInterestCount: data.organiserInterestCount ?? 0,
     shareClickCount: data.shareClickCount ?? 0,
     posted: data.posted === true,
+    hidden: data.hidden === true,
   };
 }
 
