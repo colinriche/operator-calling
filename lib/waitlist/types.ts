@@ -156,6 +156,8 @@ export interface SourceLinkRow {
   signupCount: number;
   organiserInterestCount: number;
   shareClickCount: number;
+  /** Ticked by an admin once this link has actually been posted or sent. */
+  posted: boolean;
 }
 
 // ─── Resolved public context ─────────────────────────────────────────────────

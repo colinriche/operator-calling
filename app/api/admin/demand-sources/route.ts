@@ -81,6 +81,7 @@ function buildLinkRow(
     signupCount: data.signupCount ?? 0,
     organiserInterestCount: data.organiserInterestCount ?? 0,
     shareClickCount: data.shareClickCount ?? 0,
+    posted: data.posted === true,
   };
 }
 

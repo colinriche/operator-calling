@@ -412,6 +412,42 @@ export function OutreachSourcesPanel({
     }
   }
 
+  // Optimistic: the box flips at once and is put back if the save fails.
+  async function setLinkPosted(sourceId: string, linkId: string, posted: boolean) {
+    if (!user) return;
+    const apply = (value: boolean) =>
+      setSources((prev) =>
+        prev.map((s) =>
+          s.id === sourceId
+            ? {
+                ...s,
+                links: s.links.map((l) =>
+                  l.id === linkId ? { ...l, posted: value } : l
+                ),
+              }
+            : s
+        )
+      );
+    apply(posted);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch("/api/admin/source-links", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ id: linkId, posted }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to save");
+    } catch (err) {
+      console.error(err);
+      apply(!posted);
+      toast.error(err instanceof Error ? err.message : "Failed to save");
+    }
+  }
+
   async function toggleRegistrations(sourceId: string) {
     if (openRegistrations === sourceId) {
       setOpenRegistrations(null);
@@ -1000,6 +1036,25 @@ export function OutreachSourcesPanel({
               key={link.id}
               className="flex flex-wrap items-center gap-2 rounded-lg border border-border/60 bg-background px-3 py-2"
             >
+              {/* The tooltip sits above the box and ignores the pointer, so it
+                  can never cover or intercept the checkbox. */}
+              <span className="relative group inline-flex shrink-0">
+                <input
+                  type="checkbox"
+                  checked={link.posted}
+                  onChange={(e) =>
+                    void setLinkPosted(source.id, link.id, e.target.checked)
+                  }
+                  aria-label="Posted/sent"
+                  className="w-4 h-4 rounded border-border accent-primary"
+                />
+                <span
+                  role="tooltip"
+                  className="pointer-events-none absolute left-1/2 bottom-full mb-2 -translate-x-1/2 whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-xs text-background opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+                >
+                  Posted/sent
+                </span>
+              </span>
               <code className="text-xs font-mono text-foreground">
                 {link.sourceCode}
               </code>

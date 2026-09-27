@@ -73,6 +73,7 @@ export async function POST(req: NextRequest) {
       signupCount: 0,
       organiserInterestCount: 0,
       shareClickCount: 0,
+      posted: false,
     });
 
     // A new link has no card yet. Made now, so it is ready before anyone can
@@ -90,7 +91,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// PATCH - pause, archive or relabel an existing link.
+// PATCH - pause, archive, relabel or mark as posted an existing link.
 export async function PATCH(req: NextRequest) {
   const caller = await requireAdmin(req);
   if (!caller) {
@@ -116,6 +117,9 @@ export async function PATCH(req: NextRequest) {
   }
   if (typeof body.label === "string") {
     update.label = body.label.trim().slice(0, 120);
+  }
+  if (typeof body.posted === "boolean") {
+    update.posted = body.posted;
   }
 
   if (Object.keys(update).length === 0) {
