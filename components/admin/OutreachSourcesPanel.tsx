@@ -43,6 +43,7 @@ import {
   demandSourcesToCsv,
   downloadCsv,
 } from "@/lib/waitlist/csv";
+import { CollapsibleCard } from "@/components/admin/CollapsibleSection";
 import { DuplicateSourceWarning } from "@/components/admin/DuplicateSourceWarning";
 import { OutreachComposer } from "@/components/admin/OutreachComposer";
 import { WaitlistPagePanel } from "@/components/admin/WaitlistPagePanel";
@@ -783,11 +784,12 @@ export function OutreachSourcesPanel({
         ?.label ?? source.relationshipStatus;
 
     return (
-      <div
+      <CollapsibleCard
         key={source.id}
-        className="rounded-xl border border-border/60 bg-card p-5 space-y-4"
-      >
-        <div className="flex flex-wrap items-start justify-between gap-3">
+        id={`source:${source.id}`}
+        activity={registrationCount}
+        className="rounded-xl border border-border/60 bg-card p-5"
+        header={
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2 mb-1">
               <h3 className="font-heading font-semibold text-base text-foreground">
@@ -824,9 +826,16 @@ export function OutreachSourcesPanel({
                 </>
               )}
             </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {registrationCount} of {source.effectiveThreshold} registrations
+              {" · "}
+              {source.totalVisitCount} visits
+            </p>
           </div>
-
-          <div className="flex gap-2 shrink-0">
+        }
+      >
+        <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2">
             {source.sourceUrl && (
               <Button
                 variant="outline"
@@ -1403,7 +1412,7 @@ export function OutreachSourcesPanel({
             {source.postingRules}
           </p>
         )}
-      </div>
+      </CollapsibleCard>
     );
   }
 

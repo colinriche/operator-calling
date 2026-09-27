@@ -37,26 +37,10 @@ function writeSeen(id: string, value: number) {
   }
 }
 
-export function CollapsibleSection({
-  id,
-  title,
-  summary,
-  activity,
-  defaultOpen = false,
-  children,
-}: {
-  id: string;
-  title: string;
-  summary?: string;
-  /** Monotonic signal of new activity; undefined until the data has loaded. */
-  activity?: number;
-  defaultOpen?: boolean;
-  children: ReactNode;
-}) {
-  const [open, setOpen] = useState(defaultOpen);
+// True while `open` is false and `activity` has grown past what was last seen.
+function useNewActivity(id: string, activity: number | undefined, open: boolean) {
   const [seen, setSeen] = useState<number | null>(null);
   const [seenRead, setSeenRead] = useState(false);
-  const panelId = useId();
 
   useEffect(() => {
     setSeen(readSeen(id));
@@ -75,8 +59,32 @@ export function CollapsibleSection({
     }
   }, [id, open, activity, seen, seenRead]);
 
-  const hasNew =
-    !open && seenRead && activity !== undefined && seen !== null && activity > seen;
+  return (
+    !open && seenRead && activity !== undefined && seen !== null && activity > seen
+  );
+}
+
+const NEW_ARROW = "text-green-500 drop-shadow-[0_0_6px_rgb(34_197_94/0.9)]";
+
+export function CollapsibleSection({
+  id,
+  title,
+  summary,
+  activity,
+  defaultOpen = false,
+  children,
+}: {
+  id: string;
+  title: string;
+  summary?: string;
+  /** Monotonic signal of new activity; undefined until the data has loaded. */
+  activity?: number;
+  defaultOpen?: boolean;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  const panelId = useId();
+  const hasNew = useNewActivity(id, activity, open);
 
   return (
     <div>
@@ -108,15 +116,67 @@ export function CollapsibleSection({
             className={cn(
               "w-5 h-5 transition-transform",
               open && "rotate-180",
-              hasNew
-                ? "text-green-500 drop-shadow-[0_0_6px_rgb(34_197_94/0.9)]"
-                : "text-muted-foreground"
+              hasNew ? NEW_ARROW : "text-muted-foreground"
             )}
           />
         </span>
       </button>
 
       <div id={panelId} hidden={!open} className="mt-3">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// A collapsible card: `header` always shows beside the arrow, `children` (the
+// actions and detail) hide until opened. Used for each source in a list.
+export function CollapsibleCard({
+  id,
+  header,
+  activity,
+  defaultOpen = false,
+  className,
+  children,
+}: {
+  id: string;
+  header: ReactNode;
+  activity?: number;
+  defaultOpen?: boolean;
+  className?: string;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  const panelId = useId();
+  const hasNew = useNewActivity(id, activity, open);
+
+  return (
+    <div className={className}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        aria-controls={panelId}
+        className="w-full flex items-start justify-between gap-3 text-left"
+      >
+        <span className="min-w-0 flex-1">{header}</span>
+        <span className="flex items-center gap-2 shrink-0 pt-0.5">
+          {hasNew && (
+            <span className="text-xs font-medium text-green-600 dark:text-green-400">
+              New activity
+            </span>
+          )}
+          <ChevronDown
+            aria-label={hasNew ? "New activity inside" : undefined}
+            className={cn(
+              "w-5 h-5 transition-transform",
+              open && "rotate-180",
+              hasNew ? NEW_ARROW : "text-muted-foreground"
+            )}
+          />
+        </span>
+      </button>
+      <div id={panelId} hidden={!open} className="mt-4 space-y-4">
         {children}
       </div>
     </div>
