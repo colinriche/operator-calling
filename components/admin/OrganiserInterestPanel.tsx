@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 import { ORGANISER_STATUSES } from "@/lib/waitlist/constants";
+import { asWebUrl } from "@/lib/waitlist/external-url";
 import { countryName } from "@/lib/waitlist/locales";
 
 // ─── Organiser interest ──────────────────────────────────────────────────────
@@ -233,11 +234,13 @@ export function OrganiserInterestPanel({
               </p>
             </div>
 
-            {row.sourceUrl && (
+            {asWebUrl(row.sourceUrl) && (
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => window.open(row.sourceUrl, "_blank", "noopener")}
+                onClick={() =>
+                  window.open(asWebUrl(row.sourceUrl) ?? undefined, "_blank", "noopener")
+                }
               >
                 <ExternalLink className="w-3.5 h-3.5" />
                 Source

@@ -57,6 +57,7 @@ import {
   inferSourceFromUrl,
   type SourceUrlInferenceKey,
 } from "@/lib/waitlist/parse-source-url";
+import { asWebUrl } from "@/lib/waitlist/external-url";
 import type { DemandSourceRow, SimilarSourceRow } from "@/lib/waitlist/types";
 
 // ─── Outreach sources ────────────────────────────────────────────────────────
@@ -147,22 +148,6 @@ const BLANK_FORM = {
   internalNotes: "",
   demandThreshold: "",
 };
-
-// Text an admin typed, as a link to open - or null when it is not a web
-// address. Only http(s) qualifies, so a pasted javascript: URL is never linked.
-function asWebUrl(value: string): string | null {
-  const v = value.trim();
-  if (!v || /\s/.test(v)) return null;
-  try {
-    const u = new URL(/^[a-z][a-z0-9+.-]*:/i.test(v) ? v : `https://${v}`);
-    return (u.protocol === "http:" || u.protocol === "https:") &&
-      u.hostname.includes(".")
-      ? u.href
-      : null;
-  } catch {
-    return null;
-  }
-}
 
 export function OutreachSourcesPanel({
   onActivity,
@@ -989,11 +974,13 @@ export function OutreachSourcesPanel({
       >
         <div className="flex flex-wrap gap-2">
           <div className="flex flex-wrap gap-2">
-            {source.sourceUrl && (
+            {asWebUrl(source.sourceUrl) && (
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => window.open(source.sourceUrl, "_blank", "noopener")}
+                onClick={() =>
+                  window.open(asWebUrl(source.sourceUrl) ?? undefined, "_blank", "noopener")
+                }
               >
                 <ExternalLink className="w-3.5 h-3.5" />
                 Open source
