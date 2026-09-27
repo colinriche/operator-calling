@@ -22,6 +22,7 @@ import {
   GitBranch,
   MessageSquare,
   LayoutTemplate,
+  Pencil,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -181,6 +182,9 @@ export function OutreachSourcesPanel({
 
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ ...BLANK_FORM });
+  // Set while the open form is editing an existing source rather than
+  // creating one. Cleared whenever the form closes.
+  const [editingId, setEditingId] = useState<string | null>(null);
   // Fields the admin typed themselves. URL autofill skips these so a paste
   // never overwrites a deliberate choice; defaults and earlier autofills stay
   // eligible to update when the URL changes.
@@ -305,6 +309,41 @@ export function OutreachSourcesPanel({
     );
   }
 
+  function startEdit(source: DemandSourceRow) {
+    setEditingId(source.id);
+    setForm({
+      sourceName: source.sourceName,
+      waitlistMode: source.waitlistMode,
+      connectionType: source.connectionType,
+      familyName: source.familyName,
+      platformId: source.platformId,
+      sourceType: source.sourceType,
+      topicName: source.topicName,
+      includeTopicInUrl: source.includeTopicInUrl,
+      sourceUrl: source.sourceUrl,
+      publicAudienceLabel: source.publicAudienceLabel,
+      postingRules: source.postingRules,
+      internalNotes: source.internalNotes,
+      demandThreshold:
+        source.demandThreshold === null ? "" : String(source.demandThreshold),
+    });
+    // These came from the stored record, not a URL paste - lock them so
+    // editing the URL afterwards cannot silently overwrite a deliberate
+    // value the same way a fresh paste would infer one.
+    setLockedFields(new Set(["sourceName", "platformId", "sourceType"]));
+    setDuplicates([]);
+    setDuplicateNotice(false);
+    setShowForm(true);
+  }
+
+  function closeForm() {
+    setShowForm(false);
+    setEditingId(null);
+    setDuplicates([]);
+    setLockedFields(new Set());
+    setForm({ ...BLANK_FORM });
+  }
+
   async function copy(text: string, label: string) {
     try {
       await navigator.clipboard.writeText(text);
@@ -329,18 +368,22 @@ export function OutreachSourcesPanel({
     try {
       const token = await user.getIdToken();
       const threshold = parseInt(form.demandThreshold, 10);
-      const res = await fetch("/api/admin/demand-sources", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          ...form,
-          demandThreshold: Number.isFinite(threshold) && threshold > 0 ? threshold : null,
-          acknowledgeDuplicates,
-        }),
-      });
+      const editing = editingId;
+      const res = await fetch(
+        editing ? `/api/admin/demand-sources/${editing}` : "/api/admin/demand-sources",
+        {
+          method: editing ? "PATCH" : "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            ...form,
+            demandThreshold: Number.isFinite(threshold) && threshold > 0 ? threshold : null,
+            acknowledgeDuplicates,
+          }),
+        }
+      );
       const data = await res.json();
 
       // Another source with this exact URL is a refusal, not a warning: the
@@ -352,21 +395,38 @@ export function OutreachSourcesPanel({
         toast.error(data.error ?? "This may already be tracked");
         return;
       }
-      if (!res.ok) throw new Error(data.error ?? "Failed to create source");
+      if (!res.ok) {
+        throw new Error(
+          data.error ?? (editing ? "Failed to save source" : "Failed to create source")
+        );
+      }
 
-      // A matching name is the other register: created, and here is what it
-      // resembles. Kept on screen after the form closes so it is read rather
-      // than flashed past in a toast.
-      setDuplicateNotice(true);
-      setDuplicates(data.similar ?? []);
-      await copy(data.trackedUrl, "Source created - waitlist link copied");
+      if (editing) {
+        setDuplicateNotice((data.similar?.length ?? 0) > 0);
+        setDuplicates(data.similar ?? []);
+        toast.success("Source updated");
+      } else {
+        // A matching name is the other register: created, and here is what it
+        // resembles. Kept on screen after the form closes so it is read rather
+        // than flashed past in a toast.
+        setDuplicateNotice(true);
+        setDuplicates(data.similar ?? []);
+        await copy(data.trackedUrl, "Source created - waitlist link copied");
+      }
       setForm({ ...BLANK_FORM });
       setLockedFields(new Set());
+      setEditingId(null);
       setShowForm(false);
       await load();
     } catch (err) {
       console.error(err);
-      toast.error(err instanceof Error ? err.message : "Failed to create source");
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : editingId
+            ? "Failed to save source"
+            : "Failed to create source"
+      );
     } finally {
       setSaving(false);
     }
@@ -899,6 +959,14 @@ export function OutreachSourcesPanel({
                 Open source
               </Button>
             )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => startEdit(source)}
+            >
+              <Pencil className="w-3.5 h-3.5" />
+              Edit
+            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -1622,7 +1690,10 @@ export function OutreachSourcesPanel({
           Spreadsheet view
         </Link>
 
-        <Button size="sm" onClick={() => setShowForm((v) => !v)}>
+        <Button
+          size="sm"
+          onClick={() => (showForm ? closeForm() : setShowForm(true))}
+        >
           <Plus className="w-4 h-4" />
           Add source
         </Button>
@@ -1672,14 +1743,15 @@ export function OutreachSourcesPanel({
           className="rounded-xl border border-border/60 bg-card p-5 space-y-4"
         >
           <p className="text-sm text-muted-foreground">
-            Creates a demand source and its first tracked link. No Operator group is
-            created.
+            {editingId
+              ? "Editing this source. Its tracked links, registrations and history are unaffected."
+              : "Creates a demand source and its first tracked link. No Operator group is created."}
           </p>
 
           {duplicates.length > 0 && !duplicateNotice && (
             <DuplicateSourceWarning
               matches={duplicates}
-              action="create"
+              action={editingId ? "save" : "create"}
               overriding={saving}
               onDismiss={() => setDuplicates([])}
               onOverride={() => void handleCreate(null, true)}
@@ -1914,18 +1986,13 @@ export function OutreachSourcesPanel({
           <div className="flex gap-2">
             <Button type="submit" size="sm" disabled={saving}>
               {saving && <Loader2 className="w-4 h-4 animate-spin" />}
-              Create source and link
+              {editingId ? "Save changes" : "Create source and link"}
             </Button>
             <Button
               type="button"
               variant="outline"
               size="sm"
-              onClick={() => {
-                setShowForm(false);
-                setDuplicates([]);
-                setLockedFields(new Set());
-                setForm({ ...BLANK_FORM });
-              }}
+              onClick={closeForm}
             >
               Cancel
             </Button>
