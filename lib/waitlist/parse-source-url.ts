@@ -597,3 +597,365 @@ function pick(inferred: SourceUrlInference): SourceUrlInference {
   }
   return out;
 }
+
+// ─── Deriving the community from a pasted post URL ───────────────────────────
+//
+// For quick-add: given the URL of one post, comment or share, work out the
+// address of the community that post lives in, so the caller can look for a
+// source already tracking that community before making a new one.
+//
+// Deliberately separate from inferSourceFromUrl above: that function tags the
+// pasted URL itself (a post is sourceType "post"); this one tags what
+// *contains* it (a post in r/AppIdeas belongs to a "subreddit" named
+// AppIdeas). Sharing the host detection and name heuristics, not the meaning.
+//
+// Returns null when the host is not one of the platforms this file knows, or
+// when nothing about it identifies a community narrower than the whole
+// pasted URL - either way, the caller is being told to fall back to letting
+// somebody fill the Add Source form in by hand.
+
+export interface CommunityUrlInference {
+  platformId?: string;
+  /** The type of the community itself - never "post", "comment" or "private_message". */
+  sourceType?: string;
+  sourceName?: string;
+  /** The community's own address, cleaned up but not lowercased or reordered. */
+  communityUrl: string;
+  /** The pasted URL, cleaned of surrounding punctuation. */
+  postUrl: string;
+}
+
+/** host + path, rebuilt from a trimmed segment list, with the original casing. */
+function pathUrl(host: string, segments: string[]): string {
+  return segments.length ? `${host}/${segments.join("/")}` : host;
+}
+
+export function deriveCommunityUrl(raw: string): CommunityUrlInference | null {
+  const trimmed = (raw ?? "")
+    .trim()
+    .replace(/^[(\[<"']+/, "")
+    .replace(/[)\]>.,;!'"]+$/, "");
+  if (!trimmed) return null;
+
+  let url: URL;
+  try {
+    url = new URL(trimmed.includes("://") ? trimmed : `https://${trimmed}`);
+  } catch {
+    return null;
+  }
+
+  const host = url.hostname.toLowerCase().replace(HOST_PREFIXES, "");
+  const path = url.pathname.replace(/\/{2,}/g, "/").replace(/\/+$/, "") || "";
+  // Case preserved here (unlike inferSourceFromUrl's segments) - it goes
+  // straight into the community URL that gets saved and shown.
+  const segs = path.split("/").filter(Boolean).map(decodeSegment);
+  const postUrl = url.href;
+
+  let out: (SourceUrlInference & { communitySegments?: string[] }) | null = null;
+
+  if (isReddit(host)) out = redditCommunity(segs);
+  else if (isFacebook(host)) out = facebookCommunity(segs);
+  else if (isYouTube(host)) out = youtubeCommunity(host, segs);
+  else if (isDiscord(host)) out = discordCommunity(host, segs);
+  else if (isX(host)) out = xCommunity(segs);
+  else if (isInstagram(host)) out = instagramCommunity(segs);
+  else if (isTikTok(host)) out = tiktokCommunity(segs);
+  else if (isLinkedIn(host)) out = linkedinCommunity(segs);
+  else if (isTelegram(host)) out = telegramCommunity(segs);
+  else if (isWhatsApp(host)) out = whatsappCommunity(host, segs);
+  else if (isMeetup(host)) out = meetupCommunity(segs);
+  else if (host === "threads.net") out = threadsCommunity(segs);
+  else if (host === "bsky.app") out = blueskyCommunity(segs);
+  else if (host === "snapchat.com" && segs[0]) {
+    out = {
+      platformId: "other",
+      sourceType: "social_page",
+      sourceName: readableName(segs[0]),
+      communitySegments: segs.slice(0, 1),
+    };
+  }
+
+  if (!out || out.communitySegments === undefined) return null;
+
+  const picked = pick(out);
+  return {
+    ...picked,
+    communityUrl: pathUrl(host, out.communitySegments),
+    postUrl,
+  };
+}
+
+type CommunityResult = (SourceUrlInference & { communitySegments?: string[] }) | null;
+
+function redditCommunity(segments: string[]): CommunityResult {
+  const head = (segments[0] ?? "").toLowerCase();
+  if (head === "r" && segments[1]) {
+    return {
+      platformId: "reddit",
+      sourceType: "subreddit",
+      sourceName: readableName(segments[1]),
+      communitySegments: segments.slice(0, 2),
+    };
+  }
+  if ((head === "u" || head === "user") && segments[1]) {
+    return {
+      platformId: "reddit",
+      sourceType: "social_page",
+      sourceName: readableName(segments[1]),
+      communitySegments: segments.slice(0, 2),
+    };
+  }
+  return null;
+}
+
+function facebookCommunity(segments: string[]): CommunityResult {
+  const head = (segments[0] ?? "").toLowerCase();
+  if (head === "groups" && segments[1]) {
+    return {
+      platformId: "facebook",
+      sourceType: "group",
+      sourceName: readableName(segments[1]),
+      communitySegments: segments.slice(0, 2),
+    };
+  }
+  if (head === "pages" && segments[1]) {
+    const n = segments.length >= 3 ? 3 : 2;
+    return {
+      platformId: "facebook",
+      sourceType: "social_page",
+      sourceName: readableName(segments[n - 1]) ?? readableName(segments[1]),
+      communitySegments: segments.slice(0, n),
+    };
+  }
+  if (head && !FACEBOOK_RESERVED.has(head)) {
+    return {
+      platformId: "facebook",
+      sourceType: "social_page",
+      sourceName: readableName(segments[0]),
+      communitySegments: segments.slice(0, 1),
+    };
+  }
+  return null;
+}
+
+function youtubeCommunity(host: string, segments: string[]): CommunityResult {
+  const head = (segments[0] ?? "").toLowerCase();
+  if (head.startsWith("@")) {
+    return {
+      platformId: "youtube",
+      sourceType: "channel",
+      sourceName: readableName(segments[0].slice(1)),
+      communitySegments: segments.slice(0, 1),
+    };
+  }
+  if ((head === "c" || head === "user") && segments[1]) {
+    return {
+      platformId: "youtube",
+      sourceType: "channel",
+      sourceName: readableName(segments[1]),
+      communitySegments: segments.slice(0, 2),
+    };
+  }
+  if (head === "channel" && segments[1]) {
+    return {
+      platformId: "youtube",
+      sourceType: "channel",
+      communitySegments: segments.slice(0, 2),
+    };
+  }
+  return null;
+}
+
+function discordCommunity(host: string, segments: string[]): CommunityResult {
+  if (host === "discord.gg" && segments[0]) {
+    return {
+      platformId: "discord",
+      sourceType: "server",
+      sourceName: readableName(segments[0]),
+      communitySegments: segments.slice(0, 1),
+    };
+  }
+  const head = (segments[0] ?? "").toLowerCase();
+  if (head === "invite" && segments[1]) {
+    return {
+      platformId: "discord",
+      sourceType: "server",
+      sourceName: readableName(segments[1]),
+      communitySegments: segments.slice(0, 2),
+    };
+  }
+  return null;
+}
+
+function xCommunity(segments: string[]): CommunityResult {
+  const head = (segments[0] ?? "").toLowerCase();
+  if (!head || X_RESERVED.has(head)) return null;
+  return {
+    platformId: "x",
+    sourceType: "social_page",
+    sourceName: readableName(segments[0]),
+    communitySegments: segments.slice(0, 1),
+  };
+}
+
+function instagramCommunity(segments: string[]): CommunityResult {
+  const head = (segments[0] ?? "").toLowerCase();
+  if (head === "stories" && segments[1]) {
+    return {
+      platformId: "instagram",
+      sourceType: "social_page",
+      sourceName: readableName(segments[1]),
+      communitySegments: segments.slice(1, 2),
+    };
+  }
+  if (head && !INSTAGRAM_RESERVED.has(head)) {
+    return {
+      platformId: "instagram",
+      sourceType: "social_page",
+      sourceName: readableName(segments[0]),
+      communitySegments: segments.slice(0, 1),
+    };
+  }
+  return null;
+}
+
+function tiktokCommunity(segments: string[]): CommunityResult {
+  const head = segments[0] ?? "";
+  const lower = head.toLowerCase();
+  if (head.startsWith("@")) {
+    return {
+      platformId: "tiktok",
+      sourceType: "social_page",
+      sourceName: readableName(head.slice(1)),
+      communitySegments: segments.slice(0, 1),
+    };
+  }
+  if (head && !TIKTOK_RESERVED.has(lower)) {
+    return {
+      platformId: "tiktok",
+      sourceType: "social_page",
+      sourceName: readableName(head),
+      communitySegments: segments.slice(0, 1),
+    };
+  }
+  return null;
+}
+
+function linkedinCommunity(segments: string[]): CommunityResult {
+  const head = (segments[0] ?? "").toLowerCase();
+  if (head === "groups" && segments[1]) {
+    return {
+      platformId: "linkedin",
+      sourceType: "group",
+      sourceName: readableName(segments[1]),
+      communitySegments: segments.slice(0, 2),
+    };
+  }
+  if ((head === "company" || head === "school" || head === "showcase") && segments[1]) {
+    return {
+      platformId: "linkedin",
+      sourceType: "social_page",
+      sourceName: readableName(segments[1]),
+      communitySegments: segments.slice(0, 2),
+    };
+  }
+  if ((head === "in" || head === "pub") && segments[1]) {
+    return {
+      platformId: "linkedin",
+      sourceType: "social_page",
+      sourceName: readableName(segments[1]),
+      communitySegments: segments.slice(0, 2),
+    };
+  }
+  if (head && !LINKEDIN_RESERVED.has(head)) {
+    return {
+      platformId: "linkedin",
+      sourceType: "social_page",
+      sourceName: readableName(segments[0]),
+      communitySegments: segments.slice(0, 1),
+    };
+  }
+  return null;
+}
+
+function telegramCommunity(segments: string[]): CommunityResult {
+  const head = segments[0] ?? "";
+  const lower = head.toLowerCase();
+  if (!head) return null;
+  if (head.startsWith("+") || lower === "joinchat") {
+    // An invite token is the group itself - nothing to strip.
+    return {
+      platformId: "telegram",
+      sourceType: "group",
+      communitySegments: segments.slice(0, 1),
+    };
+  }
+  if (lower === "c" || lower === "s") return null;
+  return {
+    platformId: "telegram",
+    sourceType: "channel",
+    sourceName: readableName(head.startsWith("@") ? head.slice(1) : head),
+    communitySegments: segments.slice(0, 1),
+  };
+}
+
+function whatsappCommunity(host: string, segments: string[]): CommunityResult {
+  if (host === "chat.whatsapp.com" && segments[0]) {
+    // The invite link is the group itself.
+    return {
+      platformId: "whatsapp",
+      sourceType: "group",
+      communitySegments: segments.slice(0, 1),
+    };
+  }
+  const head = (segments[0] ?? "").toLowerCase();
+  if (host === "whatsapp.com" && head === "invite" && segments[1]) {
+    return {
+      platformId: "whatsapp",
+      sourceType: "group",
+      communitySegments: segments.slice(0, 2),
+    };
+  }
+  return null;
+}
+
+function meetupCommunity(segments: string[]): CommunityResult {
+  const head = (segments[0] ?? "").toLowerCase();
+  if (
+    head &&
+    !["find", "login", "register", "cities", "topics", "apps"].includes(head)
+  ) {
+    return {
+      platformId: "other",
+      sourceType: "group",
+      sourceName: readableName(segments[0]),
+      communitySegments: segments.slice(0, 1),
+    };
+  }
+  return null;
+}
+
+function threadsCommunity(segments: string[]): CommunityResult {
+  const head = segments[0] ?? "";
+  if (head.startsWith("@")) {
+    return {
+      platformId: "other",
+      sourceType: "social_page",
+      sourceName: readableName(head.slice(1)),
+      communitySegments: segments.slice(0, 1),
+    };
+  }
+  return null;
+}
+
+function blueskyCommunity(segments: string[]): CommunityResult {
+  if ((segments[0] ?? "").toLowerCase() === "profile" && segments[1]) {
+    return {
+      platformId: "other",
+      sourceType: "social_page",
+      sourceName: readableName(segments[1].replace(/\.bsky\.social$/i, "")),
+      communitySegments: segments.slice(0, 2),
+    };
+  }
+  return null;
+}

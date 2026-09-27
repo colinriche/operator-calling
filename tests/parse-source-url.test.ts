@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   applySourceUrlInference,
+  deriveCommunityUrl,
   inferSourceFromUrl,
 } from "@/lib/waitlist/parse-source-url";
 
@@ -127,5 +128,71 @@ describe("applySourceUrlInference", () => {
       sourceType: "group",
       sourceName: "",
     });
+  });
+});
+
+describe("deriveCommunityUrl", () => {
+  it("strips a Reddit post URL down to its subreddit", () => {
+    const post = "https://www.reddit.com/r/AppIdeas/comments/abc123/my_idea/";
+    expect(deriveCommunityUrl(post)).toEqual({
+      platformId: "reddit",
+      sourceType: "subreddit",
+      sourceName: "AppIdeas",
+      communityUrl: "reddit.com/r/AppIdeas",
+      postUrl: post,
+    });
+  });
+
+  it("strips a Reddit short share link down to its subreddit", () => {
+    expect(
+      deriveCommunityUrl("https://reddit.com/r/AppIdeas/s/xyz789")
+    ).toMatchObject({
+      platformId: "reddit",
+      sourceType: "subreddit",
+      sourceName: "AppIdeas",
+      communityUrl: "reddit.com/r/AppIdeas",
+    });
+  });
+
+  it("leaves a bare subreddit URL as its own community", () => {
+    expect(deriveCommunityUrl("https://reddit.com/r/AppIdeas")).toMatchObject({
+      communityUrl: "reddit.com/r/AppIdeas",
+    });
+  });
+
+  it("strips a Facebook group post down to the group", () => {
+    expect(
+      deriveCommunityUrl(
+        "https://www.facebook.com/groups/YorkshireTerrierOwners/posts/998877"
+      )
+    ).toMatchObject({
+      platformId: "facebook",
+      sourceType: "group",
+      sourceName: "YorkshireTerrierOwners",
+      communityUrl: "facebook.com/groups/YorkshireTerrierOwners",
+    });
+  });
+
+  it("strips an X status down to the profile", () => {
+    expect(
+      deriveCommunityUrl("https://x.com/somehandle/status/123456")
+    ).toMatchObject({
+      platformId: "x",
+      sourceType: "social_page",
+      sourceName: "somehandle",
+      communityUrl: "x.com/somehandle",
+    });
+  });
+
+  it("returns null for a video link with no encoded community", () => {
+    expect(deriveCommunityUrl("https://www.youtube.com/watch?v=abc123")).toBeNull();
+  });
+
+  it("returns null for a host it does not know", () => {
+    expect(deriveCommunityUrl("https://example-forum.test/thread/42")).toBeNull();
+  });
+
+  it("returns null for a bare, unparseable string", () => {
+    expect(deriveCommunityUrl("not a url at all")).toBeNull();
   });
 });

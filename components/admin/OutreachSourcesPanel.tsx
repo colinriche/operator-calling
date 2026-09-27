@@ -23,6 +23,7 @@ import {
   MessageSquare,
   LayoutTemplate,
   Pencil,
+  Sparkles,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -185,6 +186,11 @@ export function OutreachSourcesPanel({
   // Set while the open form is editing an existing source rather than
   // creating one. Cleared whenever the form closes.
   const [editingId, setEditingId] = useState<string | null>(null);
+
+  // Quick add - paste one post URL, no other decision. Finds or creates the
+  // source and adds the pasted URL as a tracked link, all on the server.
+  const [quickUrl, setQuickUrl] = useState("");
+  const [quickAdding, setQuickAdding] = useState(false);
   // Fields the admin typed themselves. URL autofill skips these so a paste
   // never overwrites a deliberate choice; defaults and earlier autofills stay
   // eligible to update when the URL changes.
@@ -350,6 +356,40 @@ export function OutreachSourcesPanel({
       toast.success(label);
     } catch {
       toast.error("Could not copy - check clipboard permissions");
+    }
+  }
+
+  async function handleQuickAdd(e: React.FormEvent) {
+    e.preventDefault();
+    if (!user || !quickUrl.trim()) return;
+
+    setQuickAdding(true);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch("/api/admin/demand-sources/quick-add", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ url: quickUrl.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Couldn't add that link");
+
+      await copy(
+        data.trackedUrl,
+        data.created === "source"
+          ? `Created "${data.sourceName}" - waitlist link copied`
+          : `Added to "${data.sourceName}" - new tracked link copied`
+      );
+      setQuickUrl("");
+      await load();
+    } catch (err) {
+      console.error(err);
+      toast.error(err instanceof Error ? err.message : "Couldn't add that link");
+    } finally {
+      setQuickAdding(false);
     }
   }
 
@@ -1626,6 +1666,40 @@ export function OutreachSourcesPanel({
           </div>
         </div>
       )}
+
+      {/* Quick add - the fast path. One URL, no other decision: it works out
+          the platform and community, finds a matching source by its exact
+          URL, and either adds a link there or creates the source. */}
+      <form
+        onSubmit={(e) => void handleQuickAdd(e)}
+        className="rounded-xl border border-primary/30 bg-primary/5 p-4 flex flex-wrap items-center gap-3"
+      >
+        <Sparkles className="w-4 h-4 text-primary shrink-0" />
+        <div className="flex-1 min-w-[240px]">
+          <label htmlFor="quick-add-url" className="sr-only">
+            Paste a post URL
+          </label>
+          <input
+            id="quick-add-url"
+            value={quickUrl}
+            onChange={(e) => setQuickUrl(e.target.value)}
+            placeholder="Paste a post URL - we'll find or create the source"
+            className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+          />
+        </div>
+        <Button type="submit" size="sm" disabled={quickAdding || !quickUrl.trim()}>
+          {quickAdding ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <Sparkles className="w-4 h-4" />
+          )}
+          Add
+        </Button>
+        <p className="basis-full text-xs text-muted-foreground">
+          Already tracking that community? The link is added there. New
+          community? A source is created from it automatically.
+        </p>
+      </form>
 
       {/* Controls */}
       <div className="flex flex-wrap gap-2 items-center">

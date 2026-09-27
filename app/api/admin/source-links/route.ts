@@ -62,7 +62,7 @@ export async function POST(req: NextRequest) {
       status: "active",
       label:
         typeof body.label === "string"
-          ? body.label.trim().slice(0, 120)
+          ? body.label.trim().slice(0, 500)
           : "Tracked link",
       createdAt: FieldValue.serverTimestamp(),
       createdBy: caller.uid,
@@ -117,7 +117,7 @@ export async function PATCH(req: NextRequest) {
     update.status = body.status;
   }
   if (typeof body.label === "string") {
-    update.label = body.label.trim().slice(0, 120);
+    update.label = body.label.trim().slice(0, 500);
   }
   if (typeof body.posted === "boolean") {
     update.posted = body.posted;

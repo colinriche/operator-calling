@@ -391,7 +391,7 @@ export async function POST(req: NextRequest) {
       groupId: null,
       formType: "waitlist",
       status: "active",
-      label: str(body.linkLabel, 120) || "Primary link",
+      label: str(body.linkLabel, 500) || "Primary link",
       createdAt: FieldValue.serverTimestamp(),
       createdBy: caller.uid,
       firstUsedAt: null,
