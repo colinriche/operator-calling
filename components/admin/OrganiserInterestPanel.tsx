@@ -58,7 +58,12 @@ const OPEN = new Set([
   "verification_needed",
 ]);
 
-export function OrganiserInterestPanel() {
+export function OrganiserInterestPanel({
+  onActivity,
+}: {
+  /** Reports a number that grows when something new arrives. */
+  onActivity?: (value: number) => void;
+}) {
   const { user } = useAuth();
   const [rows, setRows] = useState<OrganiserRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -90,6 +95,15 @@ export function OrganiserInterestPanel() {
   useEffect(() => {
     if (user && !loaded) void load();
   }, [user, loaded, load]);
+
+  useEffect(() => {
+    if (!loaded) return;
+    const newest = rows.reduce((max, r) => {
+      const t = r.createdAt ? Date.parse(r.createdAt) : 0;
+      return Number.isFinite(t) && t > max ? t : max;
+    }, 0);
+    onActivity?.(newest);
+  }, [loaded, rows, onActivity]);
 
   async function patch(id: string, body: Record<string, unknown>) {
     if (!user) return;

@@ -25,7 +25,12 @@ interface ScheduleRow {
   notifiedAt: string | null;
 }
 
-export function GlobalSchedulePanel() {
+export function GlobalSchedulePanel({
+  onActivity,
+}: {
+  /** Reports a number that grows when something new arrives. */
+  onActivity?: (value: number) => void;
+}) {
   const { user } = useAuth();
   const [schedules, setSchedules] = useState<ScheduleRow[]>([]);
   const [testerCount, setTesterCount] = useState(0);
@@ -63,6 +68,10 @@ export function GlobalSchedulePanel() {
   useEffect(() => {
     if (user && !loaded) void load();
   }, [user, loaded, load]);
+
+  useEffect(() => {
+    if (loaded) onActivity?.(testerCount);
+  }, [loaded, testerCount, onActivity]);
 
   async function create() {
     if (!user) return;

@@ -1,8 +1,5 @@
 import type { Metadata } from "next";
-import { GlobalSchedulePanel } from "@/components/admin/GlobalSchedulePanel";
-import { OrganiserInterestPanel } from "@/components/admin/OrganiserInterestPanel";
-import { OutreachSourcesPanel } from "@/components/admin/OutreachSourcesPanel";
-import { WaitlistDefaultsPanel } from "@/components/admin/WaitlistDefaultsPanel";
+import { OutreachSections } from "@/components/admin/OutreachSections";
 
 // Standalone route for the outreach panel.
 //
@@ -26,19 +23,7 @@ export default function AdminOutreachPage() {
         </p>
       </div>
 
-      <div className="mb-8">
-        <GlobalSchedulePanel />
-      </div>
-
-      <div className="mb-8">
-        <OrganiserInterestPanel />
-      </div>
-
-      <div className="mb-8">
-        <WaitlistDefaultsPanel />
-      </div>
-
-      <OutreachSourcesPanel />
+      <OutreachSections />
     </div>
   );
 }

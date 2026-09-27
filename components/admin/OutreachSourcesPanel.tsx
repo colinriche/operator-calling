@@ -142,7 +142,12 @@ const BLANK_FORM = {
   demandThreshold: "",
 };
 
-export function OutreachSourcesPanel() {
+export function OutreachSourcesPanel({
+  onActivity,
+}: {
+  /** Reports a number that grows when something new arrives. */
+  onActivity?: (value: number) => void;
+} = {}) {
   const { user } = useAuth();
   const [sources, setSources] = useState<DemandSourceRow[]>([]);
   const [globalThreshold, setGlobalThreshold] = useState(0);
@@ -230,6 +235,13 @@ export function OutreachSourcesPanel() {
   useEffect(() => {
     if (user && !loaded) void load();
   }, [user, loaded, load]);
+
+  useEffect(() => {
+    if (!loaded) return;
+    onActivity?.(
+      sources.reduce((sum, s) => sum + (s.uniqueRegistrationCount ?? 0), 0)
+    );
+  }, [loaded, sources, onActivity]);
 
   // A duplicate warning is about a specific name and URL. Once either changes
   // it is describing something that is no longer on screen, so it goes.
