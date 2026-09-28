@@ -15,7 +15,7 @@ import {
   TESTER_PREVIEW_HEADLINE,
 } from "@/lib/waitlist/copy";
 import { SCHEDULE_ZONE } from "@/lib/waitlist/timezone";
-import type { TimezoneSource } from "@/lib/waitlist/constants";
+import { REFERRAL_SOURCES, type TimezoneSource } from "@/lib/waitlist/constants";
 import {
   LANGUAGES,
   OTHER_COUNTRIES,
@@ -49,6 +49,10 @@ export function WaitlistForm({
   const [firstLanguage, setFirstLanguage] = useState("");
   const [organising, setOrganising] = useState(false);
   const [familyInterest, setFamilyInterest] = useState(false);
+  // Only ever asked when there is no tracking code - a visitor who followed a
+  // tracked link already has a real answer, so asking them to guess again
+  // would just be noise layered over evidence we already have.
+  const [referralSource, setReferralSource] = useState("");
   const [honeypot, setHoneypot] = useState("");
   const [timezone, setTimezone] = useState(SCHEDULE_ZONE);
   const [timezoneSource, setTimezoneSource] =
@@ -120,6 +124,7 @@ export function WaitlistForm({
           firstLanguage: englishFirst ? null : firstLanguage,
           sourceCode: context.sourceCode,
           shareChannel: context.shareChannel,
+          referralSource: context.sourceCode ? null : referralSource || null,
           landingPage: window.location.pathname + window.location.search,
           referrer: document.referrer,
           website: honeypot,
@@ -349,6 +354,34 @@ export function WaitlistForm({
             </p>
           )}
         </div>
+
+        {/* Only asked when we have no tracked-link attribution already -
+            asking someone who followed a tracked link to guess again would
+            just add noise over evidence we already have. */}
+        {!context.sourceCode && (
+          <div>
+            <label
+              htmlFor="waitlist-referral"
+              className="block text-sm font-medium text-foreground mb-1.5"
+            >
+              Where did you find us?{" "}
+              <span className="text-muted-foreground font-normal">(optional)</span>
+            </label>
+            <select
+              id="waitlist-referral"
+              value={referralSource}
+              onChange={(e) => setReferralSource(e.target.value)}
+              className={inputClass}
+            >
+              <option value="">Select one…</option>
+              {REFERRAL_SOURCES.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <div>
           <label className="flex items-start gap-3 cursor-pointer">

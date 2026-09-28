@@ -102,6 +102,10 @@ export async function POST(req: NextRequest) {
       sourceCode: typeof body.sourceCode === "string" ? body.sourceCode : null,
       shareChannel:
         typeof body.shareChannel === "string" ? body.shareChannel : null,
+      // Self-reported; only ever kept server-side when sourceCode above turns
+      // out to be unusable - see normaliseReferralSource.
+      referralSource:
+        typeof body.referralSource === "string" ? body.referralSource : null,
       landingPage: str(body.landingPage, 500),
       referrer: str(body.referrer, 500),
       timezone,

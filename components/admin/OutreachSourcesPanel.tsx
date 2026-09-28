@@ -36,6 +36,7 @@ import {
   CONNECTION_TYPES,
   DEMAND_STATUSES,
   PLATFORMS,
+  REFERRAL_SOURCES,
   RELATIONSHIP_STATUSES,
   SOURCE_TYPES,
   WAITLIST_MODES,
@@ -130,6 +131,8 @@ interface RegistrationRow {
   firstLanguage: string | null;
   sourceCode: string | null;
   shareChannel: string | null;
+  /** Self-reported; only ever set when this registration had no sourceCode. */
+  referralSource: string | null;
   createdAt: string | null;
 }
 
@@ -1650,6 +1653,7 @@ export function OutreachSourcesPanel({
                       <th className="pb-2 pr-3 font-medium">Time zone</th>
                       <th className="pb-2 pr-3 font-medium">Organiser</th>
                       <th className="pb-2 pr-3 font-medium">Code</th>
+                      <th className="pb-2 pr-3 font-medium">Referral</th>
                       <th className="pb-2 font-medium">Joined</th>
                     </tr>
                   </thead>
@@ -1699,6 +1703,15 @@ export function OutreachSourcesPanel({
                         </td>
                         <td className="py-2 pr-3 font-mono text-muted-foreground">
                           {r.sourceCode ?? "-"}
+                        </td>
+                        <td className="py-2 pr-3 text-muted-foreground">
+                          {/* Self-reported, and only ever present for a
+                              registration with no tracked code - see
+                              normaliseReferralSource. */}
+                          {r.referralSource
+                            ? (REFERRAL_SOURCES.find((s) => s.id === r.referralSource)
+                                ?.label ?? r.referralSource)
+                            : "-"}
                         </td>
                         <td className="py-2 text-muted-foreground">
                           {r.createdAt

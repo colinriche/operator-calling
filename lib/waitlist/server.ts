@@ -10,6 +10,7 @@ import {
   DEFAULT_RELATIONSHIP_STATUS,
   GENERAL_DEMAND_SOURCE_ID,
   LIVE_DEMAND_STATUSES,
+  REFERRAL_SOURCE_IDS,
   SHARE_CHANNELS,
   TESTER_CONSENT_VERSION,
   TESTER_STATUSES,
@@ -74,6 +75,18 @@ export function normaliseShareChannel(raw: unknown): ShareChannel | null {
   return (SHARE_CHANNELS as readonly string[]).includes(value)
     ? (value as ShareChannel)
     : null;
+}
+
+/**
+ * A self-reported referral source, kept only when this registration is
+ * unattributed. `code` is the caller's *own* sourceCode - already resolved by
+ * the time this runs - so a real tracked link always wins over a guess, and a
+ * client that sends both cannot make its guess stick.
+ */
+function normaliseReferralSource(raw: unknown, code: string | null): string | null {
+  if (code || typeof raw !== "string") return null;
+  const value = raw.trim().toLowerCase();
+  return REFERRAL_SOURCE_IDS.includes(value) ? value : null;
 }
 
 /** Global signup threshold, falling back to the built-in default. */
@@ -399,6 +412,7 @@ export async function registerWaitlistEntry(
           country: input.country,
           englishFirstLanguage: input.englishFirstLanguage,
           firstLanguage: input.firstLanguage,
+          referralSource: normaliseReferralSource(input.referralSource, code),
           timezone: input.timezone,
           timezoneSource: input.timezoneSource,
           ...(upgrade ? { interestedInOrganising: true } : {}),
@@ -478,6 +492,7 @@ export async function registerWaitlistEntry(
       relationshipStatusAtSignup:
         sourceData.relationshipStatus ?? DEFAULT_RELATIONSHIP_STATUS,
       shareChannel: normaliseShareChannel(input.shareChannel),
+      referralSource: normaliseReferralSource(input.referralSource, code),
       landingPage: input.landingPage.slice(0, 500),
       referrer: input.referrer.slice(0, 500),
       submissionCount: 1,

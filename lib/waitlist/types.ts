@@ -302,6 +302,12 @@ export interface RegistrationInput {
   firstLanguage: string | null;
   sourceCode: string | null;
   shareChannel: string | null;
+  /**
+   * Self-reported, and only meaningful when sourceCode is null - see
+   * REFERRAL_SOURCES in constants.ts. Ignored server-side whenever a real
+   * tracked source is present, so it can never contradict actual attribution.
+   */
+  referralSource: string | null;
   landingPage: string;
   referrer: string;
   /** IANA zone, browser-detected or chosen by the user. */

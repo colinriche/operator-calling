@@ -59,14 +59,20 @@ export function HeroSection() {
               transition={{ duration: 0.6, delay: 0.3 }}
             >
               <Link
-                href="/signup"
+                href="/waitlist"
                 className={cn(buttonVariants({ size: "lg" }), "gradient-gold border-0 text-primary-foreground font-semibold text-base h-12 px-8 shadow-lg shadow-primary/20 hover:shadow-primary/30 hover:scale-[1.02] transition-all")}
               >
-                Get started free <ArrowRight className="ml-2 w-4 h-4" />
+                Join the waitlist <ArrowRight className="ml-2 w-4 h-4" />
+              </Link>
+              <Link
+                href="/signup"
+                className={cn(buttonVariants({ variant: "outline", size: "lg" }), "h-12 px-8 text-base border-border/60 font-medium")}
+              >
+                Get started free
               </Link>
               <Link
                 href="/how-it-works"
-                className={cn(buttonVariants({ variant: "outline", size: "lg" }), "h-12 px-8 text-base border-border/60 font-medium")}
+                className={cn(buttonVariants({ variant: "ghost", size: "lg" }), "h-12 px-8 text-base font-medium")}
               >
                 See how it works
               </Link>

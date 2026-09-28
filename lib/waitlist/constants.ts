@@ -223,6 +223,28 @@ export const LIVE_DEMAND_STATUSES: readonly string[] = [
 export const LINK_STATUSES = ["active", "paused", "expired", "archived"] as const;
 export type LinkStatus = (typeof LINK_STATUSES)[number];
 
+// ─── Self-reported referral source ───────────────────────────────────────────
+//
+// Only ever asked of a visitor whose sourceCode is null - one we have no
+// tracked-link attribution for at all. Anyone who followed a tracked link
+// already has a real answer to "where did you find us", so asking them to
+// guess again would be noise layered over evidence.
+
+export const REFERRAL_SOURCES = [
+  { id: "social_media", label: "Social media" },
+  { id: "search_engine", label: "Search engine" },
+  { id: "friend_or_family", label: "Friend or family" },
+  { id: "online_community", label: "Online community or forum" },
+  { id: "news_or_blog", label: "News, article or blog" },
+  { id: "other", label: "Other" },
+] as const;
+
+export type ReferralSource = (typeof REFERRAL_SOURCES)[number]["id"];
+
+export const REFERRAL_SOURCE_IDS = REFERRAL_SOURCES.map(
+  (r) => r.id
+) as readonly string[];
+
 // ─── Share channels ──────────────────────────────────────────────────────────
 
 export const SHARE_CHANNELS = [

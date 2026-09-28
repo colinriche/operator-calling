@@ -50,6 +50,9 @@ export async function GET(
         firstLanguage: data.firstLanguage ?? null,
         sourceCode: data.sourceCode ?? null,
         shareChannel: data.shareChannel ?? null,
+        // Self-reported, and only ever set server-side when sourceCode above
+        // is null - see normaliseReferralSource in lib/waitlist/server.ts.
+        referralSource: data.referralSource ?? null,
         relationshipStatusAtSignup: data.relationshipStatusAtSignup ?? null,
         createdAt: toIso(data.createdAt),
       };
