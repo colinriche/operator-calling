@@ -226,6 +226,11 @@ export function OutreachSourcesPanel({
   const [sourceThresholdDraft, setSourceThresholdDraft] = useState<
     Record<string, string>
   >({});
+  // The one link whose label is currently being edited inline, and its draft
+  // text. Only one at a time - opening another closes it.
+  const [editingLinkId, setEditingLinkId] = useState<string | null>(null);
+  const [linkLabelDraft, setLinkLabelDraft] = useState("");
+  const [savingLinkLabel, setSavingLinkLabel] = useState(false);
 
   const load = useCallback(async () => {
     if (!user) return;
@@ -541,6 +546,47 @@ export function OutreachSourcesPanel({
       console.error(err);
       apply(!next);
       toast.error(err instanceof Error ? err.message : "Failed to save");
+    }
+  }
+
+  async function saveLinkLabel(sourceId: string, linkId: string) {
+    if (!user) return;
+    const label = linkLabelDraft.trim();
+    if (!label) {
+      toast.error("A link needs a label");
+      return;
+    }
+    setSavingLinkLabel(true);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch("/api/admin/source-links", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ id: linkId, label }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to save");
+      setSources((prev) =>
+        prev.map((s) =>
+          s.id === sourceId
+            ? {
+                ...s,
+                links: s.links.map((l) =>
+                  l.id === linkId ? { ...l, label } : l
+                ),
+              }
+            : s
+        )
+      );
+      setEditingLinkId(null);
+    } catch (err) {
+      console.error(err);
+      toast.error(err instanceof Error ? err.message : "Failed to save");
+    } finally {
+      setSavingLinkLabel(false);
     }
   }
 
@@ -1194,70 +1240,116 @@ export function OutreachSourcesPanel({
               <code className="text-xs font-mono text-foreground">
                 {link.sourceCode}
               </code>
-              {asWebUrl(link.label) ? (
-                <a
-                  href={asWebUrl(link.label) ?? undefined}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs text-primary underline underline-offset-2 truncate max-w-[220px]"
-                >
-                  {link.label}
-                </a>
+              {editingLinkId === link.id ? (
+                <>
+                  <input
+                    autoFocus
+                    value={linkLabelDraft}
+                    onChange={(e) => setLinkLabelDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") void saveLinkLabel(source.id, link.id);
+                      if (e.key === "Escape") setEditingLinkId(null);
+                    }}
+                    placeholder="Label or URL"
+                    className="flex-1 min-w-[180px] h-8 px-2 rounded-md border border-border bg-background text-xs"
+                  />
+                  <Button
+                    size="sm"
+                    disabled={savingLinkLabel}
+                    onClick={() => void saveLinkLabel(source.id, link.id)}
+                  >
+                    {savingLinkLabel && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                    Save
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={savingLinkLabel}
+                    onClick={() => setEditingLinkId(null)}
+                  >
+                    Cancel
+                  </Button>
+                </>
               ) : (
-                <span className="text-xs text-muted-foreground truncate max-w-[220px]">
-                  {link.label}
-                </span>
+                <>
+                  {asWebUrl(link.label) ? (
+                    <a
+                      href={asWebUrl(link.label) ?? undefined}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-primary underline underline-offset-2 truncate max-w-[220px]"
+                    >
+                      {link.label}
+                    </a>
+                  ) : (
+                    <span className="text-xs text-muted-foreground truncate max-w-[220px]">
+                      {link.label}
+                    </span>
+                  )}
+                  <span className="text-xs text-muted-foreground ml-auto">
+                    {link.uniqueVisitCount} unique · {link.signupCount} joined ·{" "}
+                    {link.shareClickCount} shares
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setEditingLinkId(link.id);
+                      setLinkLabelDraft(link.label);
+                    }}
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                    Edit
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => void copy(link.trackedUrl, "Link copied")}
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                    Copy
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() =>
+                      window.open(
+                        `${link.trackedUrl}&preview=1`,
+                        "_blank",
+                        "noopener"
+                      )
+                    }
+                  >
+                    Preview
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() =>
+                      void setLinkFlag(source.id, link.id, "hidden", !link.hidden)
+                    }
+                  >
+                    {link.hidden ? (
+                      <Eye className="w-3.5 h-3.5" />
+                    ) : (
+                      <EyeOff className="w-3.5 h-3.5" />
+                    )}
+                    {link.hidden ? "Unhide" : "Hide"}
+                  </Button>
+                  {/* Tooltip only, not a button. Above the icon and pointer-proof. */}
+                  <span className="relative group inline-flex shrink-0 text-muted-foreground">
+                    <Info className="w-3.5 h-3.5" aria-hidden />
+                    <span
+                      role="tooltip"
+                      className="pointer-events-none absolute right-0 bottom-full mb-2 w-56 rounded-md bg-foreground px-2 py-1.5 text-xs text-background opacity-0 transition-opacity group-hover:opacity-100"
+                    >
+                      Hide only removes this row from the list. The link, its
+                      code and its data are kept, and the waitlist URL still
+                      works.
+                    </span>
+                  </span>
+                </>
               )}
-              <span className="text-xs text-muted-foreground ml-auto">
-                {link.uniqueVisitCount} unique · {link.signupCount} joined ·{" "}
-                {link.shareClickCount} shares
-              </span>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => void copy(link.trackedUrl, "Link copied")}
-              >
-                <Copy className="w-3.5 h-3.5" />
-                Copy
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() =>
-                  window.open(
-                    `${link.trackedUrl}&preview=1`,
-                    "_blank",
-                    "noopener"
-                  )
-                }
-              >
-                Preview
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() =>
-                  void setLinkFlag(source.id, link.id, "hidden", !link.hidden)
-                }
-              >
-                {link.hidden ? (
-                  <Eye className="w-3.5 h-3.5" />
-                ) : (
-                  <EyeOff className="w-3.5 h-3.5" />
-                )}
-                {link.hidden ? "Unhide" : "Hide"}
-              </Button>
-              {/* Tooltip only, not a button. Above the icon and pointer-proof. */}
-              <span className="relative group inline-flex shrink-0 text-muted-foreground">
-                <Info className="w-3.5 h-3.5" aria-hidden />
-                <span
-                  role="tooltip"
-                  className="pointer-events-none absolute right-0 bottom-full mb-2 w-56 rounded-md bg-foreground px-2 py-1.5 text-xs text-background opacity-0 transition-opacity group-hover:opacity-100"
-                >
-                  Hide only removes this row from the list. The link, its code
-                  and its data are kept, and the waitlist URL still works.
-                </span>
-              </span>
             </div>
           ))}
         </div>
