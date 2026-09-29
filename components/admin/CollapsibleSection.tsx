@@ -64,6 +64,37 @@ function useNewActivity(id: string, activity: number | undefined, open: boolean)
   );
 }
 
+// ─── Highlighting individual changed values ───────────────────────────────────
+//
+// The arrow above says a section has something new; this says which number
+// inside it moved. `useSeenBaseline` freezes whatever was last recorded for
+// `id` the moment this component mounts - so a value that grows further while
+// it's on screen stays highlighted for the rest of this visit, and only goes
+// back to normal on the next page load, once the newer number has been
+// recorded in its place.
+
+export function useSeenBaseline(id: string, current: number): number | null {
+  const [baseline, setBaseline] = useState<number | null>(null);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    setBaseline(readSeen(id));
+    setReady(true);
+  }, [id]);
+
+  useEffect(() => {
+    if (ready) writeSeen(id, current);
+  }, [ready, id, current]);
+
+  return ready ? baseline : null;
+}
+
+/** True once `value` has grown past whatever was on record when this mounted. */
+export function useValueHighlight(id: string, value: number): boolean {
+  const baseline = useSeenBaseline(id, value);
+  return baseline !== null && value > baseline;
+}
+
 const NEW_ARROW = "text-green-500 drop-shadow-[0_0_6px_rgb(34_197_94/0.9)]";
 
 export function CollapsibleSection({

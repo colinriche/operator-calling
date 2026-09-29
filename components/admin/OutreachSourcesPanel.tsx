@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   ChevronDown,
   ChevronRight,
@@ -49,7 +49,11 @@ import {
   demandSourcesToCsv,
   downloadCsv,
 } from "@/lib/waitlist/csv";
-import { CollapsibleCard } from "@/components/admin/CollapsibleSection";
+import {
+  CollapsibleCard,
+  useValueHighlight,
+  useSeenBaseline,
+} from "@/components/admin/CollapsibleSection";
 import { DuplicateSourceWarning } from "@/components/admin/DuplicateSourceWarning";
 import { OutreachComposer } from "@/components/admin/OutreachComposer";
 import { WaitlistPagePanel } from "@/components/admin/WaitlistPagePanel";
@@ -134,6 +138,178 @@ interface RegistrationRow {
   /** Self-reported; only ever set when this registration had no sourceCode. */
   referralSource: string | null;
   createdAt: string | null;
+}
+
+/** A single growing number standing in for "anything new happened here" -
+ *  registrations, visits, testers or organiser interest, any of them rising
+ *  is activity, so they are summed rather than picking just one to watch. */
+function sourceActivity(source: DemandSourceRow): number {
+  return (
+    source.uniqueRegistrationCount +
+    source.totalVisitCount +
+    source.testerCount +
+    source.organiserInterestCount
+  );
+}
+
+/** Wraps a number (or the text built from it) in green once it has grown -
+ *  in the collapsed summary line just as much as in the open stats grid,
+ *  since both read the same recorded value for the same `id`. */
+function Highlight({
+  id,
+  value,
+  className,
+  children,
+}: {
+  id: string;
+  value: number;
+  className?: string;
+  children: ReactNode;
+}) {
+  const changed = useValueHighlight(id, value);
+  return (
+    <span
+      className={cn(
+        className,
+        changed ? "text-green-600 dark:text-green-400" : "text-foreground"
+      )}
+    >
+      {children}
+    </span>
+  );
+}
+
+/** A source's registrations, each row marked green if it arrived after the
+ *  last time this browser looked at this source's registrations. */
+function RegistrationsPanel({
+  sourceId,
+  loading,
+  registrations,
+}: {
+  sourceId: string;
+  loading: boolean;
+  registrations: RegistrationRow[];
+}) {
+  const latestTs = registrations.reduce(
+    (max, r) => Math.max(max, r.createdAt ? Date.parse(r.createdAt) : 0),
+    0
+  );
+  const baseline = useSeenBaseline(`source:${sourceId}:registrations-seen`, latestTs);
+
+  if (loading) {
+    return (
+      <p className="text-xs text-muted-foreground flex items-center gap-2">
+        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+        Loading registrations…
+      </p>
+    );
+  }
+  if (registrations.length === 0) {
+    return <p className="text-xs text-muted-foreground">No registrations yet.</p>;
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-xs">
+        <thead>
+          <tr className="text-left text-muted-foreground">
+            <th className="pb-2 pr-3 font-medium">Email</th>
+            <th className="pb-2 pr-3 font-medium">Name</th>
+            <th className="pb-2 pr-3 font-medium">Country</th>
+            <th className="pb-2 pr-3 font-medium">First language</th>
+            <th className="pb-2 pr-3 font-medium">Tester</th>
+            <th className="pb-2 pr-3 font-medium">Time zone</th>
+            <th className="pb-2 pr-3 font-medium">Organiser</th>
+            <th className="pb-2 pr-3 font-medium">Code</th>
+            <th className="pb-2 pr-3 font-medium">Referral</th>
+            <th className="pb-2 font-medium">Joined</th>
+          </tr>
+        </thead>
+        <tbody>
+          {registrations.map((r) => {
+            const isNew =
+              baseline !== null && r.createdAt !== null && Date.parse(r.createdAt) > baseline;
+            return (
+              <tr
+                key={r.id}
+                className={cn(
+                  "border-t border-border/40",
+                  isNew && "bg-green-500/10"
+                )}
+              >
+                <td className="py-2 pr-3 text-foreground">
+                  <span className="flex items-center gap-1.5">
+                    {isNew && (
+                      <span
+                        aria-label="New"
+                        title="New since you last looked"
+                        className="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0"
+                      />
+                    )}
+                    {r.email}
+                  </span>
+                </td>
+                <td className="py-2 pr-3 text-muted-foreground">
+                  {r.displayName || "-"}
+                </td>
+                <td className="py-2 pr-3 text-muted-foreground">
+                  {r.country ? countryName(r.country) : "-"}
+                </td>
+                <td className="py-2 pr-3 text-muted-foreground">
+                  {r.englishFirstLanguage
+                    ? "English"
+                    : r.firstLanguage
+                      ? languageName(r.firstLanguage)
+                      : "-"}
+                </td>
+                <td className="py-2 pr-3">
+                  {r.testerStatus === "none" ? (
+                    <span className="text-muted-foreground">-</span>
+                  ) : (
+                    <span
+                      title={
+                        r.testerConsentAt
+                          ? `Consented ${new Date(r.testerConsentAt).toLocaleString()} (${r.testerConsentVersion ?? "unknown version"})`
+                          : undefined
+                      }
+                      className={cn(
+                        "capitalize",
+                        r.testerStatus === "active"
+                          ? "text-primary font-medium"
+                          : "text-muted-foreground"
+                      )}
+                    >
+                      {r.testerStatus}
+                    </span>
+                  )}
+                </td>
+                <td className="py-2 pr-3 text-muted-foreground">
+                  {r.timezone ?? "-"}
+                </td>
+                <td className="py-2 pr-3 text-muted-foreground">
+                  {r.interestedInOrganising ? "Yes" : "-"}
+                </td>
+                <td className="py-2 pr-3 font-mono text-muted-foreground">
+                  {r.sourceCode ?? "-"}
+                </td>
+                <td className="py-2 pr-3 text-muted-foreground">
+                  {/* Self-reported, and only ever present for a registration
+                      with no tracked code - see normaliseReferralSource. */}
+                  {r.referralSource
+                    ? (REFERRAL_SOURCES.find((s) => s.id === r.referralSource)
+                        ?.label ?? r.referralSource)
+                    : "-"}
+                </td>
+                <td className="py-2 text-muted-foreground">
+                  {r.createdAt ? new Date(r.createdAt).toLocaleDateString() : "-"}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
 }
 
 const BLANK_FORM = {
@@ -264,8 +440,10 @@ export function OutreachSourcesPanel({
 
   useEffect(() => {
     if (!loaded) return;
+    // Any of these growing counts as activity, not just registrations - a
+    // source with only more visits or a new organiser is still something new.
     onActivity?.(
-      sources.reduce((sum, s) => sum + (s.uniqueRegistrationCount ?? 0), 0)
+      sources.reduce((sum, s) => sum + sourceActivity(s), 0)
     );
   }, [loaded, sources, onActivity]);
 
@@ -974,7 +1152,7 @@ export function OutreachSourcesPanel({
       <CollapsibleCard
         key={source.id}
         id={`source:${source.id}`}
-        activity={registrationCount}
+        activity={sourceActivity(source)}
         className="rounded-xl border border-border/60 bg-card p-5"
         header={
           <div className="min-w-0">
@@ -1014,9 +1192,21 @@ export function OutreachSourcesPanel({
               )}
             </p>
             <p className="text-xs text-muted-foreground mt-1">
-              {registrationCount} of {source.effectiveThreshold} registrations
+              <Highlight
+                id={`source:${source.id}:stat:registrations`}
+                value={registrationCount}
+              >
+                {registrationCount}
+              </Highlight>{" "}
+              of {source.effectiveThreshold} registrations
               {" · "}
-              {source.totalVisitCount} visits
+              <Highlight
+                id={`source:${source.id}:stat:visits`}
+                value={source.totalVisitCount}
+              >
+                {source.totalVisitCount}
+              </Highlight>{" "}
+              visits
             </p>
           </div>
         }
@@ -1100,7 +1290,13 @@ export function OutreachSourcesPanel({
         <div>
           <div className="flex flex-wrap justify-between gap-2 text-xs text-muted-foreground mb-1.5">
             <span>
-              {registrationCount} of {source.effectiveThreshold} registrations
+              <Highlight
+                id={`source:${source.id}:stat:registrations`}
+                value={registrationCount}
+              >
+                {registrationCount}
+              </Highlight>{" "}
+              of {source.effectiveThreshold} registrations
               {source.demandThreshold === null && " (global default)"}
             </span>
             <span className="flex items-center gap-1.5">
@@ -1148,23 +1344,54 @@ export function OutreachSourcesPanel({
 
         <div className="grid grid-cols-2 sm:grid-cols-6 gap-3 text-sm">
           {[
-            { label: "Visits", value: source.totalVisitCount },
-            { label: "Unique", value: source.uniqueVisitCount },
-            { label: "Registrations", value: registrationCount },
-            { label: "Testers", value: source.testerCount },
-            { label: "Organisers", value: source.organiserInterestCount },
             {
-              label: "Conversion",
-              value: `${Math.round(source.conversionRate * 100)}%`,
+              key: "visits",
+              label: "Visits",
+              id: `source:${source.id}:stat:visits`,
+              value: source.totalVisitCount,
+            },
+            {
+              key: "unique",
+              label: "Unique",
+              id: `source:${source.id}:stat:unique`,
+              value: source.uniqueVisitCount,
+            },
+            {
+              key: "registrations",
+              label: "Registrations",
+              id: `source:${source.id}:stat:registrations`,
+              value: registrationCount,
+            },
+            {
+              key: "testers",
+              label: "Testers",
+              id: `source:${source.id}:stat:testers`,
+              value: source.testerCount,
+            },
+            {
+              key: "organisers",
+              label: "Organisers",
+              id: `source:${source.id}:stat:organisers`,
+              value: source.organiserInterestCount,
             },
           ].map((stat) => (
-            <div key={stat.label}>
+            <div key={stat.key}>
               <p className="text-xs text-muted-foreground">{stat.label}</p>
-              <p className="font-heading font-semibold text-foreground">
+              <Highlight
+                id={stat.id}
+                value={stat.value}
+                className="block font-heading font-semibold"
+              >
                 {stat.value}
-              </p>
+              </Highlight>
             </div>
           ))}
+          <div>
+            <p className="text-xs text-muted-foreground">Conversion</p>
+            <p className="font-heading font-semibold text-foreground">
+              {Math.round(source.conversionRate * 100)}%
+            </p>
+          </div>
         </div>
 
         {/* Tracked links */}
@@ -1631,99 +1858,11 @@ export function OutreachSourcesPanel({
 
         {openRegistrations === source.id && (
           <div className="border-t border-border/60 pt-3">
-            {loadingRegistrations ? (
-              <p className="text-xs text-muted-foreground flex items-center gap-2">
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                Loading registrations…
-              </p>
-            ) : registrations.length === 0 ? (
-              <p className="text-xs text-muted-foreground">
-                No registrations yet.
-              </p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="text-left text-muted-foreground">
-                      <th className="pb-2 pr-3 font-medium">Email</th>
-                      <th className="pb-2 pr-3 font-medium">Name</th>
-                      <th className="pb-2 pr-3 font-medium">Country</th>
-                      <th className="pb-2 pr-3 font-medium">First language</th>
-                      <th className="pb-2 pr-3 font-medium">Tester</th>
-                      <th className="pb-2 pr-3 font-medium">Time zone</th>
-                      <th className="pb-2 pr-3 font-medium">Organiser</th>
-                      <th className="pb-2 pr-3 font-medium">Code</th>
-                      <th className="pb-2 pr-3 font-medium">Referral</th>
-                      <th className="pb-2 font-medium">Joined</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {registrations.map((r) => (
-                      <tr key={r.id} className="border-t border-border/40">
-                        <td className="py-2 pr-3 text-foreground">{r.email}</td>
-                        <td className="py-2 pr-3 text-muted-foreground">
-                          {r.displayName || "-"}
-                        </td>
-                        <td className="py-2 pr-3 text-muted-foreground">
-                          {r.country ? countryName(r.country) : "-"}
-                        </td>
-                        <td className="py-2 pr-3 text-muted-foreground">
-                          {r.englishFirstLanguage
-                            ? "English"
-                            : r.firstLanguage
-                              ? languageName(r.firstLanguage)
-                              : "-"}
-                        </td>
-                        <td className="py-2 pr-3">
-                          {r.testerStatus === "none" ? (
-                            <span className="text-muted-foreground">-</span>
-                          ) : (
-                            <span
-                              title={
-                                r.testerConsentAt
-                                  ? `Consented ${new Date(r.testerConsentAt).toLocaleString()} (${r.testerConsentVersion ?? "unknown version"})`
-                                  : undefined
-                              }
-                              className={cn(
-                                "capitalize",
-                                r.testerStatus === "active"
-                                  ? "text-primary font-medium"
-                                  : "text-muted-foreground"
-                              )}
-                            >
-                              {r.testerStatus}
-                            </span>
-                          )}
-                        </td>
-                        <td className="py-2 pr-3 text-muted-foreground">
-                          {r.timezone ?? "-"}
-                        </td>
-                        <td className="py-2 pr-3 text-muted-foreground">
-                          {r.interestedInOrganising ? "Yes" : "-"}
-                        </td>
-                        <td className="py-2 pr-3 font-mono text-muted-foreground">
-                          {r.sourceCode ?? "-"}
-                        </td>
-                        <td className="py-2 pr-3 text-muted-foreground">
-                          {/* Self-reported, and only ever present for a
-                              registration with no tracked code - see
-                              normaliseReferralSource. */}
-                          {r.referralSource
-                            ? (REFERRAL_SOURCES.find((s) => s.id === r.referralSource)
-                                ?.label ?? r.referralSource)
-                            : "-"}
-                        </td>
-                        <td className="py-2 text-muted-foreground">
-                          {r.createdAt
-                            ? new Date(r.createdAt).toLocaleDateString()
-                            : "-"}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+            <RegistrationsPanel
+              sourceId={source.id}
+              loading={loadingRegistrations}
+              registrations={registrations}
+            />
           </div>
         )}
 
