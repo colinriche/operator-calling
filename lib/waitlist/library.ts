@@ -227,6 +227,18 @@ export const WORDING_VARIANTS = [
     placeholders: ["{group}"],
   },
   {
+    id: "friendship1",
+    label: "Friendship (warm)",
+    hint: "A friendly, dating-app-alternative pitch. Fixed copy - no topic or group name to fill in.",
+    placeholders: [] as string[],
+  },
+  {
+    id: "friendship2",
+    label: "Friendship (direct)",
+    hint: "A short, direct \"answer the phone\" pitch. Fixed copy - no topic or group name to fill in.",
+    placeholders: [] as string[],
+  },
+  {
     id: "family",
     label: "Family",
     hint: "A family's private calling group.",
@@ -249,6 +261,10 @@ export function wordingVariantFor(
 ): WordingVariant {
   if (mode === "global") return "global";
   if (mode === "family") return "family";
+  // Fixed marketing copy, not a topic-filled template - same footing as
+  // community_interest/community_known, just with nothing to fill in.
+  if (connectionType === "friendship1") return "friendship1";
+  if (connectionType === "friendship2") return "friendship2";
   return connectionType === "existing_connections"
     ? "community_known"
     : "community_interest";

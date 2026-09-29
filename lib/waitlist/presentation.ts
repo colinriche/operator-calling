@@ -317,6 +317,27 @@ export const BUILTIN_WORDING: Record<WordingVariant, WaitlistWording> = {
     shareText:
       "A way for {group} to keep in contact by voice - The Operator occasionally brings two members together for a one-to-one call.",
   },
+  // Fixed copy, deliberately: unlike community_interest/community_known there
+  // is no topic or group name to lead with, so nothing here is templated.
+  friendship1: {
+    heading: "Make new friends, one real conversation at a time",
+    lead: "A friendly place to meet new people and have proper conversations: no profiles, no swiping, no pressure.",
+    body: "You do not need to search for people, send connection requests or arrange the call yourself. Make yourself available and, when a suitable call is scheduled, The Operator makes the connection and the call comes to you.",
+    bodyContinued: "",
+    signoff: "",
+    ogDescription: "Make new friends, one real conversation at a time",
+    shareText:
+      "A friendly place to meet new people and have proper conversations: no profiles, no swiping, no pressure.",
+  },
+  friendship2: {
+    heading: "Just take the call to make a new friend",
+    lead: "Answer the phone to a new friendship",
+    body: "You do not need to search for people, send connection requests or arrange the call yourself. Make yourself available and, when a suitable call is scheduled, The Operator makes the connection and the call comes to you.",
+    bodyContinued: "",
+    signoff: "",
+    ogDescription: "Just take the call to make a new friend",
+    shareText: "Answer the phone to a new friendship",
+  },
   family: {
     heading: "{family}",
     lead: "Keep in touch in a different way. Let The Operator bring family members together for one-to-one calls as and when the time suits.",

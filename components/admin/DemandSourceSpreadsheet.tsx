@@ -51,6 +51,7 @@ import {
   inferSourceFromUrl,
   type SourceUrlInferenceKey,
 } from "@/lib/waitlist/parse-source-url";
+import { demandSourcePresentation } from "@/lib/waitlist/presentation";
 import type { DemandSourceRow, SimilarSourceRow } from "@/lib/waitlist/types";
 
 // ─── Demand sources, as a spreadsheet ────────────────────────────────────────
@@ -204,6 +205,18 @@ const COLUMNS: Column[] = [
     text: (s) => optionLabel(CONNECTION_OPTIONS, s.connectionType),
   },
   { key: "familyName", label: "Family name", width: 150, kind: "text", text: (s) => s.familyName },
+  {
+    // Read-only preview of what the page actually leads with - the source's
+    // own wording if it has one, else the built-in text for its connection
+    // type and mode (topic/group/family filled in). Site-wide default
+    // overrides set on the Waitlist defaults panel are not reflected here;
+    // only a source's own wording is.
+    key: "wordingLead",
+    label: "Wording",
+    width: 280,
+    kind: "readonly",
+    text: (s) => demandSourcePresentation(s).lead,
+  },
   {
     key: "includeTopicInUrl",
     label: "Topic in URL",

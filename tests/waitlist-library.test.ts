@@ -127,6 +127,32 @@ describe("wording", () => {
     expect(wordingVariantFor("family", "shared_interest")).toBe("family");
     expect(wordingVariantFor("community", "shared_interest")).toBe("community_interest");
     expect(wordingVariantFor("community", "existing_connections")).toBe("community_known");
+    expect(wordingVariantFor("community", "friendship1")).toBe("friendship1");
+    expect(wordingVariantFor("community", "friendship2")).toBe("friendship2");
+  });
+
+  it("gives the friendship variants fixed copy, ignored for global mode", () => {
+    // Fixed marketing copy - no {topic}/{group} to fill in, unlike the other
+    // community variants.
+    const friendly = buildWaitlistPresentation(
+      contextFor({ waitlistMode: "community", connectionType: "friendship1" })
+    );
+    expect(friendly.lead).toBe(
+      "A friendly place to meet new people and have proper conversations: no profiles, no swiping, no pressure."
+    );
+    expect(friendly.og.description).toBe(
+      "Make new friends, one real conversation at a time"
+    );
+
+    const direct = buildWaitlistPresentation(
+      contextFor({ waitlistMode: "community", connectionType: "friendship2" })
+    );
+    expect(direct.lead).toBe("Answer the phone to a new friendship");
+    expect(direct.og.description).toBe("Just take the call to make a new friend");
+
+    // A global page ignores connectionType entirely, friendship included -
+    // same precedent as shared_interest/existing_connections today.
+    expect(wordingVariantFor("global", "friendship1")).toBe("global");
   });
 
   it("fills a source's own wording with its names", () => {

@@ -156,6 +156,16 @@ export const CONNECTION_TYPES = [
     label: "Existing personal connections",
     hint: "Family, school or university friends, former colleagues, an old club - people who already know each other.",
   },
+  {
+    id: "friendship1",
+    label: "Friendship (warm)",
+    hint: "People who don't know each other yet, pitched as a friendly alternative to dating apps - real conversations, not profiles or swiping.",
+  },
+  {
+    id: "friendship2",
+    label: "Friendship (direct)",
+    hint: "People who don't know each other yet, pitched as a short, direct call to action - pick up the phone, make a friend.",
+  },
 ] as const;
 
 export type ConnectionType = (typeof CONNECTION_TYPES)[number]["id"];
