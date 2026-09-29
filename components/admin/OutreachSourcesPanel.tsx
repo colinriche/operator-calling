@@ -51,7 +51,6 @@ import {
 } from "@/lib/waitlist/csv";
 import {
   CollapsibleCard,
-  useValueHighlight,
   useSeenBaseline,
 } from "@/components/admin/CollapsibleSection";
 import { DuplicateSourceWarning } from "@/components/admin/DuplicateSourceWarning";
@@ -166,7 +165,8 @@ function Highlight({
   className?: string;
   children: ReactNode;
 }) {
-  const changed = useValueHighlight(id, value);
+  const baseline = useSeenBaseline(id, value);
+  const changed = baseline !== null && value > baseline;
   return (
     <span
       className={cn(
@@ -175,6 +175,11 @@ function Highlight({
       )}
     >
       {children}
+      {changed && (
+        <span className="ml-1 text-[10px] font-normal align-middle text-green-600 dark:text-green-400">
+          (+{value - (baseline as number)})
+        </span>
+      )}
     </span>
   );
 }
@@ -208,8 +213,20 @@ function RegistrationsPanel({
     return <p className="text-xs text-muted-foreground">No registrations yet.</p>;
   }
 
+  const newCount =
+    baseline === null
+      ? 0
+      : registrations.filter(
+          (r) => r.createdAt !== null && Date.parse(r.createdAt) > baseline
+        ).length;
+
   return (
     <div className="overflow-x-auto">
+      {newCount > 0 && (
+        <p className="mb-2 text-xs font-medium text-green-600 dark:text-green-400">
+          +{newCount} new since you last looked
+        </p>
+      )}
       <table className="w-full text-xs">
         <thead>
           <tr className="text-left text-muted-foreground">
