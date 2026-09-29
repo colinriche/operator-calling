@@ -73,7 +73,7 @@ export function Footer() {
             >
               Mainstream Movement Ltd
             </a>
-            , a company registered in England &amp; Wales.
+            , a company registered in England &amp; Wales (no. 09098347).
           </p>
           <div className="flex gap-6">
             <Link href="/privacy" className="hover:text-background/80 transition-colors">Privacy</Link>

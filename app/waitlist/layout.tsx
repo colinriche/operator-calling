@@ -26,11 +26,22 @@ export default function WaitlistLayout({
       <main className="flex-1">{children}</main>
 
       <footer className="border-t border-border/50 py-6">
-        <div className="max-w-2xl mx-auto px-4 sm:px-6 flex flex-wrap gap-x-6 gap-y-2 text-xs text-muted-foreground">
+        <div className="max-w-2xl mx-auto px-4 sm:px-6 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-muted-foreground">
           <Link href="/privacy" className="hover:text-foreground transition-colors">
             Privacy policy
           </Link>
-          <span>© {new Date().getFullYear()} The Operator</span>
+          <span>
+            © {new Date().getFullYear()} The Operator. Operated by{" "}
+            <a
+              href="https://gomainstream.org"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline underline-offset-2 hover:text-foreground transition-colors"
+            >
+              Mainstream Movement Ltd
+            </a>
+            , registered in England &amp; Wales (no. 09098347).
+          </span>
         </div>
       </footer>
     </div>

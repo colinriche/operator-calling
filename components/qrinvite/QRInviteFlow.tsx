@@ -143,7 +143,8 @@ function Shell({ children }: { children: React.ReactNode }) {
               calls with people globally, and group-based calling.
             </p>
             <p className="text-xs pt-1 border-t border-border/50">
-              © {new Date().getFullYear()} The Operator
+              © {new Date().getFullYear()} The Operator. Operated by Mainstream
+              Movement Ltd, registered in England &amp; Wales (no. 09098347).
             </p>
           </div>
         </DialogContent>
