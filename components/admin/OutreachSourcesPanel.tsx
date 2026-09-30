@@ -319,6 +319,8 @@ const BLANK_FORM = {
   demandThreshold: "",
 };
 
+const POLL_MS = 30_000;
+
 export function OutreachSourcesPanel({
   onActivity,
   onTotals,
@@ -405,31 +407,55 @@ export function OutreachSourcesPanel({
   const [linkLabelDraft, setLinkLabelDraft] = useState("");
   const [savingLinkLabel, setSavingLinkLabel] = useState(false);
 
-  const load = useCallback(async () => {
-    if (!user) return;
-    setLoading(true);
-    setError("");
-    try {
-      const token = await user.getIdToken();
-      const res = await fetch("/api/admin/demand-sources", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Failed to load sources");
-      setSources(data.sources ?? []);
-      setGlobalThreshold(data.globalThreshold ?? 0);
-      setThresholdDraft(String(data.globalThreshold ?? ""));
-      setLoaded(true);
-    } catch (err) {
-      console.error(err);
-      setError(err instanceof Error ? err.message : "Failed to load sources");
-    } finally {
-      setLoading(false);
-    }
-  }, [user]);
+  // `quiet` is the background poll: no spinner, no error banner, and it leaves
+  // the threshold field alone so a refresh never overwrites what is being typed.
+  const load = useCallback(
+    async (quiet = false) => {
+      if (!user) return;
+      if (!quiet) {
+        setLoading(true);
+        setError("");
+      }
+      try {
+        const token = await user.getIdToken();
+        const res = await fetch("/api/admin/demand-sources", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? "Failed to load sources");
+        setSources(data.sources ?? []);
+        setGlobalThreshold(data.globalThreshold ?? 0);
+        if (!quiet) setThresholdDraft(String(data.globalThreshold ?? ""));
+        setLoaded(true);
+      } catch (err) {
+        console.error(err);
+        if (!quiet) {
+          setError(err instanceof Error ? err.message : "Failed to load sources");
+        }
+      } finally {
+        if (!quiet) setLoading(false);
+      }
+    },
+    [user]
+  );
 
   useEffect(() => {
     if (user && !loaded) void load();
+  }, [user, loaded, load]);
+
+  // Poll so new visits and registrations show up without a refresh. Skipped
+  // while the tab is hidden, with one catch-up fetch when it comes back.
+  useEffect(() => {
+    if (!user || !loaded) return;
+    const tick = () => {
+      if (document.visibilityState === "visible") void load(true);
+    };
+    const timer = window.setInterval(tick, POLL_MS);
+    document.addEventListener("visibilitychange", tick);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", tick);
+    };
   }, [user, loaded, load]);
 
   useEffect(() => {
@@ -1584,7 +1610,7 @@ export function OutreachSourcesPanel({
         </div>
 
         {openPage === source.id && (
-          <WaitlistPagePanel source={source} onSaved={load} />
+          <WaitlistPagePanel source={source} onSaved={() => load()} />
         )}
 
         {source.groupId && (
