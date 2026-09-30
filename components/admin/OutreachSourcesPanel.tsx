@@ -51,6 +51,7 @@ import {
 } from "@/lib/waitlist/csv";
 import {
   CollapsibleCard,
+  Highlight,
   useSeenBaseline,
 } from "@/components/admin/CollapsibleSection";
 import { DuplicateSourceWarning } from "@/components/admin/DuplicateSourceWarning";
@@ -148,39 +149,6 @@ function sourceActivity(source: DemandSourceRow): number {
     source.totalVisitCount +
     source.testerCount +
     source.organiserInterestCount
-  );
-}
-
-/** Wraps a number (or the text built from it) in green once it has grown -
- *  in the collapsed summary line just as much as in the open stats grid,
- *  since both read the same recorded value for the same `id`. */
-function Highlight({
-  id,
-  value,
-  className,
-  children,
-}: {
-  id: string;
-  value: number;
-  className?: string;
-  children: ReactNode;
-}) {
-  const baseline = useSeenBaseline(id, value);
-  const changed = baseline !== null && value > baseline;
-  return (
-    <span
-      className={cn(
-        className,
-        changed ? "text-green-600 dark:text-green-400" : "text-foreground"
-      )}
-    >
-      {children}
-      {changed && (
-        <span className="ml-1 text-[10px] font-normal align-middle text-green-600 dark:text-green-400">
-          (+{value - (baseline as number)})
-        </span>
-      )}
-    </span>
   );
 }
 

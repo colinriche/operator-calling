@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
+import { useSeenBaseline } from "@/components/admin/CollapsibleSection";
 import { cn } from "@/lib/utils";
 import { ORGANISER_STATUSES } from "@/lib/waitlist/constants";
 import { asWebUrl } from "@/lib/waitlist/external-url";
@@ -97,14 +98,25 @@ export function OrganiserInterestPanel({
     if (user && !loaded) void load();
   }, [user, loaded, load]);
 
+  const newest = useMemo(
+    () =>
+      rows.reduce((max, r) => {
+        const t = r.createdAt ? Date.parse(r.createdAt) : 0;
+        return Number.isFinite(t) && t > max ? t : max;
+      }, 0),
+    [rows]
+  );
+
+  // Rows newer than the last one seen on a previous visit stay marked for the
+  // rest of this visit (the baseline is frozen at mount).
+  const baseline = useSeenBaseline("organiser-interest:rows-seen", newest, loaded);
+  const isNewRow = (r: OrganiserRow) =>
+    baseline !== null && r.createdAt !== null && Date.parse(r.createdAt) > baseline;
+  const newCount = rows.filter(isNewRow).length;
+
   useEffect(() => {
-    if (!loaded) return;
-    const newest = rows.reduce((max, r) => {
-      const t = r.createdAt ? Date.parse(r.createdAt) : 0;
-      return Number.isFinite(t) && t > max ? t : max;
-    }, 0);
-    onActivity?.(newest);
-  }, [loaded, rows, onActivity]);
+    if (loaded) onActivity?.(newest);
+  }, [loaded, newest, onActivity]);
 
   async function patch(id: string, body: Record<string, unknown>) {
     if (!user) return;
@@ -204,10 +216,19 @@ export function OrganiserInterestPanel({
         </p>
       )}
 
+      {newCount > 0 && (
+        <p className="text-xs font-medium text-green-600 dark:text-green-400">
+          +{newCount} new since you last looked
+        </p>
+      )}
+
       {visible.map((row) => (
         <div
           key={row.id}
-          className="rounded-lg border border-border/60 bg-background p-4 space-y-3"
+          className={cn(
+            "rounded-lg border border-border/60 bg-background p-4 space-y-3",
+            isNewRow(row) && "border-green-500/50 bg-green-500/10"
+          )}
         >
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
@@ -215,6 +236,9 @@ export function OrganiserInterestPanel({
                 <span className="text-sm font-medium text-foreground">
                   {row.displayName || "(no name given)"}
                 </span>
+                {isNewRow(row) && (
+                  <Badge className="text-[10px] bg-green-600 text-white">New</Badge>
+                )}
                 <span className="text-xs text-muted-foreground">{row.email}</span>
                 <Badge variant="outline" className="text-xs capitalize">
                   {row.organiserStatus.replace(/_/g, " ")}

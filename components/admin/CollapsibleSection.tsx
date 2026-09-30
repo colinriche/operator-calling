@@ -73,7 +73,12 @@ function useNewActivity(id: string, activity: number | undefined, open: boolean)
 // back to normal on the next page load, once the newer number has been
 // recorded in its place.
 
-export function useSeenBaseline(id: string, current: number): number | null {
+export function useSeenBaseline(
+  id: string,
+  current: number,
+  /** False while `current` is still a placeholder; nothing is recorded then. */
+  enabled = true
+): number | null {
   const [baseline, setBaseline] = useState<number | null>(null);
   const [ready, setReady] = useState(false);
 
@@ -83,8 +88,8 @@ export function useSeenBaseline(id: string, current: number): number | null {
   }, [id]);
 
   useEffect(() => {
-    if (ready) writeSeen(id, current);
-  }, [ready, id, current]);
+    if (ready && enabled) writeSeen(id, current);
+  }, [ready, enabled, id, current]);
 
   return ready ? baseline : null;
 }
@@ -95,7 +100,44 @@ export function useValueHighlight(id: string, value: number): boolean {
   return baseline !== null && value > baseline;
 }
 
-const NEW_ARROW = "text-green-500 drop-shadow-[0_0_6px_rgb(34_197_94/0.9)]";
+/** Wraps a number (or the text built from it) in green once it has grown -
+ *  in a collapsed summary line just as much as in an open stats grid,
+ *  since both read the same recorded value for the same `id`. Mount it only
+ *  once the real value is known, or the placeholder gets recorded instead. */
+export function Highlight({
+  id,
+  value,
+  className,
+  unchangedClassName = "text-foreground",
+  children,
+}: {
+  id: string;
+  value: number;
+  className?: string;
+  /** Colour while nothing has grown. */
+  unchangedClassName?: string;
+  children: ReactNode;
+}) {
+  const baseline = useSeenBaseline(id, value);
+  const changed = baseline !== null && value > baseline;
+  return (
+    <span
+      className={cn(
+        className,
+        changed ? "text-green-600 dark:text-green-400" : unchangedClassName
+      )}
+    >
+      {children}
+      {changed && (
+        <span className="ml-1 text-[10px] font-normal align-middle text-green-600 dark:text-green-400">
+          (+{value - (baseline as number)})
+        </span>
+      )}
+    </span>
+  );
+}
+
+const NEW_ARROW ="text-green-500 drop-shadow-[0_0_6px_rgb(34_197_94/0.9)]";
 
 export function CollapsibleSection({
   id,

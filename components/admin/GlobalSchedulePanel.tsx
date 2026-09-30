@@ -5,6 +5,7 @@ import { CalendarClock, Loader2, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
+import { Highlight } from "@/components/admin/CollapsibleSection";
 import { WEEKDAY_NAMES } from "@/lib/waitlist/schedule";
 import { FALLBACK_TIMEZONES, formatZoneLabel } from "@/lib/waitlist/timezone";
 
@@ -138,8 +139,18 @@ export function GlobalSchedulePanel({
             Early access call windows
           </h2>
           <p className="text-sm text-muted-foreground mt-0.5">
-            When the global pool runs. {testerCount} active tester
-            {testerCount !== 1 ? "s" : ""}.
+            When the global pool runs.{" "}
+            {loaded ? (
+              <Highlight
+                id="global-schedule:testers-seen"
+                value={testerCount}
+                unchangedClassName="text-muted-foreground"
+              >
+                {testerCount} active tester{testerCount !== 1 ? "s" : ""}.
+              </Highlight>
+            ) : (
+              "Loading testers…"
+            )}
           </p>
         </div>
         {loading && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
