@@ -70,6 +70,7 @@ export function WaitlistForm({
   const [formError, setFormError] = useState("");
   const [confirmedOrganising, setConfirmedOrganising] = useState(false);
   const [manageToken, setManageToken] = useState("");
+  const [confirmedOption, setConfirmedOption] = useState<SignupOption>("waitlist");
 
   const visitRecorded = useRef(false);
 
@@ -175,6 +176,7 @@ export function WaitlistForm({
       if (!res.ok) throw new Error(data.error ?? "Request failed");
 
       setConfirmedOrganising(organising);
+      setConfirmedOption(signupOption);
       setManageToken(data.manageToken ?? "");
       // Saved so the manage link survives a closed tab before email exists to
       // deliver it. Best-effort - private browsing may refuse.
@@ -195,6 +197,32 @@ export function WaitlistForm({
       );
       setStatus("idle");
     }
+  }
+
+  if (status === "success" && confirmedOption !== "waitlist") {
+    const device = confirmedOption === "ios" ? "iPhone" : "Android";
+    return (
+      <div className="bg-card rounded-2xl border border-border/60 p-8">
+        <CheckCircle className="w-12 h-12 text-primary mb-4" aria-hidden="true" />
+        <p className="text-sm font-medium text-primary mb-1">
+          Early access &middot; {device}
+        </p>
+        <h2 className="font-heading font-bold text-2xl text-foreground mb-3">
+          We&apos;ve got your details.
+        </h2>
+        <p className="text-muted-foreground leading-relaxed">
+          Thanks - your details have been received and you&apos;ll be given the
+          appropriate {device} testing access.
+        </p>
+        {confirmedOrganising && (
+          <p className="text-sm text-muted-foreground leading-relaxed mt-4 pt-4 border-t border-border/60">
+            You also said you may be willing to help organise the calls. This does
+            not create an organiser account; the Operator team may contact you
+            separately.
+          </p>
+        )}
+      </div>
+    );
   }
 
   if (status === "success") {
