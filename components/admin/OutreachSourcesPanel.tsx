@@ -140,6 +140,12 @@ interface RegistrationRow {
   createdAt: string | null;
 }
 
+export interface LinkTotals {
+  visits: number;
+  uniques: number;
+  registrations: number;
+}
+
 /** A single growing number standing in for "anything new happened here" -
  *  registrations, visits, testers or organiser interest, any of them rising
  *  is activity, so they are summed rather than picking just one to watch. */
@@ -315,9 +321,12 @@ const BLANK_FORM = {
 
 export function OutreachSourcesPanel({
   onActivity,
+  onTotals,
 }: {
   /** Reports a number that grows when something new arrives. */
   onActivity?: (value: number) => void;
+  /** Reports visits, unique visits and registrations summed over every link. */
+  onTotals?: (totals: LinkTotals) => void;
 } = {}) {
   const { user } = useAuth();
   const [sources, setSources] = useState<DemandSourceRow[]>([]);
@@ -430,7 +439,12 @@ export function OutreachSourcesPanel({
     onActivity?.(
       sources.reduce((sum, s) => sum + sourceActivity(s), 0)
     );
-  }, [loaded, sources, onActivity]);
+    onTotals?.({
+      visits: sources.reduce((n, s) => n + s.totalVisitCount, 0),
+      uniques: sources.reduce((n, s) => n + s.uniqueVisitCount, 0),
+      registrations: sources.reduce((n, s) => n + s.uniqueRegistrationCount, 0),
+    });
+  }, [loaded, sources, onActivity, onTotals]);
 
   // A duplicate warning is about a specific name and URL. Once either changes
   // it is describing something that is no longer on screen, so it goes.

@@ -13,16 +13,6 @@ export const metadata: Metadata = { title: "Outreach" };
 export default function AdminOutreachPage() {
   return (
     <div className="max-w-5xl mx-auto">
-      <div className="mb-8">
-        <h1 className="font-heading font-bold text-3xl text-foreground mb-1">
-          Outreach
-        </h1>
-        <p className="text-muted-foreground">
-          Track where waitlist links are posted and how much demand each one
-          produces. Adding a source here does not create a group.
-        </p>
-      </div>
-
       <OutreachSections />
     </div>
   );
