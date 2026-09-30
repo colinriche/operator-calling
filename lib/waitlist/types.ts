@@ -6,6 +6,7 @@ import type {
   ShareChannel,
   SourceType,
   TesterStatus,
+  SignupOption,
   TimezoneSource,
   WaitlistMode,
 } from "./constants";
@@ -313,6 +314,8 @@ export interface RegistrationInput {
   /** IANA zone, browser-detected or chosen by the user. */
   timezone: string;
   timezoneSource: TimezoneSource;
+  /** Which button submitted the form: Waitlist, iPhone or Android. */
+  signupOption: SignupOption;
 }
 
 // Deliberately absent: any way to join the tester programme.

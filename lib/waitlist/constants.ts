@@ -372,6 +372,16 @@ export const ORGANISER_OPEN_STATUSES: readonly string[] = [
   "verification_needed",
 ];
 
+// ─── Which sign-up button was pressed ────────────────────────────────────────
+
+/** The plain waitlist button, or the platform the person says they will use. */
+export const SIGNUP_OPTIONS = ["waitlist", "iphone", "android"] as const;
+export type SignupOption = (typeof SIGNUP_OPTIONS)[number];
+
+export function isSignupOption(value: unknown): value is SignupOption {
+  return (SIGNUP_OPTIONS as readonly unknown[]).includes(value);
+}
+
 // ─── Time zone provenance ────────────────────────────────────────────────────
 
 export const TIMEZONE_SOURCES = ["detected", "user_selected"] as const;

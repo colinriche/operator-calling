@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { sendEmail } from "@/lib/email/send";
 import { registrationConfirmation } from "@/lib/email/templates";
 import { checkRateLimit, WAITLIST_LIMITS } from "@/lib/rate-limit";
-import { COLLECTIONS, type TimezoneSource } from "@/lib/waitlist/constants";
+import {
+  COLLECTIONS,
+  isSignupOption,
+  type TimezoneSource,
+} from "@/lib/waitlist/constants";
 import { SCHEDULE_ZONE, isValidTimezone } from "@/lib/waitlist/timezone";
 import {
   isValidCountryCode,
@@ -110,6 +114,7 @@ export async function POST(req: NextRequest) {
       referrer: str(body.referrer, 500),
       timezone,
       timezoneSource,
+      signupOption: isSignupOption(body.signupOption) ? body.signupOption : "waitlist",
     });
 
     // Only on a genuinely new registration - resubmitting a form should not

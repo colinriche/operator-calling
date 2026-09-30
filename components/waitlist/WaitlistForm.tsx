@@ -15,7 +15,11 @@ import {
   TESTER_PREVIEW_HEADLINE,
 } from "@/lib/waitlist/copy";
 import { SCHEDULE_ZONE } from "@/lib/waitlist/timezone";
-import { REFERRAL_SOURCES, type TimezoneSource } from "@/lib/waitlist/constants";
+import {
+  REFERRAL_SOURCES,
+  type SignupOption,
+  type TimezoneSource,
+} from "@/lib/waitlist/constants";
 import {
   LANGUAGES,
   OTHER_COUNTRIES,
@@ -59,6 +63,8 @@ export function WaitlistForm({
     useState<TimezoneSource>("detected");
 
   const [status, setStatus] = useState<"idle" | "submitting" | "success">("idle");
+  // Which of the three buttons is in flight, so only that one shows "Joining…".
+  const [submittingOption, setSubmittingOption] = useState<SignupOption>("waitlist");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState("");
   const [confirmedOrganising, setConfirmedOrganising] = useState(false);
@@ -99,8 +105,13 @@ export function WaitlistForm({
     return Object.keys(next).length === 0;
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  // Pressing Enter in a field submits via the first button, the plain waitlist.
+  function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    void submit("waitlist");
+  }
+
+  async function submit(signupOption: SignupOption) {
     setFormError("");
     if (!validate()) return;
 
@@ -109,6 +120,7 @@ export function WaitlistForm({
       return;
     }
 
+    setSubmittingOption(signupOption);
     setStatus("submitting");
     try {
       const res = await fetch("/api/waitlist/register", {
@@ -130,6 +142,7 @@ export function WaitlistForm({
           website: honeypot,
           timezone,
           timezoneSource,
+          signupOption,
         }),
       });
 
@@ -507,7 +520,7 @@ export function WaitlistForm({
           disabled={status === "submitting"}
           className="w-full h-12 rounded-xl gradient-gold border-0 text-primary-foreground font-heading font-semibold text-base hover:opacity-90 transition-opacity disabled:opacity-60 flex items-center justify-center gap-2"
         >
-          {status === "submitting" ? (
+          {status === "submitting" && submittingOption === "waitlist" ? (
             <>
               <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
               Joining…
@@ -516,6 +529,33 @@ export function WaitlistForm({
             "Join the waitlist"
           )}
         </button>
+
+        {/* Same form, same collection - the button only records which one. */}
+        <div className="grid grid-cols-2 gap-3">
+          {(
+            [
+              ["iphone", "iPhone"],
+              ["android", "Android"],
+            ] as const
+          ).map(([option, label]) => (
+            <button
+              key={option}
+              type="button"
+              onClick={() => void submit(option)}
+              disabled={status === "submitting"}
+              className="h-12 rounded-xl border border-border bg-background text-foreground font-heading font-semibold text-base hover:bg-muted/40 transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+            >
+              {status === "submitting" && submittingOption === option ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                  Joining…
+                </>
+              ) : (
+                label
+              )}
+            </button>
+          ))}
+        </div>
 
         <p className="text-xs text-muted-foreground leading-relaxed">
           {presentation.formFootnote}

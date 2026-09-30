@@ -415,6 +415,9 @@ export async function registerWaitlistEntry(
           referralSource: normaliseReferralSource(input.referralSource, code),
           timezone: input.timezone,
           timezoneSource: input.timezoneSource,
+          // The latest button pressed wins, so someone who first hit Waitlist
+          // and later chose their phone is recorded as the phone.
+          signupOption: input.signupOption,
           ...(upgrade ? { interestedInOrganising: true } : {}),
           // Same one-way rule as organiser interest: a resubmission can add it
           // but never silently withdraw it, so an unticked box on a second
@@ -478,6 +481,7 @@ export async function registerWaitlistEntry(
 
       timezone: input.timezone,
       timezoneSource: input.timezoneSource,
+      signupOption: input.signupOption,
 
       manageToken,
       manageTokenCreatedAt: FieldValue.serverTimestamp(),
