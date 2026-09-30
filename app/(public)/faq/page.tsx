@@ -26,7 +26,7 @@ const faqs = [
   },
   {
     q: "Is it free?",
-    a: "The Operator has a free tier with core calling features. Group creation and advanced admin tools are part of the pro plan.",
+    a: "Yes, the app is free to beta testers and early adopters.",
   },
   {
     q: "How do you handle safety and abuse?",
