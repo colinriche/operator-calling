@@ -374,8 +374,8 @@ export const ORGANISER_OPEN_STATUSES: readonly string[] = [
 
 // ─── Which sign-up button was pressed ────────────────────────────────────────
 
-/** The plain waitlist button, or the platform the person says they will use. */
-export const SIGNUP_OPTIONS = ["waitlist", "iphone", "android"] as const;
+/** The plain waitlist button, or the early-access route chosen: iOS (TestFlight) or Android testing. */
+export const SIGNUP_OPTIONS = ["waitlist", "ios", "android"] as const;
 export type SignupOption = (typeof SIGNUP_OPTIONS)[number];
 
 export function isSignupOption(value: unknown): value is SignupOption {
