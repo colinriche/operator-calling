@@ -91,19 +91,43 @@ export function WaitlistForm({
     }).catch(() => {});
   }, [context.sourceCode, context.shareChannel, isPreview]);
 
-  function validate(): boolean {
+  /** Sets the error messages; returns the id of the first invalid field, or null. */
+  function validate(): string | null {
     const next: Record<string, string> = {};
+    let firstInvalid: string | null = null;
     if (!EMAIL_RE.test(email.trim())) {
       next.email = "Enter a valid email address.";
+      firstInvalid ??= "waitlist-email";
     }
     if (!country) {
       next.country = "Select your country.";
+      firstInvalid ??= "waitlist-country";
     }
     if (!englishFirst && !firstLanguage) {
       next.firstLanguage = "Select your first language.";
+      firstInvalid ??= "waitlist-language";
     }
     setErrors(next);
-    return Object.keys(next).length === 0;
+    return firstInvalid;
+  }
+
+  // Opening the app routes only checks the form; nothing is saved until a
+  // platform is chosen. An invalid form stays closed and sends the person to
+  // the first field that needs fixing.
+  function toggleTryApp() {
+    if (tryAppOpen) {
+      setTryAppOpen(false);
+      return;
+    }
+    setFormError("");
+    const firstInvalid = validate();
+    if (firstInvalid) {
+      const field = document.getElementById(firstInvalid);
+      field?.scrollIntoView({ behavior: "smooth", block: "center" });
+      field?.focus({ preventScroll: true });
+      return;
+    }
+    setTryAppOpen(true);
   }
 
   // Pressing Enter in a field submits via the first button, the plain waitlist.
@@ -114,7 +138,7 @@ export function WaitlistForm({
 
   async function submit(signupOption: SignupOption) {
     setFormError("");
-    if (!validate()) return;
+    if (validate() !== null) return;
 
     if (isPreview) {
       setFormError("Preview mode - this form does not submit.");
@@ -533,7 +557,7 @@ export function WaitlistForm({
           </button>
           <button
             type="button"
-            onClick={() => setTryAppOpen((o) => !o)}
+            onClick={toggleTryApp}
             aria-expanded={tryAppOpen}
             aria-controls="waitlist-try-app"
             className="h-14 rounded-xl border border-border bg-background text-foreground font-heading font-semibold text-base hover:bg-muted/40 transition-colors"
