@@ -1,28 +1,28 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { AnimatedSection } from "@/components/marketing/AnimatedSection";
 
 export const metadata: Metadata = {
   title: "Account Deletion",
-  description: "How to delete your Operator account, what is removed, and what is kept.",
+  description:
+    "How to request deletion of your Operator account and associated personal data.",
 };
 
 const steps = [
   {
     title: "Sign in and open your profile",
-    body: "Go to Dashboard, then Profile, and scroll to the Delete account box at the bottom.",
+    body: "Go to Dashboard → Profile and scroll to Delete account.",
   },
   {
-    title: "Choose how to ask",
-    body: "Press Delete my account to request deletion, or Request Permanent Deletion to ask for your data to be permanently erased. Either way you are asked for a reason and to confirm.",
+    title: "Request account deletion",
+    body: "Select Delete my account and confirm your request.",
   },
   {
-    title: "Your account stays active for 30 days",
-    body: "Nothing is removed straight away. For 30 days you can still sign in, and a Restore my account button on the same page cancels the request.",
+    title: "30-day recovery period",
+    body: "Your account enters a 30-day deletion-pending period. During this time, you can sign in and select Restore my account to cancel the request.",
   },
   {
-    title: "After 30 days, it can be permanently deleted",
-    body: "Once the 30 days are up, the account becomes eligible for permanent deletion, which our super admin carries out by hand. It is never done automatically.",
+    title: "Permanent deletion",
+    body: "After 30 days, your account becomes eligible for permanent deletion and will be processed as soon as reasonably possible.",
   },
 ];
 
@@ -34,8 +34,8 @@ export default function AccountDeletionPage() {
           Account Deletion
         </h1>
         <p className="text-xl text-muted-foreground">
-          You can ask us to delete your Operator account at any time. This page
-          explains how, what is removed, and what we may keep.
+          You can request deletion of your Operator account and associated
+          personal data at any time.
         </p>
       </AnimatedSection>
 
@@ -63,72 +63,45 @@ export default function AccountDeletionPage() {
             </li>
           ))}
         </ol>
-        <p className="text-sm text-muted-foreground leading-relaxed mt-5">
-          Cannot sign in? Email{" "}
-          <a
-            href="mailto:hello@theoperator.app"
-            className="text-primary underline underline-offset-4"
-          >
-            hello@theoperator.app
-          </a>{" "}
-          from the address on your account and we will help.{" "}
-          <Link href="/login" className="text-primary underline underline-offset-4">
-            Sign in
-          </Link>
-        </p>
       </AnimatedSection>
 
       <AnimatedSection className="mb-12">
         <h2 className="font-heading font-bold text-2xl text-foreground mb-5">
-          What is deleted
+          What happens to your data
         </h2>
-        <ul className="space-y-2 text-sm text-muted-foreground leading-relaxed list-disc pl-5">
-          <li>Your sign-in account and your profile.</li>
-          <li>
-            Your place in other people&apos;s contact, favourite and ignored
-            lists, and your group memberships.
-          </li>
-          <li>Your notification and device tokens.</li>
-        </ul>
-        <p className="text-sm text-muted-foreground leading-relaxed mt-4">
-          If your website account is linked to your app account, both are
-          deleted together.
-        </p>
-      </AnimatedSection>
-
-      <AnimatedSection className="mb-12">
-        <h2 className="font-heading font-bold text-2xl text-foreground mb-5">
-          What may be kept, and for how long
-        </h2>
-        <ul className="space-y-2 text-sm text-muted-foreground leading-relaxed list-disc pl-5">
-          <li>
-            A record of your deletion request: the date, your reason, and your
-            account identifier, so we can show the request was handled.
-          </li>
-          <li>
-            Certain data may be retained for longer when required by law.
-            Anything we are not required to keep is deleted.
-          </li>
-        </ul>
-        <p className="text-sm text-muted-foreground leading-relaxed mt-4">
-          Questions about a specific piece of data? Email{" "}
-          <a
-            href="mailto:hello@theoperator.app"
-            className="text-primary underline underline-offset-4"
-          >
-            hello@theoperator.app
-          </a>
-          .
-        </p>
+        <div className="space-y-4 text-sm text-muted-foreground leading-relaxed">
+          <p>
+            When your account is permanently deleted, your account and
+            associated personal data will be deleted or anonymised.
+          </p>
+          <p>
+            We may retain limited information where necessary for security,
+            fraud or abuse prevention, legal or regulatory requirements, or the
+            establishment, exercise or defence of legal claims. Any information
+            retained for these purposes will no longer form part of an active
+            Operator account.
+          </p>
+          <p>
+            If your Operator app and website accounts are linked, the deletion
+            request applies to both.
+          </p>
+        </div>
       </AnimatedSection>
 
       <AnimatedSection>
-        <p className="text-sm text-muted-foreground">
-          More on how we treat your data:{" "}
-          <Link href="/privacy" className="text-primary underline underline-offset-4">
-            Privacy &amp; safety
-          </Link>
-          .
+        <h2 className="font-heading font-bold text-2xl text-foreground mb-5">
+          Can&apos;t sign in?
+        </h2>
+        <p className="text-sm text-muted-foreground leading-relaxed">
+          Email{" "}
+          <a
+            href="mailto:privacy@operatorcalling.com"
+            className="text-primary underline underline-offset-4"
+          >
+            privacy@operatorcalling.com
+          </a>{" "}
+          from the email address associated with your account and we&apos;ll
+          help you request deletion.
         </p>
       </AnimatedSection>
     </div>

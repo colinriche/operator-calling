@@ -18,6 +18,8 @@ export interface EmailMessage {
   /** Plain text is required - never send HTML-only mail. */
   text: string;
   html?: string;
+  /** Where a reply should go, when that is not the sender. */
+  replyTo?: string;
 }
 
 export interface SendResult {
@@ -107,6 +109,7 @@ export async function sendEmail(message: EmailMessage): Promise<SendResult> {
       to: message.to,
       subject: message.subject,
       text: message.text,
+      ...(message.replyTo ? { replyTo: message.replyTo } : {}),
       ...(message.html ? { html: message.html } : {}),
     });
     return { sent: true };

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ContactForm } from "@/components/marketing/ContactForm";
 import { AnimatedSection } from "@/components/marketing/AnimatedSection";
 
 export const metadata: Metadata = { title: "FAQ" };
@@ -53,7 +54,7 @@ export default function FAQPage() {
         </h1>
         <p className="text-xl text-muted-foreground">
           Can't find an answer?{" "}
-          <a href="mailto:hello@theoperator.app" className="text-primary underline underline-offset-4">
+          <a href="#contact" className="text-primary underline underline-offset-4">
             Get in touch.
           </a>
         </p>
@@ -84,14 +85,18 @@ export default function FAQPage() {
         ))}
       </div>
 
-      <AnimatedSection className="mt-16 text-center">
-        <p className="text-muted-foreground mb-4">Still have questions?</p>
-        <a
-          href="mailto:hello@theoperator.app"
-          className="inline-flex items-center gap-2 px-6 py-3 rounded-xl gradient-gold text-primary-foreground font-semibold text-sm hover:opacity-90 transition-opacity"
-        >
-          Contact us
-        </a>
+      {/* The footer's Contact link lands here. scroll-mt keeps the heading clear
+          of the sticky navbar. */}
+      <AnimatedSection className="mt-16">
+        <div id="contact" className="scroll-mt-24">
+          <h2 className="font-heading font-bold text-2xl text-foreground mb-2 text-center">
+            Still have questions?
+          </h2>
+          <p className="text-sm text-muted-foreground mb-6 text-center">
+            Send us a message and we&apos;ll get back to you.
+          </p>
+          <ContactForm />
+        </div>
       </AnimatedSection>
     </div>
   );

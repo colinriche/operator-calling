@@ -81,6 +81,11 @@ export async function checkRateLimit(
   }
 }
 
+/** Limit for the public contact form, per hashed IP. */
+export const CONTACT_LIMITS = {
+  submit: { limit: 3, windowSeconds: 60 * 10 },
+} as const;
+
 /** Limits for the public waitlist endpoints, per hashed IP. */
 export const WAITLIST_LIMITS = {
   register: { limit: 5, windowSeconds: 60 * 10 },
