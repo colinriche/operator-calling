@@ -14,6 +14,15 @@ export interface ArchiveDeleteOptions {
   deletionType: "admin_delete" | "self_delete";
   reason: string;
   authUserIds?: string[];
+  /**
+   * Keep a full copy of the account's data in the archive. Off by default: a
+   * deletion leaves only a minimal record (who, when, why). Turn it on only when
+   * the law requires certain data to be kept, and say why in `retentionReason`.
+   * The archive is not held indefinitely - remove it with deleteArchivePermanently
+   * once the requirement ends. No retention period is assumed here.
+   */
+  retainFullArchive?: boolean;
+  retentionReason?: string;
 }
 
 function containsUserReference(value: unknown, userIds: Set<string>): boolean {
@@ -133,8 +142,15 @@ export async function archiveAndDeleteUsers(
     throw new Error("No user ids supplied");
   }
 
+  const retainFull = options.retainFullArchive === true;
+  if (retainFull && !options.retentionReason?.trim()) {
+    throw new Error("retentionReason is required to keep a full archive");
+  }
+
   const archiveRef = db.collection("Archive").doc(`${userIds[0]}_${Date.now()}`);
-  const userSnaps = await Promise.all(userIds.map((id) => db.collection("user").doc(id).get()));
+  const userSnaps = retainFull
+    ? await Promise.all(userIds.map((id) => db.collection("user").doc(id).get()))
+    : [];
   const userDataById = Object.fromEntries(
     userSnaps.map((snap, index) => [userIds[index], snap.exists ? snap.data() ?? null : null])
   );
@@ -143,16 +159,18 @@ export async function archiveAndDeleteUsers(
     userId: userIds[0],
     userIds,
     authUserIds,
-    userData: userDataById[userIds[0]],
-    userDataById,
+    // Only a full archive carries the account's own data.
+    ...(retainFull ? { userData: userDataById[userIds[0]], userDataById } : {}),
     archivedBy: options.deletedBy,
     deletedBy: options.deletedBy,
     deletionType: options.deletionType,
     deletionReason: options.reason,
     deletedAt: FieldValue.serverTimestamp(),
     archivedAt: FieldValue.serverTimestamp(),
-    retentionNote:
-      "Archive retained for legal/privacy audit. Permanent removal requires written user request and super admin approval.",
+    fullArchive: retainFull,
+    retentionNote: retainFull
+      ? `Full archive kept because the law requires it: ${options.retentionReason?.trim()}. Remove it once that requirement ends.`
+      : "Minimal deletion record only. The account's data was not archived.",
     status: "processing",
   });
 
@@ -177,19 +195,21 @@ export async function archiveAndDeleteUsers(
 
   const writes: Array<{ ref: DocumentReference; data: Record<string, unknown> }> = [];
   let matchedDocumentCount = 0;
-  const collections = await db.listCollections();
-  const userIdSet = new Set(userIds);
-  for (const collectionRef of collections) {
-    if (collectionRef.id === "Archive") continue;
-    matchedDocumentCount += await archiveCollectionReferences(
-      db,
-      collectionRef,
-      userIdSet,
-      archiveRef,
-      writes
-    );
+  if (retainFull) {
+    const collections = await db.listCollections();
+    const userIdSet = new Set(userIds);
+    for (const collectionRef of collections) {
+      if (collectionRef.id === "Archive") continue;
+      matchedDocumentCount += await archiveCollectionReferences(
+        db,
+        collectionRef,
+        userIdSet,
+        archiveRef,
+        writes
+      );
+    }
+    await commitBatch(db, writes);
   }
-  await commitBatch(db, writes);
 
   for (const userId of userIds) {
     await cleanUserReferences(db, userId);

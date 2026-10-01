@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { AnimatedSection } from "@/components/marketing/AnimatedSection";
 
 export const metadata: Metadata = { title: "FAQ" };
 
-const faqs = [
+const faqs: { q: string; a: string; link?: { href: string; label: string } }[] = [
   {
     q: "What is The Operator?",
     a: "The Operator is a voice-first calling platform. It lets you schedule calls, request callbacks, and join community groups - all built around the idea that a 5-minute call beats a hundred messages.",
@@ -36,6 +37,11 @@ const faqs = [
     q: "Can I set my availability so I'm not disturbed?",
     a: "Yes. You set your available hours in your profile. The Operator will only attempt to connect calls during those windows.",
   },
+  {
+    q: "How do I delete my account?",
+    a: "Open Profile in your dashboard and use the Delete account box. You have 30 days to restore it, after which it becomes eligible for permanent deletion by our team. Certain data may be retained longer when required by law.",
+    link: { href: "/account-deletion", label: "Read the full account deletion steps" },
+  },
 ];
 
 export default function FAQPage() {
@@ -61,7 +67,18 @@ export default function FAQPage() {
                 {item.q}
                 <span className="ml-4 shrink-0 text-muted-foreground group-open:rotate-45 transition-transform text-xl leading-none">+</span>
               </summary>
-              <p className="px-5 pb-5 text-sm text-muted-foreground leading-relaxed">{item.a}</p>
+              <p className="px-5 pb-5 text-sm text-muted-foreground leading-relaxed">
+                {item.a}
+                {item.link && (
+                  <>
+                    {" "}
+                    <Link href={item.link.href} className="text-primary underline underline-offset-4">
+                      {item.link.label}
+                    </Link>
+                    .
+                  </>
+                )}
+              </p>
             </details>
           </AnimatedSection>
         ))}

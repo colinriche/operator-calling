@@ -15,6 +15,7 @@ import { OutreachSourcesPanel } from "@/components/admin/OutreachSourcesPanel";
 import { doc, serverTimestamp, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { firebaseProjectId } from "@/lib/firebase-env";
+import type { DeletionRequestView } from "@/lib/account-deletion";
 
 interface UserRow {
   id: string;
@@ -76,6 +77,8 @@ export function SuperAdminDashboard() {
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
   const [purgingArchiveId, setPurgingArchiveId] = useState<string | null>(null);
   const [loadingArchives, setLoadingArchives] = useState(false);
+  const [deletionRequests, setDeletionRequests] = useState<DeletionRequestView[]>([]);
+  const [loadingDeletions, setLoadingDeletions] = useState(false);
   const [groupsCount, setGroupsCount] = useState(0);
   const [callsToday, setCallsToday] = useState(0);
   const [completedCalls30d, setCompletedCalls30d] = useState(0);
@@ -181,6 +184,26 @@ export function SuperAdminDashboard() {
       cancelled = true;
     };
   }, [user, authLoading]);
+
+  async function loadDeletionRequests() {
+    if (!user) return;
+    try {
+      setLoadingDeletions(true);
+      const token = await user.getIdToken();
+      const res = await fetch("/api/admin/deletion-requests", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to load deletion requests");
+      setDeletionRequests(data.requests ?? []);
+    } catch (error) {
+      toast.error(
+        `Failed loading deletion requests: ${error instanceof Error ? error.message : "Unknown error"}`
+      );
+    } finally {
+      setLoadingDeletions(false);
+    }
+  }
 
   async function loadArchives() {
     if (!user) return;
@@ -488,13 +511,15 @@ export function SuperAdminDashboard() {
 
       <Tabs defaultValue="users" onValueChange={(value) => {
         if (value === "archive") void loadArchives();
+        if (value === "deletions") void loadDeletionRequests();
       }}>
-        <TabsList className="grid grid-cols-3 sm:grid-cols-6 w-full mb-6">
+        <TabsList className="grid grid-cols-3 sm:grid-cols-7 w-full mb-6">
           <TabsTrigger value="users" className="gap-1.5 text-xs"><Users className="w-3.5 h-3.5" />Users</TabsTrigger>
           <TabsTrigger value="moderation" className="gap-1.5 text-xs"><Shield className="w-3.5 h-3.5" />Moderation</TabsTrigger>
           <TabsTrigger value="analytics" className="gap-1.5 text-xs"><BarChart3 className="w-3.5 h-3.5" />Analytics</TabsTrigger>
           <TabsTrigger value="outreach" className="gap-1.5 text-xs"><Megaphone className="w-3.5 h-3.5" />Outreach</TabsTrigger>
           <TabsTrigger value="archive" className="gap-1.5 text-xs"><Archive className="w-3.5 h-3.5" />Archive</TabsTrigger>
+          <TabsTrigger value="deletions" className="gap-1.5 text-xs"><Trash2 className="w-3.5 h-3.5" />Deletions</TabsTrigger>
           <TabsTrigger value="system" className="gap-1.5 text-xs"><Settings className="w-3.5 h-3.5" />System</TabsTrigger>
         </TabsList>
 
@@ -722,6 +747,62 @@ export function SuperAdminDashboard() {
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        </TabsContent>
+
+        {/* Deletion requests - filed by users from their profile, processed by hand */}
+        <TabsContent value="deletions" className="space-y-4">
+          <div className="bg-card rounded-2xl border border-border/60 overflow-hidden">
+            <div className="p-4 border-b border-border/60 flex items-center justify-between gap-4">
+              <div>
+                <h2 className="font-semibold text-sm text-foreground">Deletion requests</h2>
+                <p className="text-xs text-muted-foreground">
+                  Nothing is deleted automatically. Process each request by hand once its
+                  30 day restore window has ended.
+                </p>
+              </div>
+              <Button size="sm" variant="outline" onClick={() => void loadDeletionRequests()} disabled={loadingDeletions}>
+                {loadingDeletions ? "Loading..." : "Refresh"}
+              </Button>
+            </div>
+            <div className="divide-y divide-border/60">
+              {deletionRequests.length === 0 && (
+                <div className="p-5 text-sm text-muted-foreground">
+                  {loadingDeletions ? "Loading deletion requests..." : "No deletion requests."}
+                </div>
+              )}
+              {deletionRequests.map((r) => {
+                const windowEnded =
+                  r.status === "pending" && !!r.restoreUntil && new Date(r.restoreUntil) < new Date();
+                return (
+                  <div key={r.id} className="p-5 flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">
+                        {r.displayName || r.email || r.userId}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {r.email || "No email"} · Requested {formatDate(r.requestedAt ? new Date(r.requestedAt) : null)}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {r.requestType === "permanent_deletion" ? "Permanent deletion requested" : "Account deletion"}
+                        {" · "}
+                        {r.status === "restored"
+                          ? `Restored ${formatDate(r.restoredAt ? new Date(r.restoredAt) : null)}`
+                          : `Restorable until ${formatDate(r.restoreUntil ? new Date(r.restoreUntil) : null)}`}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">Reason: {r.reason || "Not recorded"}</p>
+                      <p className="text-xs text-muted-foreground mt-1">User ID: {r.userId}</p>
+                    </div>
+                    <Badge
+                      variant="outline"
+                      className={windowEnded ? "shrink-0 border-destructive/40 text-destructive" : "shrink-0"}
+                    >
+                      {r.status === "restored" ? "Restored" : windowEnded ? "Ready to process" : "In restore window"}
+                    </Badge>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </TabsContent>

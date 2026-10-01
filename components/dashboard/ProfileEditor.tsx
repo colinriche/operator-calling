@@ -3,10 +3,9 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
-import { getIdToken, signOut } from "firebase/auth";
-import { markSignedOut } from "@/lib/session-cookie";
+import { getIdToken } from "firebase/auth";
 import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
-import { auth, db } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,6 +17,10 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { User, Phone, Shield, Bell, Users, X, QrCode, Copy, Share2, RefreshCcw, Download } from "lucide-react";
 import { toDataURL } from "qrcode";
+import type { DeletionRequestView } from "@/lib/account-deletion";
+
+const DELETION_NOTICE =
+  "After 30 days the account will be permanently deleted, with certain data retained only if legally required.";
 
 const INTEREST_SUGGESTIONS = [
   "Running", "Remote work", "Music", "Language learning", "Startups",
@@ -38,6 +41,7 @@ export function ProfileEditor() {
   const { user, profile, profileDocId, loading } = useAuth();
   const [saving, setSaving] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
+  const [deletionRequest, setDeletionRequest] = useState<DeletionRequestView | null>(null);
   const [seeded, setSeeded] = useState(false);
 
   const [displayName, setDisplayName] = useState("");
@@ -155,44 +159,69 @@ export function ProfileEditor() {
     }
   }
 
-  async function handleDeleteAccount() {
+  // Deleting never happens on the spot. These file a request for the super admin
+  // to process by hand, and the person can restore it for 30 days.
+  async function loadDeletionRequest() {
+    if (!user) return;
+    try {
+      const token = await getIdToken(user);
+      const query = profileDocId ? `?profileDocId=${encodeURIComponent(profileDocId)}` : "";
+      const res = await fetch(`/api/account/deletion${query}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.ok) setDeletionRequest(data.request ?? null);
+    } catch {
+      /* the buttons still work; the status just is not shown */
+    }
+  }
+
+  useEffect(() => {
+    void loadDeletionRequest();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, profileDocId]);
+
+  async function submitDeletion(action: "delete" | "permanent" | "restore") {
     if (!user) return;
 
-    const reason = window.prompt(
-      "Please tell us why you are deleting your account. This reason is stored in the archive record.",
-      "User requested account deletion"
-    );
-    if (reason === null) return;
+    let reason = "";
+    if (action !== "restore") {
+      const answer = window.prompt(
+        "Please tell us why you are leaving. This is stored with your request.",
+        "User requested account deletion"
+      );
+      if (answer === null) return;
+      reason = answer;
 
-    const confirmed = window.confirm(
-      "Delete your account? Your account data will be archived first to protect other users' records. If this website account is linked to your app account, the linked app account will be deleted too."
-    );
-    if (!confirmed) return;
+      const confirmed = window.confirm(
+        action === "permanent"
+          ? `Request permanent deletion of your account? ${DELETION_NOTICE} You can restore it from this page within 30 days.`
+          : `Delete your account? ${DELETION_NOTICE} You can restore it from this page within 30 days.`
+      );
+      if (!confirmed) return;
+    }
 
     try {
       setDeletingAccount(true);
       const token = await getIdToken(user);
-      const res = await fetch("/api/account/delete", {
+      const res = await fetch("/api/account/deletion", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          profileDocId,
-          reason: reason.trim() || "User requested account deletion",
-        }),
+        body: JSON.stringify({ action, profileDocId, reason }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Failed to delete account");
-      await signOut(auth);
-      markSignedOut();
-      toast.success("Your account has been archived and deleted.");
-      router.replace("/");
-    } catch (error) {
-      toast.error(
-        `Failed to delete account: ${error instanceof Error ? error.message : "Unknown error"}`
+      if (!res.ok) throw new Error(data.error ?? "Request failed");
+      setDeletionRequest(data.request ?? null);
+      toast.success(
+        action === "restore"
+          ? "Your account has been restored."
+          : "Deletion requested. You can restore your account within 30 days."
       );
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Something went wrong");
     } finally {
       setDeletingAccount(false);
     }
@@ -638,18 +667,68 @@ export function ProfileEditor() {
 
       <div className="mt-8 rounded-2xl border border-destructive/30 bg-destructive/5 p-5">
         <h2 className="text-sm font-semibold text-destructive">Delete account</h2>
-        <p className="mt-1 text-xs text-muted-foreground">
-          This archives your account record first. Permanent archive removal requires a written request and super admin approval.
-        </p>
-        <Button
-          type="button"
-          variant="outline"
-          disabled={deletingAccount}
-          className="mt-4 border-destructive/40 text-destructive hover:bg-destructive/10"
-          onClick={handleDeleteAccount}
-        >
-          {deletingAccount ? "Deleting..." : "Delete my account"}
-        </Button>
+        <p className="mt-1 text-xs text-muted-foreground">{DELETION_NOTICE}</p>
+
+        {deletionRequest?.status === "pending" ? (
+          <div className="mt-4">
+            <p className="text-sm text-foreground">
+              {deletionRequest.requestType === "permanent_deletion"
+                ? "Permanent deletion requested"
+                : "Account deletion requested"}
+              {deletionRequest.requestedAt &&
+                ` on ${new Date(deletionRequest.requestedAt).toLocaleDateString()}`}
+              .
+            </p>
+            {deletionRequest.restoreUntil && (
+              <p className="mt-1 text-xs text-muted-foreground">
+                You can restore your account until{" "}
+                {new Date(deletionRequest.restoreUntil).toLocaleDateString()}.
+              </p>
+            )}
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Button
+                type="button"
+                disabled={deletingAccount}
+                className="gradient-gold border-0 text-primary-foreground font-semibold"
+                onClick={() => void submitDeletion("restore")}
+              >
+                {deletingAccount ? "Working..." : "Restore my account"}
+              </Button>
+              {deletionRequest.requestType !== "permanent_deletion" && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={deletingAccount}
+                  className="border-destructive/40 text-destructive hover:bg-destructive/10"
+                  onClick={() => void submitDeletion("permanent")}
+                >
+                  Request Permanent Deletion
+                </Button>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="mt-4 flex flex-col items-start gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={deletingAccount}
+              className="border-destructive/40 text-destructive hover:bg-destructive/10"
+              onClick={() => void submitDeletion("delete")}
+            >
+              {deletingAccount ? "Working..." : "Delete my account"}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={deletingAccount}
+              className="border-destructive/40 text-destructive hover:bg-destructive/10"
+              onClick={() => void submitDeletion("permanent")}
+            >
+              Request Permanent Deletion
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );
