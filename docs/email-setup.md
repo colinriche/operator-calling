@@ -89,6 +89,73 @@ new one.
   MAIL FROM domain and keep the existing Workspace SPF record for Workspace mail.
   Do not remove or edit the existing MX or authentication records.
 
+## Apple Private Email Relay (Sign in with Apple, "Hide My Email")
+
+People who choose **Hide My Email** when signing in with Apple give us an address like
+`abc123@privaterelay.appleid.com`. It is a real address that forwards to them, but **Apple only forwards mail
+that comes from a sender you have registered with Apple**. Mail from anywhere else is dropped, with no bounce,
+so it looks like we sent it and nothing arrived. Those accounts are marked `emailIsPrivateRelay: true` on their
+`user` document.
+
+The sender to register is the one in `EMAIL_FROM` (`no-reply@operatorcalling.com`), on the domain
+`operatorcalling.com`.
+
+### 1. Register the domain
+
+Apple Developer portal (developer.apple.com) -> **Certificates, Identifiers & Profiles** -> **More** ->
+**Configure Sign in with Apple for Email Communication** -> **Email Sources** -> **+**.
+
+1. Choose **Domains** and enter `operatorcalling.com`.
+2. The row shows **Verify SPF**. Apple shows the SPF text it needs. **Copy it from the portal**; do not type it
+   from memory or from here.
+
+### 2. Add Apple's SPF entry to DNS
+
+DNS is managed wherever `operatorcalling.com`'s nameservers point (Google Workspace's domain host, Cloudflare,
+Namecheap, Route 53 ...). Look there for the TXT record that **starts `v=spf1`** on the root domain
+(`operatorcalling.com` / `@`).
+
+- A domain may have **only one** SPF record. If one exists, **edit it and add Apple's `include:` before the
+  final `~all`** (or `-all`). Do not add a second `v=spf1` record: two records make SPF fail for **all** mail,
+  including Workspace's.
+- Keep what is already there. Example only (your existing record and Apple's value will differ):
+
+  ```
+  before:  v=spf1 include:_spf.google.com ~all
+  after:   v=spf1 include:_spf.google.com include:<value Apple shows> ~all
+  ```
+- SPF allows at most **10 DNS lookups** in total across all the `include:`s. Google plus Apple is fine; if you
+  have added many other services, check the record still passes (a free SPF checker shows the count).
+- Leave MX and every other record alone.
+
+Save, wait a few minutes (up to an hour for some providers), return to the portal and click **Verify SPF**.
+
+### 3. Register the From address
+
+In the same **Email Sources** screen: **+** -> **Email Addresses** -> enter `no-reply@operatorcalling.com`
+(exactly what `EMAIL_FROM` sends as) -> Register. If you ever change `EMAIL_FROM`, register the new address too.
+
+### 4. Make sure the mail also authenticates through SES
+
+Apple checks that the message really comes from the registered domain. We send through SES, so:
+
+- In SES, `operatorcalling.com` must be a **verified identity** with **Easy DKIM = Successful** (see the section
+  above). DKIM on the domain is what proves our mail is ours.
+- If you set a **custom MAIL FROM domain** in SES (recommended), SES also publishes SPF for that subdomain. That
+  is separate from the root-domain SPF record you edited for Apple.
+
+### 5. Test it
+
+1. On the live site, sign in with Apple using a spare Apple ID and choose **Hide My Email**.
+2. Make the site email that account (a waitlist registration or contact confirmation with
+   `EMAIL_SENDING_ENABLED=true`, or send to the relay address from the SES console).
+3. It should arrive in the Apple ID's own inbox. If it does not arrive and SES shows it as **delivered** to
+   `privaterelay.appleid.com`, Apple dropped it: recheck steps 1-4 (most often the SPF value, or the From address
+   not registered).
+
+Until this is done Sign in with Apple still works; only mail to hidden addresses is lost. See also
+[`apple-signin.md`](./apple-signin.md).
+
 ## Limits
 
 SES enforces its own daily quota and send rate (shown in the SES console), far

@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Users, BarChart3, Shield, Settings, Search, AlertTriangle, CheckCircle2, Phone, Globe, Archive, Trash2, Megaphone } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdminRole } from "@/hooks/useAdminRole";
 import { seedDashboardStarterData } from "@/lib/dashboardSeed";
@@ -390,10 +391,13 @@ export function SuperAdminDashboard() {
           <h1 className="font-heading font-bold text-3xl text-foreground mb-1">Super Admin</h1>
           <p className="text-muted-foreground">Platform-wide management and oversight.</p>
         </div>
-        <Badge variant="outline" className="border-amber-400 text-amber-700 bg-amber-50 gap-1.5">
+        <Link
+          href="/admin/super/reports"
+          className={cn(buttonVariants({ variant: "outline" }), "gap-1.5 border-amber-400 text-amber-700 bg-amber-50 hover:bg-amber-100")}
+        >
           <AlertTriangle className="w-3.5 h-3.5" />
-          {openReportsCount} open reports
-        </Badge>
+          Reports ({openReportsCount} open)
+        </Link>
       </div>
 
       {/* Platform stats */}

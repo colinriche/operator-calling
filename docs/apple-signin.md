@@ -27,11 +27,8 @@ It only works once Apple and Firebase are configured. Until then the button show
 
 ### 3. Hide My Email / Private Relay (so mail reaches people who hid their address)
 
-Apple only forwards mail sent **from a registered domain/address**. In the developer portal:
-Certificates, Identifiers & Profiles → **More** → *Configure Sign in with Apple for Email Communication*:
-
-1. Add the sending domain (the domain in `EMAIL_FROM`, see `docs/email-setup.md`) and add the SPF record Apple shows.
-2. Register the exact From address(es) used.
+Apple only forwards mail sent **from a registered domain/address**. The detailed, step-by-step setup (SPF record,
+registering the From address, SES DKIM, testing) is in [`email-setup.md`](./email-setup.md#apple-private-email-relay-sign-in-with-apple-hide-my-email).
 
 Without this, sign-in still works but any email to a `@privaterelay.appleid.com` address is silently dropped.
 

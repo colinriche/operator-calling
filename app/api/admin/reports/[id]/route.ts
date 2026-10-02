@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireModerator } from "@/lib/admin-auth";
+import { checkModerator } from "@/lib/admin-auth";
 import { getAdminDb } from "@/lib/firebase-admin";
 import { getReportDetail, ModerationRefusal, performReportAction } from "@/lib/moderation-server";
 
@@ -16,10 +16,9 @@ export const runtime = "nodejs";
 type Params = { params: Promise<{ id: string }> };
 
 export async function GET(req: NextRequest, { params }: Params) {
-  const caller = await requireModerator(req);
-  if (!caller) {
-    return NextResponse.json({ error: "Super admin role required" }, { status: 403 });
-  }
+  const gate = await checkModerator(req);
+  if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
+  const caller = gate.caller;
   const { id } = await params;
 
   try {
@@ -33,10 +32,9 @@ export async function GET(req: NextRequest, { params }: Params) {
 }
 
 export async function POST(req: NextRequest, { params }: Params) {
-  const caller = await requireModerator(req);
-  if (!caller) {
-    return NextResponse.json({ error: "Super admin role required" }, { status: 403 });
-  }
+  const gate = await checkModerator(req);
+  if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
+  const caller = gate.caller;
   const { id } = await params;
 
   let body: unknown;

@@ -202,3 +202,35 @@ export async function requireModerator(req: NextRequest): Promise<AdminCaller | 
   const caller = await requireAdmin(req);
   return caller && canModerate(caller.role) ? caller : null;
 }
+
+/**
+ * requireModerator, but saying WHY it refused. A 403 that only reads "Super
+ * admin role required" is baffling to someone who can open the Super Admin page
+ * (that page is open to any admin; only its actions are restricted), so the
+ * answer names the signed-in account and the role the server actually found.
+ * That role comes from the `admins` collection (lib/admins.ts), not from what the
+ * page lets you open.
+ */
+export async function checkModerator(
+  req: NextRequest
+): Promise<{ ok: true; caller: AdminCaller } | { ok: false; status: number; error: string }> {
+  const caller = await requireAdmin(req);
+  if (!caller) {
+    return {
+      ok: false,
+      status: 403,
+      error: "You're not signed in as an admin on this site. Sign out and back in, or ask a super admin to add you.",
+    };
+  }
+  if (!canModerate(caller.role)) {
+    return {
+      ok: false,
+      status: 403,
+      error:
+        `Reports need the super_admin role. You're signed in as ${caller.email} with the "${caller.role}" role` +
+        (caller.source === "legacy" ? " (from the old user profile; no record in the admins list)" : "") +
+        ". A super admin can change that in the admins list.",
+    };
+  }
+  return { ok: true, caller };
+}

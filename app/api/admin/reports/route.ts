@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireModerator } from "@/lib/admin-auth";
+import { checkModerator } from "@/lib/admin-auth";
 import { getAdminDb } from "@/lib/firebase-admin";
 import { loadAllReports } from "@/lib/moderation-server";
 import {
@@ -19,10 +19,9 @@ import {
 export const runtime = "nodejs";
 
 export async function GET(req: NextRequest) {
-  const caller = await requireModerator(req);
-  if (!caller) {
-    return NextResponse.json({ error: "Super admin role required" }, { status: 403 });
-  }
+  const gate = await checkModerator(req);
+  if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
+  const caller = gate.caller;
 
   const requested = req.nextUrl.searchParams.get("status") ?? "all";
   const filter: StatusFilter = isStatusFilter(requested) ? requested : "all";
