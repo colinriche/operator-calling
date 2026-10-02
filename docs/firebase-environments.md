@@ -8,7 +8,7 @@ Three environment variables run the site:
 ```
 FIREBASE_CLIENT_EMAIL   firebase-adminsdk-…@operator-calling.iam.gserviceaccount.com
 FIREBASE_PRIVATE_KEY    its private key
-ADMIN_LOGIN_ENABLED     true      # gates POST /api/admin/token
+ADMIN_LOGIN_ENABLED     true      # no longer read: the passwordless admin login was removed
 ```
 
 Nothing else is read. `NEXT_PUBLIC_FIREBASE_ENV`, the `*_PROD` / `*_DEV`

@@ -123,10 +123,10 @@ export function AdminNav() {
         <ThemeToggle />
       </div>
       <Link
-        href="/admin-login"
+        href="/login?next=/admin"
         className="text-xs text-muted-foreground hover:text-foreground transition-colors block"
       >
-        Admin login
+        Admin sign-in
       </Link>
       <Link
         href="/dashboard"

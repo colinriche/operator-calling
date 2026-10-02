@@ -35,7 +35,7 @@ site, all scoped to Production:
 |---|---|
 | `FIREBASE_CLIENT_EMAIL` | the `operator-calling` service account |
 | `FIREBASE_PRIVATE_KEY` | its private key |
-| `ADMIN_LOGIN_ENABLED` | gates `POST /api/admin/token` |
+| `ADMIN_LOGIN_ENABLED` | no longer read (the passwordless admin login was removed) |
 
 Everything else was deleted on 2026-08-20: the `*_STAGING` leftovers, the six
 `NEXT_PUBLIC_FIREBASE_*` values, `NEXT_PUBLIC_FIREBASE_ENV`, and the `*_PROD`

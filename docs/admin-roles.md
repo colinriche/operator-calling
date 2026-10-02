@@ -83,41 +83,10 @@ website" below.
 
 ## Signing in
 
-`POST /api/admin/token` takes an **email**, looks it up in `admins`, and returns
-a Firebase custom token for it. Both `admin` and `super_admin` are accepted -
-the route previously rejected `super_admin`, which would have locked out the
-highest role.
-
-The token is minted by the **default** admin app, whose project id comes from
-`NEXT_PUBLIC_FIREBASE_PROJECT_ID` - necessarily the same project the browser's
-client SDK uses, because `signInWithCustomToken` rejects a token issued by any
-other project. Both sides read the same variable, so this stays correct after
-the project move.
-
-It carries `email`, `role` and `name` as custom claims. That matters: a
-custom-token session has no `email` claim of its own, and authorisation is keyed
-by email, so without them the session would authenticate and then fail every
-permission check.
-
-### ⚠️ There is no credential check
-
-Submitting an address that appears in `admins` returns a working admin session.
-No password, no code, no second factor. **Anyone who knows or guesses an
-administrator's email address can become that administrator**, and email
-addresses are guessable by design.
-
-This is an accepted trade-off, not an oversight - requiring a real Firebase Auth
-sign-in was considered and declined. Two things narrow the window, neither of
-which makes it safe:
-
-- `ADMIN_LOGIN_ENABLED` must be `"true"`. Setting it to anything else disables
-  the route outright, and is the fastest way to close this.
-- Attempts are rate limited to 5 per 15 minutes per IP, so the address space
-  cannot be walked quickly. **A targeted guess still succeeds first time.**
-
-If revisited: stop minting sessions here, have admins sign in with a real
-credential, and keep `admins` purely for authorisation. Nothing about the
-collection or the capability model would need to change.
+There is **no passwordless admin login**. `POST /api/admin/token` (which minted a session from an email address
+alone) was removed on 2 Oct 2026 and now answers `410`; `/admin-login` redirects to `/login`. Admins sign in with a
+real credential (Google or phone) like everyone else, and the `admins` record for that email (or uid) decides what
+they may do. `ADMIN_LOGIN_ENABLED` is no longer read anywhere.
 
 ## Firestore rules
 
