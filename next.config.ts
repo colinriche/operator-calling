@@ -6,8 +6,8 @@ const nextConfig: NextConfig = {
       {
         source: "/:path*",
         headers: [
-          // Google sign-in uses signInWithPopup (components/auth/LoginTabs.tsx,
-          // components/shared/AuthForm.tsx). Firebase polls `window.closed` on
+          // Google sign-in uses signInWithPopup (components/auth/SignInChoices.tsx).
+          // Firebase polls `window.closed` on
           // the popup to notice the user dismissing it; under a stricter COOP
           // the browser severs that handle and logs
           //

@@ -107,7 +107,7 @@ These run in the browser against the client SDK, so rules do apply.
 | `hooks/useDashboardData.ts` | `schedules`, `callbacks`, `notifications`, `memberships` | Ordinary user's own data. **Rules needed** |
 | `components/admin/GroupAdminDashboard.tsx` | `memberships`, `groups`, `user`, `invites`, `schedules`, `reports`, `scheduledGroupCalls` | Mostly allowed; **`memberships` and `schedules` need rules** |
 | `components/public/PublicGroupsBrowser.tsx` | `groups` where `isPrivate == false`, `interests` | Currently denied for signed-out visitors - see optional section |
-| Auth forms (`AuthForm`, `LoginTabs`, `PhoneAuthForm`), `ProfileEditor` | own `user` document | Already allowed |
+| Auth forms (`SignInChoices`), `ProfileEditor` | own `user` document | Already allowed |
 
 The four collections that need rules - `memberships`, `schedules`, `callbacks`,
 `notifications` - have **no `match` block at all** in the shared ruleset, so
