@@ -7,10 +7,14 @@ import nodemailer, { type Transporter } from "nodemailer";
 // Workspace SMTP to a transactional provider later means replacing this file
 // and nothing else.
 //
-// Currently Workspace SMTP via an app password. That is fine for testing and
-// early groups but is not a bulk sender: Workspace caps external recipients
-// around 2,000/day and Google's terms discourage bulk use. Watch the cap before
-// a large community activates.
+// The transport is plain SMTP, configured entirely from the environment, so the
+// provider is a matter of which values are set - see docs/email-setup.md. The
+// intended setup is Amazon SES SMTP for outgoing mail, with Google Workspace
+// receiving replies; Workspace SMTP (an app password) still works for testing
+// but is not a bulk sender.
+//
+// No credential is ever in this repo. SMTP_USER and SMTP_PASS come from the
+// deployment's environment (Vercel, Production only) and are never logged.
 
 export interface EmailMessage {
   to: string;
@@ -30,12 +34,32 @@ export interface SendResult {
 
 let cached: Transporter | null = null;
 
-function fromAddress(): string {
-  return (
-    process.env.EMAIL_FROM ||
-    process.env.SMTP_USER ||
-    "The Operator <no-reply@operatorcalling.com>"
-  );
+/** The slice of process.env this file reads, so tests can pass a plain object. */
+type EnvLike = Record<string, string | undefined>;
+
+const DEFAULT_FROM = "The Operator <no-reply@operatorcalling.com>";
+
+/**
+ * The From header. EMAIL_FROM wins. SMTP_USER is only used when it is itself an
+ * email address (Google Workspace logs in with one); an SES SMTP username is an
+ * access key id, which is not a valid sender and must never end up in From.
+ */
+export function fromAddress(env: EnvLike = process.env): string {
+  if (env.EMAIL_FROM) return env.EMAIL_FROM;
+  if (env.SMTP_USER && env.SMTP_USER.includes("@")) return env.SMTP_USER;
+  return DEFAULT_FROM;
+}
+
+/**
+ * Where replies to automated mail go, if EMAIL_REPLY_TO is set - for example a
+ * Google Workspace mailbox, since the sending address is a no-reply. A message
+ * that sets its own replyTo (the contact form does) keeps it.
+ */
+export function replyToFor(
+  message: { replyTo?: string },
+  env: EnvLike = process.env
+): string | undefined {
+  return message.replyTo || env.EMAIL_REPLY_TO || undefined;
 }
 
 // ─── Collection-only mode ────────────────────────────────────────────────────
@@ -61,22 +85,56 @@ export function isEmailConfigured(): boolean {
   return isEmailSendingEnabled() && !!(process.env.SMTP_USER && process.env.SMTP_PASS);
 }
 
+/**
+ * Contact form switch. Separate from EMAIL_SENDING_ENABLED on purpose: turning
+ * the contact form's email on must not start the waitlist, tester or window
+ * mail, and the global switch staying off must not silence the contact form.
+ * The SMTP credentials are shared; only the permission to send is separate.
+ */
+export function isContactEmailSendingEnabled(): boolean {
+  return process.env.CONTACT_EMAIL_SENDING_ENABLED === "true";
+}
+
+function hasSmtpCredentials(): boolean {
+  return !!(process.env.SMTP_USER && process.env.SMTP_PASS);
+}
+
+// Callers check their own switch first, so this only decides whether there is
+// anything to send with.
 function transporter(): Transporter | null {
   if (cached) return cached;
-  if (!isEmailConfigured()) return null;
+  if (!hasSmtpCredentials()) return null;
 
-  const port = Number(process.env.SMTP_PORT ?? 465);
-  cached = nodemailer.createTransport({
-    host: process.env.SMTP_HOST ?? "smtp.gmail.com",
-    port,
-    // 465 is implicit TLS; 587 upgrades via STARTTLS.
-    secure: port === 465,
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    },
-  });
+  cached = nodemailer.createTransport(smtpConfig());
   return cached;
+}
+
+/**
+ * SMTP connection settings from the environment.
+ *
+ * TLS is always on. Ports 465 and 2465 are implicit TLS (SES and Gmail both
+ * offer 465); any other port, such as 587, must upgrade with STARTTLS and the
+ * connection is refused if the server will not - so credentials are never sent
+ * in the clear. TLS 1.2 is the floor.
+ *
+ * SMTP_HOST has no safe default for SES (the endpoint is per region, for
+ * example email-smtp.eu-west-2.amazonaws.com) and must be set there. It still
+ * falls back to Gmail so an existing Workspace setup keeps working unchanged.
+ */
+export function smtpConfig(env: EnvLike = process.env) {
+  const port = Number(env.SMTP_PORT ?? 465);
+  const implicitTls = port === 465 || port === 2465;
+  return {
+    host: env.SMTP_HOST ?? "smtp.gmail.com",
+    port,
+    secure: implicitTls,
+    requireTLS: !implicitTls,
+    tls: { minVersion: "TLSv1.2" as const },
+    auth: {
+      user: env.SMTP_USER,
+      pass: env.SMTP_PASS,
+    },
+  };
 }
 
 /**
@@ -87,10 +145,27 @@ function transporter(): Transporter | null {
  * failures are reported in the return value and logged, not raised.
  */
 export async function sendEmail(message: EmailMessage): Promise<SendResult> {
-  if (!isEmailSendingEnabled()) {
+  return deliver(message, isEmailSendingEnabled(), "EMAIL_SENDING_ENABLED");
+}
+
+/**
+ * Send a contact form message. Gated by CONTACT_EMAIL_SENDING_ENABLED alone, so
+ * it works whether or not the global switch is on. Same transport, same
+ * never-throws contract as sendEmail.
+ */
+export async function sendContactEmail(message: EmailMessage): Promise<SendResult> {
+  return deliver(message, isContactEmailSendingEnabled(), "CONTACT_EMAIL_SENDING_ENABLED");
+}
+
+async function deliver(
+  message: EmailMessage,
+  enabled: boolean,
+  switchName: string
+): Promise<SendResult> {
+  if (!enabled) {
     // Expected state, not a fault - logged at info so it does not read as one.
     console.log(
-      `[email] sending disabled - would have sent "${message.subject}" to ${message.to}`
+      `[email] ${switchName} is off - would have sent "${message.subject}" to ${message.to}`
     );
     return { sent: false, error: "sending_disabled" };
   }
@@ -109,7 +184,7 @@ export async function sendEmail(message: EmailMessage): Promise<SendResult> {
       to: message.to,
       subject: message.subject,
       text: message.text,
-      ...(message.replyTo ? { replyTo: message.replyTo } : {}),
+      ...(replyToFor(message) ? { replyTo: replyToFor(message) } : {}),
       ...(message.html ? { html: message.html } : {}),
     });
     return { sent: true };

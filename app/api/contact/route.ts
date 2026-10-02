@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { CONTACT_MESSAGES, validateContact } from "@/lib/contact";
-import { sendEmail } from "@/lib/email/send";
+import { sendContactEmail } from "@/lib/email/send";
 import { CONTACT_LIMITS, checkRateLimit } from "@/lib/rate-limit";
 import { COLLECTIONS } from "@/lib/waitlist/constants";
 import { waitlistDb } from "@/lib/waitlist/server";
@@ -9,8 +9,9 @@ import { visitorHashFrom } from "@/lib/waitlist/source-code";
 
 // POST /api/contact - public contact form.
 //
-// The message is saved first and emailed second. Outgoing mail is switched off
-// until EMAIL_SENDING_ENABLED is set, and SMTP can fail, so the saved copy is
+// The message is saved first and emailed second. Emailing it needs
+// CONTACT_EMAIL_SENDING_ENABLED=true (independent of EMAIL_SENDING_ENABLED, which
+// governs every other automated email), and SMTP can fail, so the saved copy is
 // what guarantees nothing a visitor wrote is lost. The inbox address is read
 // here, on the server, and never sent to the browser.
 
@@ -63,7 +64,7 @@ export async function POST(req: NextRequest) {
       createdAt: FieldValue.serverTimestamp(),
     });
 
-    const sent = await sendEmail({
+    const sent = await sendContactEmail({
       to: INBOX,
       replyTo: email,
       subject: `Operator contact form: ${name}`,

@@ -51,8 +51,18 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} ${sora.variable} h-full antialiased`}>
-      <body className="min-h-full flex flex-col bg-background text-foreground">
+    // Browser extensions (dark-mode, colour pickers) add attributes to <html> and
+    // <body> before React loads. suppressHydrationWarning ignores attribute
+    // differences on these two elements only, not anything inside them.
+    <html
+      lang="en"
+      className={`${inter.variable} ${sora.variable} h-full antialiased`}
+      suppressHydrationWarning
+    >
+      <body
+        className="min-h-full flex flex-col bg-background text-foreground"
+        suppressHydrationWarning
+      >
         <Providers>
           {children}
           <Toaster />
