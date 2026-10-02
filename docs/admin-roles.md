@@ -171,3 +171,27 @@ established.
 whole admin area,
 including the route that would let you fix it. The failure is logged as
 `[admin-auth] admins lookup failed:`.
+
+## `/admin/super` is super admins only
+
+Every page under `/admin/super` (the Super Admin dashboard, Reports, a user's moderation page) is behind
+`components/admin/SuperAdminGate.tsx`, and the sidebar only shows those entries to a `super_admin`. A plain
+`admin` who opens the address gets a "Super admins only" page that names the email and role the server found.
+
+The data behind the dashboard is gated on the server too: `/api/admin/overview` and `/api/admin/archive` (GET)
+now need `super_admin`, as do the Reports, moderation and deletion-request routes. Hiding a page is never the
+protection; the routes are.
+
+## "I changed the role in `admins` and nothing changed" / "I am a super admin but it says I'm not"
+
+The role comes from the `admins` document **named by the email the session signed in with**, lowercase. Two
+usual causes:
+
+1. **The document is named after a different email** than the one this session resolves to (a Google login,
+   a work address, an admin-login session that takes its email from the old `user` profile). The lookup finds
+   nothing and the site falls back to the transitional path below. The "Super admins only" page and the Reports
+   error both print the email and role the server saw: compare it with the document name.
+2. **The fallback is answering.** If no `admins` record is found, the site still honours `role` on the old
+   `user` document (`source: "legacy"` in `/api/admin/admins`, and a `LEGACY ROLE USED` line in the logs). That
+   is why editing a record that is never matched seems to do nothing. Once every admin has a matching `admins`
+   record, delete the fallback (`legacyRole` in `lib/admin-auth.ts`) so `user.role` stops granting anything.

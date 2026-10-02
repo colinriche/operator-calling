@@ -55,9 +55,11 @@ function str(value: unknown, fallback: string): string {
 }
 
 export async function GET(req: NextRequest) {
-  const caller = await requireAdmin(req);
+  // The Super Admin dashboard's data: every user's name and email, report counts,
+  // call statistics. Super admin only, like the page that shows it.
+  const caller = await requireAdmin(req, { superAdminOnly: true });
   if (!caller) {
-    return NextResponse.json({ error: "Admin role required" }, { status: 403 });
+    return NextResponse.json({ error: "Super admin role required" }, { status: 403 });
   }
 
   try {

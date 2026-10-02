@@ -43,9 +43,10 @@ function toIso(value: unknown): string | null {
 
 export async function GET(req: NextRequest) {
   try {
-    const services = await requireArchiveAccess(req);
+    // The archive holds deleted accounts' full records: super admin only.
+    const services = await requireArchiveAccess(req, true);
     if (!services) {
-      return NextResponse.json({ error: "Admin role required" }, { status: 403 });
+      return NextResponse.json({ error: "Super admin role required" }, { status: 403 });
     }
 
     const snap = await services.db

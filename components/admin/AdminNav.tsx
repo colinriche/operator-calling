@@ -48,24 +48,23 @@ const adminNav: NavItem[] = [
   { href: "/admin/moderation", icon: Shield, label: "Moderation" },
   { href: "/admin/settings", icon: Settings, label: "Group settings" },
   { href: "/admin/outreach", icon: Megaphone, label: "Outreach" },
-  // Moderation queue, with the unresolved count as a badge. Offered to every
-  // admin, like the Super admin page it lives under; the routes behind it decide
-  // who may act and, if you may not, say which role you are signed in with.
-  { href: "/admin/super/reports", icon: Flag, label: "Reports", badge: true, prefix: true },
-  { href: "/admin/super", icon: BarChart3, label: "Super admin", superOnly: true },
+  // Moderation queue, with the unresolved count as a badge. Inside Super Admin,
+  // so super admins only.
+  { href: "/admin/super/reports", icon: Flag, label: "Reports", requiresSuper: true, badge: true, prefix: true },
+  { href: "/admin/super", icon: BarChart3, label: "Super admin", superOnly: true, requiresSuper: true },
 ];
 
 export function AdminNav() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
-  const { isAdmin } = useAdminRole();
+  const { isSuperAdmin } = useAdminRole();
   const adminFetch = useAdminFetch();
   const [unresolved, setUnresolved] = useState<number | null>(null);
 
   // The badge: reports still New or Reviewing. Refreshed on navigation, so
   // resolving one and going back to the queue shows the new number.
   useEffect(() => {
-    if (!isAdmin) return;
+    if (!isSuperAdmin) return;
     let cancelled = false;
     adminFetch<{ counts: { unresolved: number } }>("/api/admin/reports?status=new")
       .then((d) => {
@@ -77,7 +76,7 @@ export function AdminNav() {
     return () => {
       cancelled = true;
     };
-  }, [isAdmin, adminFetch, pathname]);
+  }, [isSuperAdmin, adminFetch, pathname]);
 
   useEffect(() => {
     setOpen(false);
@@ -85,7 +84,7 @@ export function AdminNav() {
 
   function items() {
     return adminNav
-      .filter((item) => !item.requiresSuper || isAdmin)
+      .filter((item) => !item.requiresSuper || isSuperAdmin)
       .map(({ href, icon: Icon, label, superOnly, badge, prefix }) => {
         const active = prefix ? pathname.startsWith(href) : pathname === href;
         return (
