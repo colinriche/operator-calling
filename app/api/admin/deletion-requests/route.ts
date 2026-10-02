@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import { getAdminServices } from "@/lib/firebase-admin";
-import { DELETION_REQUESTS, toDeletionRequestView } from "@/lib/account-deletion";
+import { DELETION_REQUESTS, toAdminDeletionRequestView } from "@/lib/account-deletion";
 
-// GET /api/admin/deletion-requests - super admin only. Read-only: processing a
-// request is done by hand, and nothing is ever deleted from here.
+// GET /api/admin/deletion-requests - super admin only. Read-only. Reviewing a
+// request (delete the account / decline) is POST /api/admin/deletion-requests/[id].
 
 export const runtime = "nodejs";
 
@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
       .get();
 
     return NextResponse.json({
-      requests: snap.docs.map((d) => toDeletionRequestView(d.id, d.data())),
+      requests: snap.docs.map((d) => toAdminDeletionRequestView(d.id, d.data())),
     });
   } catch (err) {
     console.error("[admin/deletion-requests]", err);
