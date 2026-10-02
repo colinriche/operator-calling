@@ -22,8 +22,8 @@ interface AdminRoleState {
   role: AdminRole | null;
   /** The address the server resolved this session to; the `admins` record is keyed by it. */
   email: string | null;
-  /** Where the role came from: the `admins` collection, or the old user profile. */
-  source: "admins" | "legacy" | null;
+  /** Always the `admins` collection (kept so callers can show it). */
+  source: "admins" | null;
   isAdmin: boolean;
   isSuperAdmin: boolean;
   loading: boolean;
@@ -33,7 +33,7 @@ export function useAdminRole(): AdminRoleState {
   const { user, loading: authLoading } = useAuth();
   const [role, setRole] = useState<AdminRole | null>(null);
   const [email, setEmail] = useState<string | null>(null);
-  const [source, setSource] = useState<"admins" | "legacy" | null>(null);
+  const [source, setSource] = useState<"admins" | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {

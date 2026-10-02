@@ -38,8 +38,8 @@ export interface AdminCaller {
    * routes still record it; not used for any permission decision.
    */
   profileDocId: string | null;
-  /** How authority was established. "legacy" is the transitional path below. */
-  source: "admins" | "legacy";
+  /** How authority was established. Always the `admins` collection. */
+  source: "admins";
 }
 
 /**
@@ -78,24 +78,6 @@ async function resolveEmail(
   return { email: null, profileDocId: null, profile: null };
 }
 
-/**
- * Transitional fallback: honour a `role` on the legacy `user` document.
- *
- * Only consulted when the `admins` collection has nothing for this person, and
- * every hit is logged with the email that needs adding. It exists so that
- * deploying this change cannot lock every administrator out before the new
- * collection has been populated.
- *
- * DELETE THIS once `admins` is populated and verified. Until it is gone, a
- * `user` document with role: "admin" still grants access, which is exactly the
- * weakness the `admins` collection was introduced to remove.
- */
-function legacyRole(profile: DocumentData | null): AdminRole | null {
-  if (!profile) return null;
-  if (profile.archived === true) return null;
-  return isAdminRole(profile.role) ? profile.role : null;
-}
-
 export async function requireAdmin(
   req: NextRequest,
   { superAdminOnly = false }: { superAdminOnly?: boolean } = {}
@@ -111,15 +93,16 @@ export async function requireAdmin(
       return null;
     }
 
-    const { email, profileDocId, profile } = await resolveEmail(identity);
+    const { email, profileDocId } = await resolveEmail(identity);
     if (!email) {
       console.warn(`[admin-auth] no email resolvable for uid=${identity.uid}`);
       return null;
     }
 
-    // If the `admins` collection is unreachable - misconfigured credentials, or
-    // Firestore down - that must not deny every administrator at once. Fall
-    // through to the legacy path below, which exists for exactly this.
+    // `admins` is the ONLY source of authority. A `role` on the `user` document
+    // grants nothing here: that field is written by sign-up flows and the mobile
+    // app, which is why authority was moved out of it. If the collection cannot
+    // be read, nobody is let in: failing closed is correct for a permission list.
     let record = null;
     try {
       record = await lookupAdmin(email);
@@ -127,39 +110,11 @@ export async function requireAdmin(
       console.error("[admin-auth] admins lookup failed:", (err as Error).message);
     }
 
-    let role: AdminRole | null = record?.role ?? null;
-    let source: AdminCaller["source"] = "admins";
-    let name = record?.name ?? "";
+    const role: AdminRole | null = record?.role ?? null;
+    const name = record?.name ?? "";
 
     if (!role) {
-      // Fall back to the legacy user document, loading it if resolveEmail did
-      // not already have to.
-      let legacyProfile = profile;
-      if (!legacyProfile) {
-        try {
-          const snap = await getAdminDb().collection("user").doc(identity.uid).get();
-          legacyProfile = snap.exists ? (snap.data() ?? null) : null;
-        } catch {
-          legacyProfile = null;
-        }
-      }
-
-      role = legacyRole(legacyProfile);
-      if (role) {
-        source = "legacy";
-        name =
-          (typeof legacyProfile?.displayName === "string" && legacyProfile.displayName) ||
-          (typeof legacyProfile?.name === "string" && legacyProfile.name) ||
-          "";
-        console.warn(
-          `[admin-auth] LEGACY ROLE USED for ${email} (role=${role}) - add this ` +
-            `address to the "admins" collection, then remove the fallback`
-        );
-      }
-    }
-
-    if (!role) {
-      console.warn(`[admin-auth] ${email} is not an admin`);
+      console.warn(`[admin-auth] ${email} is not in the admins list`);
       return null;
     }
 
@@ -174,7 +129,7 @@ export async function requireAdmin(
       name,
       role,
       profileDocId,
-      source,
+      source: "admins",
     };
   } catch (err) {
     console.warn("[admin-auth] verification failed:", (err as Error).message);
@@ -228,7 +183,6 @@ export async function checkModerator(
       status: 403,
       error:
         `Reports need the super_admin role. You're signed in as ${caller.email} with the "${caller.role}" role` +
-        (caller.source === "legacy" ? " (from the old user profile; no record in the admins list)" : "") +
         ". A super admin can change that in the admins list.",
     };
   }

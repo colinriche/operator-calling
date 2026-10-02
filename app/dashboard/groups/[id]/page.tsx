@@ -1,5 +1,6 @@
 "use client";
 
+import { useAdminRole } from "@/hooks/useAdminRole";
 import { useState, useEffect, useCallback, use } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -162,7 +163,8 @@ export default function GroupDetailPage({ params }: { params: Promise<{ id: stri
   const searchParams = useSearchParams();
 
   const [uid, setUid] = useState<string | null>(null);
-  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  // From the `admins` collection via the server, not the `role` on the user profile.
+  const { isSuperAdmin } = useAdminRole();
   const [group, setGroup] = useState<GroupDetail | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
   const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([]);
@@ -232,14 +234,6 @@ export default function GroupDetailPage({ params }: { params: Promise<{ id: stri
     const unsub = onAuthStateChanged(auth, async (user) => {
       if (!user) { router.push("/login"); return; }
       setUid(user.uid);
-
-      // Check super admin status from the user doc
-      try {
-        const snap = await getDoc(doc(db, "user", user.uid));
-        if (snap.exists() && snap.data()?.role === "super_admin") {
-          setIsSuperAdmin(true);
-        }
-      } catch { /* non-fatal */ }
 
       const [groupData] = await Promise.all([loadGroup(), loadSchedules()]);
       if (groupData) {

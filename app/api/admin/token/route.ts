@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminServices } from "@/lib/firebase-admin";
-import { adminDocId, isAdminRole, lookupAdmin, type AdminRole } from "@/lib/admins";
+import { adminDocId, lookupAdmin, type AdminRole } from "@/lib/admins";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { visitorHashFrom } from "@/lib/waitlist/source-code";
 import { waitlistDb } from "@/lib/waitlist/server";
@@ -42,46 +42,7 @@ interface Match {
   email: string;
   name: string;
   role: AdminRole;
-  source: "admins" | "legacy";
-}
-
-/**
- * Transitional: match against the legacy `user` collection when `admins` has
- * nothing. Mirrors the fallback in lib/admin-auth.ts so that login and
- * authorisation agree during the changeover. Remove both together.
- */
-async function legacyMatch(input: string): Promise<Match | null> {
-  const { db } = getAdminServices();
-  const col = db.collection("user");
-
-  let snap = await col.where("username", "==", input).limit(1).get();
-  if (snap.empty) snap = await col.where("name", "==", input).limit(1).get();
-  if (snap.empty) snap = await col.where("email", "==", input).limit(1).get();
-  if (snap.empty) return null;
-
-  const doc = snap.docs[0];
-  const data = doc.data();
-  if (!isAdminRole(data.role)) return null;
-  if (data.archived === true) return null;
-
-  const email =
-    typeof data.email === "string" ? data.email.toLowerCase() : adminDocId(input);
-
-  console.warn(
-    `[admin/token] LEGACY ROLE USED for ${email} (role=${data.role}) - add this ` +
-      `address to the "admins" collection, then remove the fallback`
-  );
-
-  return {
-    uid: doc.id,
-    email,
-    name:
-      (typeof data.displayName === "string" && data.displayName) ||
-      (typeof data.name === "string" && data.name) ||
-      "",
-    role: data.role,
-    source: "legacy",
-  };
+  source: "admins";
 }
 
 export async function POST(req: NextRequest) {
@@ -115,7 +76,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // `admins` is authoritative; the legacy path only runs when it has nothing.
+    // `admins` is the only source of authority. A `role` on a `user` document
+    // grants no session.
     const record = await lookupAdmin(input);
     const match: Match | null = record
       ? {
@@ -125,7 +87,7 @@ export async function POST(req: NextRequest) {
           role: record.role,
           source: "admins",
         }
-      : await legacyMatch(input);
+      : null;
 
     if (!match) {
       // Deliberately vague - never reveal whether an address is an admin.

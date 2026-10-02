@@ -17,7 +17,7 @@ import { useAdminRole } from "@/hooks/useAdminRole";
  * one this session signed in with.
  */
 export function SuperAdminGate({ children }: { children: React.ReactNode }) {
-  const { loading, isSuperAdmin, role, email, source } = useAdminRole();
+  const { loading, isSuperAdmin, role, email } = useAdminRole();
 
   if (loading) {
     return <p className="text-sm text-muted-foreground">Checking access…</p>;
@@ -35,8 +35,7 @@ export function SuperAdminGate({ children }: { children: React.ReactNode }) {
         {role ? (
           <>
             {" "}
-            You&apos;re signed in as <strong>{email}</strong> with the <code>{role}</code> role
-            {source === "legacy" ? " (taken from the old user profile; there is no matching record in the admins list)" : ""}.
+            You&apos;re signed in as <strong>{email}</strong> with the <code>{role}</code> role.
           </>
         ) : (
           <> You&apos;re not signed in as an admin on this site.</>

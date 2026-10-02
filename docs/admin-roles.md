@@ -75,25 +75,11 @@ claim, then a custom claim, then the legacy `user` document at `user/{uid}`.
 - **You cannot demote or delete yourself.** Another super_admin can, if it is
   genuinely intended.
 
-## ⚠️ Transitional fallback - remove this
+## No fallback: `user.role` grants nothing
 
-`requireAdmin` still honours `role` on the legacy `user` document **when
-`admins` has no record for that email**. Every use logs:
-
-```
-[admin-auth] LEGACY ROLE USED for <email> (role=…) - add this address to the
-"admins" collection, then remove the fallback
-```
-
-It exists so deploying this change cannot lock every administrator out before
-the collection is populated. **Until it is removed, a `user` document with
-`role: "admin"` still grants access - which is the exact weakness `admins` was
-introduced to close.** The legacy documents were in the previous project, which
-the website no longer reads; whatever `user` documents exist in
-`operator-calling` now decide this.
-
-To remove it: populate `admins`, confirm nothing logs the warning, then delete
-`legacyRole` and its call site in `lib/admin-auth.ts`.
+The transitional fallback that honoured `role` on the `user` document when `admins` had no record **has been
+removed** (2 Oct 2026), from the admin gate and from the admin login. See "`user.role` grants nothing on the
+website" below.
 
 ## Signing in
 
@@ -159,18 +145,15 @@ Document id: your.email@example.com      ← lowercase
 Use the address the account you sign in with actually carries, or the lookup
 will not match.
 
-**Done:** `admins/colinriche@gmail.com` - `role: super_admin`, seeded
-2026-08-12. Authority is keyed by email, so it matches however the session is
+**Done:** `admins/colinriche@gmail.com` - `role: super_admin` (seeded 2026-08-12; had been changed to an invalid
+`user`, set back to `super_admin` on 2 Oct 2026). Authority is keyed by email, so it matches however the session is
 established.
 
 ### If the collection is unreachable
 
-`requireAdmin` catches a failed `admins` lookup and falls through to the legacy
-`user.role` path rather than denying every administrator at once. Missing or wrong
-`FIREBASE_CLIENT_EMAIL` / `FIREBASE_PRIVATE_KEY` would otherwise lock out the
-whole admin area,
-including the route that would let you fix it. The failure is logged as
-`[admin-auth] admins lookup failed:`.
+`requireAdmin` catches a failed `admins` lookup, logs `[admin-auth] admins lookup failed:` and **denies**. There is
+no fallback to fall through to, so missing or wrong `FIREBASE_CLIENT_EMAIL` / `FIREBASE_PRIVATE_KEY` locks the admin
+area until they are fixed (the same variables the rest of the site needs, so this shows up everywhere at once).
 
 ## `/admin/super` is super admins only
 
@@ -182,16 +165,24 @@ The data behind the dashboard is gated on the server too: `/api/admin/overview` 
 now need `super_admin`, as do the Reports, moderation and deletion-request routes. Hiding a page is never the
 protection; the routes are.
 
-## "I changed the role in `admins` and nothing changed" / "I am a super admin but it says I'm not"
+## `user.role` grants nothing on the website
 
-The role comes from the `admins` document **named by the email the session signed in with**, lowercase. Two
-usual causes:
+Authority comes **only** from the `admins` collection, one document per person named by their email in lowercase
+(`lib/admins.ts`). The old transitional fallback, which honoured a `role` on the `user` document, has been removed
+from both the admin gate (`lib/admin-auth.ts`) and the admin login (`app/api/admin/token`). The site-side UI that
+used to read `profile.role` (the dashboard's Admin link, the group page's super-admin view) now asks the server
+through `useAdminRole`.
 
-1. **The document is named after a different email** than the one this session resolves to (a Google login,
-   a work address, an admin-login session that takes its email from the old `user` profile). The lookup finds
-   nothing and the site falls back to the transitional path below. The "Super admins only" page and the Reports
-   error both print the email and role the server saw: compare it with the document name.
-2. **The fallback is answering.** If no `admins` record is found, the site still honours `role` on the old
-   `user` document (`source: "legacy"` in `/api/admin/admins`, and a `LEGACY ROLE USED` line in the logs). That
-   is why editing a record that is never matched seems to do nothing. Once every admin has a matching `admins`
-   record, delete the fallback (`legacyRole` in `lib/admin-auth.ts`) so `user.role` stops granting anything.
+The mobile app's own `role` on `user` still exists: it is the Flutter operator dashboard's authority and has
+nothing to do with this site.
+
+Only a `super_admin` can change the list (`/api/admin/admins`); nothing in a browser can write the collection.
+Roles are exactly `admin` or `super_admin`. **Any other value, such as `user`, is treated as no access at all**:
+the lookup refuses it rather than guessing.
+
+### "I changed the role in `admins` and it did not take effect" / "I'm a super admin but it says I'm not"
+
+1. The document must be **named by the email this session signed in with, lowercase**. The "Super admins only"
+   page and the Reports error both print the email and role the server found: compare it with the document name.
+2. `role` must be exactly `super_admin` or `admin`.
+3. Reload after changing it; the role is read on each request, so there is nothing to wait for.

@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useAuth } from "@/hooks/useAuth";
+import { useAdminRole } from "@/hooks/useAdminRole";
 
 const navItems = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Overview", gated: false },
@@ -33,7 +34,8 @@ export function DashboardNav() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, profile, loading, isLinked } = useAuth();
-  const isAdmin = profile?.role === "admin" || profile?.role === "super_admin";
+  // From the `admins` collection (via the server), not the `role` on the user profile.
+  const { isAdmin } = useAdminRole();
 
   const [open, setOpen] = useState(false);
 
