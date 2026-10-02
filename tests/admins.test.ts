@@ -112,3 +112,18 @@ describe("/api/admin/admins invariants", () => {
     expect(route.match(/email === caller\.email/g)?.length ?? 0).toBeGreaterThanOrEqual(2);
   });
 });
+
+describe("records named by a uid (app and dashboard operators)", () => {
+  it("a uid-keyed record with a valid role is an admin record", () => {
+    const rec = toAdminRecord("3MvvqcInECdRw9EiAis5ibwoso52", { role: "admin", name: "Jules", kind: "app" });
+    expect(rec).not.toBeNull();
+    expect(rec?.role).toBe("admin");
+    expect(rec?.email).toBe("3MvvqcInECdRw9EiAis5ibwoso52"); // the id, whatever it is named by
+  });
+
+  it("an invalid role fails closed whichever way it is named", () => {
+    expect(toAdminRecord("uid1", { role: "user" })).toBeNull();
+    expect(toAdminRecord("someone@example.com", { role: "Admin" })).toBeNull();
+    expect(toAdminRecord("uid1", {})).toBeNull();
+  });
+});

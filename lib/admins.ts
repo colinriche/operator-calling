@@ -122,6 +122,23 @@ export async function lookupAdmin(email: string): Promise<AdminRecord | null> {
   return record;
 }
 
+/**
+ * The admin record named by a Firebase uid, or null.
+ *
+ * App and dashboard operators sign in by phone or username, so their sessions
+ * have no email; their `admins` record is named by their uid instead. A record is
+ * named by either identity (an email always contains "@", a uid never does, so
+ * the two cannot collide). `role` must be valid or it is no access.
+ */
+export async function lookupAdminById(uid: string): Promise<AdminRecord | null> {
+  const id = typeof uid === "string" ? uid.trim() : "";
+  if (!id || id.includes("/") || id.includes("@")) return null;
+
+  const snap = await adminsDb().collection(ADMINS_COLLECTION).doc(id).get();
+  if (!snap.exists) return null;
+  return toAdminRecord(snap.id, snap.data() ?? {});
+}
+
 export async function listAdmins(): Promise<AdminRecord[]> {
   const snap = await adminsDb().collection(ADMINS_COLLECTION).get();
   return snap.docs

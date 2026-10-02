@@ -6,6 +6,7 @@ import {
   canManageUsers,
   isAdminRole,
   lookupAdmin,
+  lookupAdminById,
   type AdminRole,
 } from "@/lib/admins";
 import { canModerate } from "@/lib/moderation-model";
@@ -93,28 +94,29 @@ export async function requireAdmin(
       return null;
     }
 
-    const { email, profileDocId } = await resolveEmail(identity);
-    if (!email) {
-      console.warn(`[admin-auth] no email resolvable for uid=${identity.uid}`);
-      return null;
-    }
+    const { email: resolvedEmail, profileDocId } = await resolveEmail(identity);
 
     // `admins` is the ONLY source of authority. A `role` on the `user` document
     // grants nothing here: that field is written by sign-up flows and the mobile
     // app, which is why authority was moved out of it. If the collection cannot
     // be read, nobody is let in: failing closed is correct for a permission list.
+    //
+    // A record is named by the person's email (website sign-ins) OR their
+    // Firebase uid (app/dashboard operators, whose sessions have no email).
     let record = null;
     try {
-      record = await lookupAdmin(email);
+      if (resolvedEmail) record = await lookupAdmin(resolvedEmail);
+      if (!record) record = await lookupAdminById(identity.uid);
     } catch (err) {
       console.error("[admin-auth] admins lookup failed:", (err as Error).message);
     }
 
+    const email = resolvedEmail ?? record?.email ?? "";
     const role: AdminRole | null = record?.role ?? null;
     const name = record?.name ?? "";
 
     if (!role) {
-      console.warn(`[admin-auth] ${email} is not in the admins list`);
+      console.warn(`[admin-auth] ${email || `uid=${identity.uid}`} is not in the admins list`);
       return null;
     }
 
