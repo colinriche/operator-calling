@@ -4,9 +4,13 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   GoogleAuthProvider,
+  OAuthProvider,
   RecaptchaVerifier,
+  getAdditionalUserInfo,
   signInWithPhoneNumber,
   signInWithPopup,
+  updateProfile,
+  type AdditionalUserInfo,
   type ConfirmationResult,
   type User,
 } from "firebase/auth";
@@ -16,6 +20,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { markSignedIn } from "@/lib/session-cookie";
+import {
+  APPLE_PROVIDER_ID,
+  appleErrorMessage,
+  appleIdentity,
+  appleProfileFields,
+  emailForAccountMatching,
+} from "@/lib/apple-signin";
 
 interface SignInChoicesProps {
   mode: "login" | "signup";
@@ -24,8 +35,8 @@ interface SignInChoicesProps {
   nextPath?: string;
 }
 
-type Step = "choose" | "otp" | "add_phone" | "add_email";
-type Method = "google" | "phone";
+type Step = "choose" | "otp" | "add_phone" | "add_email" | "add_name";
+type Method = "google" | "phone" | "apple";
 
 function firebaseErrorMessage(err: unknown): string {
   const code = (err as { code?: string }).code ?? "";
@@ -125,8 +136,15 @@ export function SignInChoices({ mode, inviteRef = "", inviteGid = "", nextPath =
    * A new one is created here, then asked for the one optional detail the
    * chosen method did not already give us.
    */
-  async function afterSignIn(user: User, method: Method) {
+  async function afterSignIn(user: User, method: Method, info?: AdditionalUserInfo | null) {
     markSignedIn();
+
+    // Apple: the address may be Apple's private relay, and the name is only sent
+    // the first time. See lib/apple-signin.ts.
+    const apple =
+      method === "apple"
+        ? appleIdentity(user, (info?.profile ?? null) as Record<string, unknown> | null)
+        : null;
 
     let isNew = false;
     try {
@@ -144,9 +162,12 @@ export function SignInChoices({ mode, inviteRef = "", inviteGid = "", nextPath =
     }
 
     // An app account sharing this email is an existing account, not a new one.
-    if (isNew && user.email) {
+    // A private relay address never matches one (it is not the person's own
+    // address), so for Apple only a shared real email is looked up.
+    const matchEmail = apple ? emailForAccountMatching(apple) : user.email;
+    if (isNew && matchEmail) {
       try {
-        const byEmail = await getDocs(query(collection(db, "user"), where("email", "==", user.email)));
+        const byEmail = await getDocs(query(collection(db, "user"), where("email", "==", matchEmail)));
         if (!byEmail.empty) isNew = false;
       } catch {
         isNew = false;
@@ -168,6 +189,7 @@ export function SignInChoices({ mode, inviteRef = "", inviteGid = "", nextPath =
           ...(user.phoneNumber ? { phoneNumber: user.phoneNumber } : {}),
           ...(name ? { displayName: name, name } : {}),
           ...(user.photoURL ? { photoURL: user.photoURL } : {}),
+          ...(apple ? appleProfileFields(apple) : {}),
           ...newAccountDefaults(),
         },
         { merge: true }
@@ -182,7 +204,13 @@ export function SignInChoices({ mode, inviteRef = "", inviteGid = "", nextPath =
 
     setNewUser(user);
     setKnownPhone(user.phoneNumber ?? "");
-    setStep(method === "google" ? "add_phone" : "add_email");
+    // Apple sends no name after the first time, and a person may hide it: ask
+    // once, optionally, rather than leave the account nameless.
+    if (method === "apple" && !apple?.name) {
+      setStep("add_name");
+    } else {
+      setStep(method === "phone" ? "add_email" : "add_phone");
+    }
   }
 
   async function handleGoogle() {
@@ -197,6 +225,51 @@ export function SignInChoices({ mode, inviteRef = "", inviteGid = "", nextPath =
     } finally {
       setBusy(false);
     }
+  }
+
+  async function handleApple() {
+    setError("");
+    setBusy(true);
+    try {
+      const provider = new OAuthProvider(APPLE_PROVIDER_ID);
+      provider.addScope("email");
+      provider.addScope("name");
+      const cred = await signInWithPopup(auth, provider);
+      await afterSignIn(cred.user, "apple", getAdditionalUserInfo(cred));
+    } catch (err) {
+      const code = (err as { code?: string }).code ?? "";
+      console.error("Apple sign-in error:", err, "| code:", code);
+      const email = (err as { customData?: { email?: string } }).customData?.email;
+      setError(appleErrorMessage(code, email) ?? firebaseErrorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleSaveName(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    if (!newUser) return;
+    const name = extraInput.trim();
+    if (!name) {
+      setError("Enter the name you'd like to use, or skip.");
+      return;
+    }
+    setBusy(true);
+    try {
+      await updateProfile(newUser, { displayName: name });
+      await setDoc(
+        doc(db, "user", newUser.uid),
+        { displayName: name, name, updatedAt: serverTimestamp() },
+        { merge: true }
+      );
+    } catch (err) {
+      console.warn("Name save failed (non-fatal):", err, "| code:", (err as { code?: string }).code);
+    } finally {
+      setBusy(false);
+    }
+    setExtraInput("");
+    setStep("add_phone");
   }
 
   async function handleSendOtp(e: React.FormEvent) {
@@ -278,6 +351,52 @@ export function SignInChoices({ mode, inviteRef = "", inviteGid = "", nextPath =
     mode === "login"
       ? "Choose how you'd like to sign in. New here? We'll set up your account automatically."
       : "Choose how you'd like to join. Already have an account? You'll just be signed in.";
+
+  // ── Name step (Apple only: Apple does not always send one) ──
+  if (step === "add_name") {
+    return (
+      <div className="bg-card rounded-2xl p-8 border border-border/60 shadow-xl shadow-foreground/5">
+        <h1 className="font-heading font-bold text-2xl text-foreground mb-1">What should we call you?</h1>
+        <p className="text-sm text-muted-foreground mb-6">
+          Optional. Apple doesn&apos;t always share your name, so this is how you&apos;ll appear. You can change it
+          later in your profile.
+        </p>
+        <form onSubmit={handleSaveName} className="space-y-4">
+          <div>
+            <Label htmlFor="name" className="text-sm font-medium mb-1.5 block">
+              Name
+            </Label>
+            <Input
+              id="name"
+              type="text"
+              autoComplete="name"
+              placeholder="Your name"
+              value={extraInput}
+              onChange={(e) => setExtraInput(e.target.value)}
+              autoFocus
+            />
+          </div>
+          {error && (
+            <p className="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-lg">{error}</p>
+          )}
+          <Button type="submit" variant="outline" className={optionButton} disabled={busy}>
+            {busy ? "Saving..." : "Save and continue"}
+          </Button>
+        </form>
+        <button
+          type="button"
+          className="w-full mt-2 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          onClick={() => {
+            setExtraInput("");
+            setError("");
+            setStep("add_phone");
+          }}
+        >
+          Skip for now
+        </button>
+      </div>
+    );
+  }
 
   // ── Optional detail step (phone after Google/Apple, email after phone) ──
   if (step === "add_phone" || step === "add_email") {
@@ -394,13 +513,11 @@ export function SignInChoices({ mode, inviteRef = "", inviteGid = "", nextPath =
           Continue with Google
         </Button>
 
-        {/* Placeholder: Apple sign-in is not wired yet. */}
-        <Button type="button" variant="outline" className={optionButton} disabled aria-disabled="true">
+        <Button type="button" variant="outline" className={optionButton} onClick={handleApple} disabled={busy}>
           <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
             <path d="M16.37 12.63c-.02-2.2 1.8-3.26 1.88-3.31-1.02-1.5-2.61-1.7-3.18-1.73-1.35-.14-2.64.8-3.33.8-.69 0-1.75-.78-2.88-.76-1.48.02-2.85.86-3.61 2.19-1.54 2.67-.39 6.63 1.1 8.8.73 1.06 1.6 2.25 2.74 2.21 1.1-.04 1.52-.71 2.85-.71 1.33 0 1.7.71 2.87.69 1.18-.02 1.94-1.08 2.66-2.15.84-1.23 1.18-2.42 1.2-2.48-.03-.01-2.29-.88-2.31-3.55zM14.2 6.17c.6-.73 1.01-1.75.9-2.76-.87.04-1.92.58-2.54 1.31-.56.65-1.05 1.69-.92 2.68.97.07 1.96-.49 2.56-1.23z"/>
           </svg>
           Continue with Apple
-          <span className="ml-2 text-xs text-muted-foreground">(coming soon)</span>
         </Button>
       </div>
 
