@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import type { DocumentData } from "firebase-admin/firestore";
 import { requireAdmin } from "@/lib/admin-auth";
 import { getAdminDb } from "@/lib/firebase-admin";
+import { countReports, normaliseReport, standingFromUser } from "@/lib/moderation-model";
 
 // ─── /api/admin/overview ─────────────────────────────────────────────────────
 //
@@ -53,10 +54,6 @@ function str(value: unknown, fallback: string): string {
   return typeof value === "string" && value.trim() ? value : fallback;
 }
 
-function optionalStr(value: unknown): string | null {
-  return typeof value === "string" && value ? value : null;
-}
-
 export async function GET(req: NextRequest) {
   const caller = await requireAdmin(req);
   if (!caller) {
@@ -76,33 +73,27 @@ export async function GET(req: NextRequest) {
     const users = usersSnap.docs
       .map((snap) => {
         const data = snap.data() as DocumentData;
+        // The standing the app itself would enforce (a lapsed suspension reads
+        // as active), plus the counters the Users tab links through from.
+        const standing = standingFromUser(data);
         return {
           id: snap.id,
-          name: str(data.displayName, "Unnamed user"),
+          name: str(data.displayName, str(data.name, "Unnamed user")),
           email: str(data.email, `${snap.id}@unknown`),
           role: str(data.role, "user"),
-          status: data.banned === true ? "banned" : "active",
+          status: standing.status,
+          warnings: standing.warnings,
+          reportsReceived: standing.reportsReceived,
+          reportsMade: standing.reportsMade,
           joinedAt: toDate(data.createdAt)?.toISOString() ?? null,
         };
       })
       .sort((a, b) => (b.joinedAt ?? "").localeCompare(a.joinedAt ?? ""));
 
-    const reports = reportsSnap.docs
-      .map((snap) => {
-        const data = snap.data() as DocumentData;
-        const status = str(data.status, "open");
-        if (status === "resolved" || status === "dismissed") return null;
-        return {
-          id: snap.id,
-          reporter: str(data.reporterName, str(data.reporterId, "Unknown reporter")),
-          reported: str(data.reportedName, str(data.reportedId, "Unknown user")),
-          reason: str(data.reason, "No reason provided"),
-          createdAt: toDate(data.createdAt)?.toISOString() ?? null,
-          targetUserId: optionalStr(data.reportedId),
-        };
-      })
-      .filter((row): row is NonNullable<typeof row> => row !== null)
-      .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
+    // The queue itself is /api/admin/reports; the overview only needs the badge.
+    const unresolvedReports = countReports(
+      reportsSnap.docs.map((snap) => normaliseReport(snap.id, snap.data()))
+    ).unresolved;
 
     // Call activity is derived from `schedules` rather than sent as raw
     // documents - the dashboard only ever showed the counts.
@@ -128,7 +119,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       users,
-      reports,
+      unresolvedReports,
       groupsCount: groupsSnap.size,
       callsToday,
       completedCalls30d,

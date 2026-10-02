@@ -5,9 +5,11 @@ import { getAdminServices } from "@/lib/firebase-admin";
 // ─── Account deletion requests ───────────────────────────────────────────────
 //
 // Nothing here deletes an account. A request is a record in `deletionRequests`
-// that the super admin works through by hand; the person keeps a 30 day window
-// in which they can restore it themselves. One record per account, keyed by the
-// account's primary `user` document id.
+// that a super admin reviews (lib/deletion-review.ts): they delete the account,
+// or decline the request. The person keeps a 30 day window in which they can
+// withdraw it themselves. One record per account, keyed by the account's primary
+// `user` document id. Requests come from this website and from the mobile app
+// (`source: "app"`); both land in the same queue.
 
 export const DELETION_REQUESTS = "deletionRequests";
 export const RESTORE_WINDOW_DAYS = 30;
@@ -15,7 +17,13 @@ export const RESTORE_WINDOW_DAYS = 30;
 export const DELETION_REQUEST_TYPES = ["account_deletion", "permanent_deletion"] as const;
 export type DeletionRequestType = (typeof DELETION_REQUEST_TYPES)[number];
 
-export const DELETION_STATUSES = ["pending", "restored"] as const;
+/**
+ * pending   - waiting for an admin (or for the person to withdraw it)
+ * restored  - the person withdrew it
+ * declined  - an admin declined it
+ * completed - an admin deleted the account
+ */
+export const DELETION_STATUSES = ["pending", "restored", "declined", "completed"] as const;
 export type DeletionStatus = (typeof DELETION_STATUSES)[number];
 
 /** What the browser sees. Dates are ISO strings. */
@@ -39,6 +47,52 @@ function toIso(value: unknown): string | null {
   return date ? date.toISOString() : null;
 }
 
+export function normaliseDeletionStatus(value: unknown): DeletionStatus {
+  return (DELETION_STATUSES as readonly string[]).includes(value as string)
+    ? (value as DeletionStatus)
+    : "pending";
+}
+
+/**
+ * What an ADMIN sees: the request plus how to recognise the person (mobile
+ * accounts are often phone-only) and the review history. Admin-only: it carries
+ * the internal note, so it is never returned to the person who filed the request.
+ */
+export interface AdminDeletionRequestView extends DeletionRequestView {
+  username: string;
+  phoneNumber: string;
+  systemName: string;
+  source: string;
+  userIds: string[];
+  /** Internal. Why an admin declined or deleted. */
+  adminNote: string;
+  /** What the person was told when it was declined. */
+  userMessage: string;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  completedAt: string | null;
+}
+
+export function toAdminDeletionRequestView(
+  id: string,
+  data: FirebaseFirestore.DocumentData
+): AdminDeletionRequestView {
+  const s = (v: unknown) => (typeof v === "string" ? v : "");
+  return {
+    ...toDeletionRequestView(id, data),
+    username: s(data.username),
+    phoneNumber: s(data.phoneNumber),
+    systemName: s(data.systemName),
+    source: s(data.source) || "website",
+    userIds: Array.isArray(data.userIds) ? data.userIds.filter((v: unknown) => typeof v === "string") : [],
+    adminNote: s(data.adminNote),
+    userMessage: s(data.userMessage),
+    reviewedBy: s(data.reviewedBy) || null,
+    reviewedAt: toIso(data.reviewedAt),
+    completedAt: toIso(data.completedAt),
+  };
+}
+
 export function toDeletionRequestView(
   id: string,
   data: FirebaseFirestore.DocumentData
@@ -49,7 +103,7 @@ export function toDeletionRequestView(
     email: String(data.email ?? ""),
     displayName: String(data.displayName ?? ""),
     requestType: data.requestType === "permanent_deletion" ? "permanent_deletion" : "account_deletion",
-    status: data.status === "restored" ? "restored" : "pending",
+    status: normaliseDeletionStatus(data.status),
     reason: typeof data.reason === "string" ? data.reason : "",
     requestedAt: toIso(data.requestedAt),
     restoreUntil: toIso(data.restoreUntil),

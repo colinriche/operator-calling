@@ -8,6 +8,7 @@ import {
   lookupAdmin,
   type AdminRole,
 } from "@/lib/admins";
+import { canModerate } from "@/lib/moderation-model";
 
 // ─── Admin gate ──────────────────────────────────────────────────────────────
 //
@@ -191,4 +192,13 @@ export async function requireAdminManager(req: NextRequest): Promise<AdminCaller
 export async function requireUserManager(req: NextRequest): Promise<AdminCaller | null> {
   const caller = await requireAdmin(req);
   return caller && canManageUsers(caller.role) ? caller : null;
+}
+
+/**
+ * Caller who may review reports and act on accounts (warn, suspend, ban,
+ * dismiss, note). Today that is a super_admin; see canModerate.
+ */
+export async function requireModerator(req: NextRequest): Promise<AdminCaller | null> {
+  const caller = await requireAdmin(req);
+  return caller && canModerate(caller.role) ? caller : null;
 }
