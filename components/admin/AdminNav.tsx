@@ -12,11 +12,14 @@ import {
   Shield,
   BarChart3,
   Megaphone,
+  Flag,
   Menu,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
+import { useAdminFetch } from "@/hooks/useAdminFetch";
+import { useAdminRole } from "@/hooks/useAdminRole";
 
 // ─── Admin navigation ────────────────────────────────────────────────────────
 //
@@ -25,43 +28,92 @@ import { ThemeToggle } from "@/components/shared/ThemeToggle";
 // drawer needs open state, and the icons are component references, which cannot
 // be passed from a server component as props.
 
-const adminNav = [
+interface NavItem {
+  href: string;
+  icon: typeof Phone;
+  label: string;
+  superOnly?: boolean;
+  /** Hidden unless the caller is a super admin. */
+  requiresSuper?: boolean;
+  /** Show the unresolved-reports count beside the label. */
+  badge?: boolean;
+  /** Highlight for any path under href, not only an exact match. */
+  prefix?: boolean;
+}
+
+const adminNav: NavItem[] = [
   { href: "/admin", icon: LayoutDashboard, label: "Overview" },
   { href: "/admin/members", icon: Users, label: "Members" },
   { href: "/admin/schedules", icon: Calendar, label: "Schedules" },
   { href: "/admin/moderation", icon: Shield, label: "Moderation" },
   { href: "/admin/settings", icon: Settings, label: "Group settings" },
   { href: "/admin/outreach", icon: Megaphone, label: "Outreach" },
+  // Moderation queue. Shown to super admins only (it lives inside Super Admin
+  // and every route behind it re-checks), with the unresolved count as a badge.
+  { href: "/admin/super/reports", icon: Flag, label: "Reports", requiresSuper: true, badge: true, prefix: true },
   { href: "/admin/super", icon: BarChart3, label: "Super admin", superOnly: true },
 ];
 
 export function AdminNav() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const { isSuperAdmin } = useAdminRole();
+  const adminFetch = useAdminFetch();
+  const [unresolved, setUnresolved] = useState<number | null>(null);
+
+  // The badge: reports still New or Reviewing. Refreshed on navigation, so
+  // resolving one and going back to the queue shows the new number.
+  useEffect(() => {
+    if (!isSuperAdmin) return;
+    let cancelled = false;
+    adminFetch<{ counts: { unresolved: number } }>("/api/admin/reports?status=new")
+      .then((d) => {
+        if (!cancelled) setUnresolved(d.counts.unresolved);
+      })
+      .catch(() => {
+        if (!cancelled) setUnresolved(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isSuperAdmin, adminFetch, pathname]);
 
   useEffect(() => {
     setOpen(false);
   }, [pathname]);
 
   function items() {
-    return adminNav.map(({ href, icon: Icon, label, superOnly }) => (
-      <Link
-        key={href}
-        href={href}
-        className={cn(
-          "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors",
-          // Exact match, not startsWith: /admin is a prefix of every other
-          // entry and would otherwise light up on all of them.
-          pathname === href
-            ? "bg-primary/10 text-primary"
-            : "text-muted-foreground hover:text-foreground hover:bg-muted",
-          superOnly ? "mt-4 border-t border-border pt-4 rounded-t-none" : ""
-        )}
-      >
-        <Icon className="w-4 h-4 shrink-0" />
-        {label}
-      </Link>
-    ));
+    return adminNav
+      .filter((item) => !item.requiresSuper || isSuperAdmin)
+      .map(({ href, icon: Icon, label, superOnly, badge, prefix }) => {
+        const active = prefix ? pathname.startsWith(href) : pathname === href;
+        return (
+          <Link
+            key={href}
+            href={href}
+            className={cn(
+              "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors",
+              // Exact match, not startsWith, unless asked: /admin is a prefix of
+              // every other entry and would otherwise light up on all of them.
+              active
+                ? "bg-primary/10 text-primary"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted",
+              superOnly ? "mt-4 border-t border-border pt-4 rounded-t-none" : ""
+            )}
+          >
+            <Icon className="w-4 h-4 shrink-0" />
+            <span className="flex-1">{label}</span>
+            {badge && unresolved !== null && unresolved > 0 && (
+              <span
+                aria-label={`${unresolved} unresolved reports`}
+                className="min-w-5 rounded-full bg-destructive px-1.5 text-center text-xs font-semibold text-destructive-foreground"
+              >
+                {unresolved}
+              </span>
+            )}
+          </Link>
+        );
+      });
   }
 
   const footerLinks = (

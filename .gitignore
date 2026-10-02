@@ -51,3 +51,7 @@ serviceKey.json
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Firestore emulator logs
+firestore-debug.log
+ui-debug.log
