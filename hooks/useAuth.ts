@@ -114,32 +114,12 @@ export function useAuth(): AuthState {
         }
       }
 
-      // 2. UID doc not found, or only an email-only stub exists - check if a
-      // mobile account shares this email.
-      // Finding a doc by email alone does NOT mean accounts are linked - the mobile
-      // user doc has systemName set for all app users. Only treat as linked if the
-      // explicit merge has been done (linkedWebUid matches or linkedSystemName set).
-      if (u.email) {
-        const emailQ = await getDocs(
-          query(collection(db, "user"), where("email", "==", u.email))
-        );
-        if (!emailQ.empty) {
-          const docSnap = emailQ.docs.find((candidate) =>
-            hasLinkedMarker(candidate.data() as UserProfile, u.uid)
-          ) ?? emailQ.docs[0];
-          const p = docSnap.data() as UserProfile;
-          if (p.archived === true) {
-            await signOut(auth);
-            return;
-          }
-          setProfile(p);
-          setProfileDocId(docSnap.id);
-          setIsLinked(hasLinkedMarker(p, u.uid));
-          return;
-        }
-      }
+      // 2. No profile by alias or uid. An email address is deliberately NOT used
+      // to look for one: sharing an email is not proof that two accounts are the
+      // same person (docs/phone-first-auth.md). A phone sign-in is matched to its
+      // app profile by /api/account/resolve, from the verified number.
 
-      // 4. Brand new web-only account - no Firestore doc yet
+      // 3. Brand new web-only account - no Firestore doc yet
       setProfile(null);
       setProfileDocId(null);
       setIsLinked(false);

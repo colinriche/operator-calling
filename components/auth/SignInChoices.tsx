@@ -8,24 +8,26 @@ import {
   RecaptchaVerifier,
   getAdditionalUserInfo,
   signInWithPhoneNumber,
+  signOut,
   signInWithPopup,
   updateProfile,
   type AdditionalUserInfo,
   type ConfirmationResult,
   type User,
+  type UserCredential,
 } from "firebase/auth";
-import { doc, setDoc, collection, query, where, getDocs, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { markSignedIn } from "@/lib/session-cookie";
+import { markSignedIn, markSignedOut } from "@/lib/session-cookie";
+import { decideFederatedSignIn, PHONE_FIRST_MESSAGE } from "@/lib/auth-linking";
 import {
   APPLE_PROVIDER_ID,
   appleErrorMessage,
   appleIdentity,
   appleProfileFields,
-  emailForAccountMatching,
 } from "@/lib/apple-signin";
 
 interface SignInChoicesProps {
@@ -35,7 +37,8 @@ interface SignInChoicesProps {
   nextPath?: string;
 }
 
-type Step = "choose" | "otp" | "add_phone" | "add_email" | "add_name";
+type Step = "choose" | "otp" | "add_email" | "add_name";
+type Tab = "phone" | "other";
 type Method = "google" | "phone" | "apple";
 
 function firebaseErrorMessage(err: unknown): string {
@@ -97,6 +100,7 @@ export function SignInChoices({ mode, inviteRef = "", inviteGid = "", nextPath =
   const [busy, setBusy] = useState(false);
   const [newUser, setNewUser] = useState<User | null>(null);
   const [knownPhone, setKnownPhone] = useState("");
+  const [tab, setTab] = useState<Tab>("phone");
 
   const confirmationRef = useRef<ConfirmationResult | null>(null);
   const recaptchaRef = useRef<RecaptchaVerifier | null>(null);
@@ -161,19 +165,6 @@ export function SignInChoices({ mode, inviteRef = "", inviteGid = "", nextPath =
       /* unknown - treat as existing so nobody's profile is overwritten */
     }
 
-    // An app account sharing this email is an existing account, not a new one.
-    // A private relay address never matches one (it is not the person's own
-    // address), so for Apple only a shared real email is looked up.
-    const matchEmail = apple ? emailForAccountMatching(apple) : user.email;
-    if (isNew && matchEmail) {
-      try {
-        const byEmail = await getDocs(query(collection(db, "user"), where("email", "==", matchEmail)));
-        if (!byEmail.empty) isNew = false;
-      } catch {
-        isNew = false;
-      }
-    }
-
     if (!isNew) {
       router.push(nextPath);
       return;
@@ -204,13 +195,43 @@ export function SignInChoices({ mode, inviteRef = "", inviteGid = "", nextPath =
 
     setNewUser(user);
     setKnownPhone(user.phoneNumber ?? "");
-    // Apple sends no name after the first time, and a person may hide it: ask
-    // once, optionally, rather than leave the account nameless.
-    if (method === "apple" && !apple?.name) {
-      setStep("add_name");
-    } else {
-      setStep(method === "phone" ? "add_email" : "add_phone");
+    // Only phone reaches here for a brand new account (see rejectUnlinked); a
+    // Google/Apple user that gets here already existed.
+    setStep(method === "phone" ? "add_email" : "add_name");
+  }
+
+  /**
+   * Google/Apple must never be how a second Operator account gets made. If this
+   * sign-in just created a Firebase user with no phone attached, undo it and
+   * send the person to phone sign-in first.
+   */
+  async function rejectUnlinked(user: User) {
+    try {
+      await user.delete();
+    } catch (err) {
+      console.warn("Could not delete the unlinked sign-in user:", err);
     }
+    try {
+      await signOut(auth);
+    } catch {
+      /* already signed out by delete() */
+    }
+    markSignedOut();
+    setTab("phone");
+    setError(PHONE_FIRST_MESSAGE);
+  }
+
+  async function gateFederated(cred: UserCredential, method: "google" | "apple") {
+    const info = getAdditionalUserInfo(cred);
+    const decision = decideFederatedSignIn({
+      isNewUser: info?.isNewUser === true,
+      providerIds: cred.user.providerData.map((p) => p.providerId),
+    });
+    if (decision === "reject_unlinked") {
+      await rejectUnlinked(cred.user);
+      return;
+    }
+    await afterSignIn(cred.user, method, info);
   }
 
   async function handleGoogle() {
@@ -218,7 +239,7 @@ export function SignInChoices({ mode, inviteRef = "", inviteGid = "", nextPath =
     setBusy(true);
     try {
       const cred = await signInWithPopup(auth, new GoogleAuthProvider());
-      await afterSignIn(cred.user, "google");
+      await gateFederated(cred, "google");
     } catch (err) {
       console.error("Google sign-in error:", err, "| code:", (err as { code?: string }).code);
       setError(firebaseErrorMessage(err));
@@ -235,7 +256,7 @@ export function SignInChoices({ mode, inviteRef = "", inviteGid = "", nextPath =
       provider.addScope("email");
       provider.addScope("name");
       const cred = await signInWithPopup(auth, provider);
-      await afterSignIn(cred.user, "apple", getAdditionalUserInfo(cred));
+      await gateFederated(cred, "apple");
     } catch (err) {
       const code = (err as { code?: string }).code ?? "";
       console.error("Apple sign-in error:", err, "| code:", code);
@@ -269,7 +290,7 @@ export function SignInChoices({ mode, inviteRef = "", inviteGid = "", nextPath =
       setBusy(false);
     }
     setExtraInput("");
-    setStep("add_phone");
+    router.push(nextPath);
   }
 
   async function handleSendOtp(e: React.FormEvent) {
@@ -319,13 +340,7 @@ export function SignInChoices({ mode, inviteRef = "", inviteGid = "", nextPath =
     setError("");
     if (!newUser) return;
     const cleaned = extraInput.trim();
-    const adding = step === "add_phone" ? "phone" : "email";
-
-    if (adding === "phone" && !isValidPhone(cleaned)) {
-      setError("Enter a valid phone number with country code, e.g. +447911123456");
-      return;
-    }
-    if (adding === "email" && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(cleaned)) {
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(cleaned)) {
       setError("Please enter a valid email address.");
       return;
     }
@@ -334,12 +349,11 @@ export function SignInChoices({ mode, inviteRef = "", inviteGid = "", nextPath =
     try {
       await setDoc(
         doc(db, "user", newUser.uid),
-        { [adding === "phone" ? "phoneNumber" : "email"]: cleaned, updatedAt: serverTimestamp() },
+        { email: cleaned, updatedAt: serverTimestamp() },
         { merge: true }
       );
-      if (adding === "phone") await processInvite(newUser, cleaned);
     } catch (err) {
-      console.warn("Optional detail save failed (non-fatal):", err, "| code:", (err as { code?: string }).code);
+      console.warn("Email save failed (non-fatal):", err, "| code:", (err as { code?: string }).code);
     } finally {
       setBusy(false);
     }
@@ -349,8 +363,8 @@ export function SignInChoices({ mode, inviteRef = "", inviteGid = "", nextPath =
   const heading = mode === "login" ? "Welcome back" : "Create your account";
   const subheading =
     mode === "login"
-      ? "Choose how you'd like to sign in. New here? We'll set up your account automatically."
-      : "Choose how you'd like to join. Already have an account? You'll just be signed in.";
+      ? "Sign in with your phone number. New here? We'll set up your account automatically."
+      : "Join with your phone number. Already have an Operator account? You'll just be signed in.";
 
   // ── Name step (Apple only: Apple does not always send one) ──
   if (step === "add_name") {
@@ -389,7 +403,7 @@ export function SignInChoices({ mode, inviteRef = "", inviteGid = "", nextPath =
           onClick={() => {
             setExtraInput("");
             setError("");
-            setStep("add_phone");
+            router.push(nextPath);
           }}
         >
           Skip for now
@@ -398,28 +412,24 @@ export function SignInChoices({ mode, inviteRef = "", inviteGid = "", nextPath =
     );
   }
 
-  // ── Optional detail step (phone after Google/Apple, email after phone) ──
-  if (step === "add_phone" || step === "add_email") {
-    const isPhone = step === "add_phone";
+  // ── Optional detail step (email after a new phone account) ──
+  if (step === "add_email") {
     return (
       <div className="bg-card rounded-2xl p-8 border border-border/60 shadow-xl shadow-foreground/5">
-        <h1 className="font-heading font-bold text-2xl text-foreground mb-1">
-          {isPhone ? "Add your phone number" : "Add your email address"}
-        </h1>
+        <h1 className="font-heading font-bold text-2xl text-foreground mb-1">Add your email address</h1>
         <p className="text-sm text-muted-foreground mb-6">
-          {isPhone
-            ? "Optional. Your phone number links your web account to the Operator mobile app. You can add it later in your profile."
-            : "Optional. Adding an email gives us another way to reach you about your account. You can add it later in your profile."}
+          Optional. Adding an email gives us another way to reach you about your account. It is never used to find or
+          merge accounts. You can add it later in your profile.
         </p>
         <form onSubmit={handleSaveExtra} className="space-y-4">
           <div>
             <Label htmlFor="extra" className="text-sm font-medium mb-1.5 block">
-              {isPhone ? "Phone number" : "Email address"}
+              Email address
             </Label>
             <Input
               id="extra"
-              type={isPhone ? "tel" : "email"}
-              placeholder={isPhone ? "+447911123456" : "you@example.com"}
+              type="email"
+              placeholder="you@example.com"
               value={extraInput}
               onChange={(e) => setExtraInput(e.target.value)}
               autoFocus
@@ -502,32 +512,30 @@ export function SignInChoices({ mode, inviteRef = "", inviteGid = "", nextPath =
       <h1 className="font-heading font-bold text-2xl text-foreground mb-1">{heading}</h1>
       <p className="text-sm text-muted-foreground mb-6">{subheading}</p>
 
-      <div className="space-y-3">
-        <Button type="button" variant="outline" className={optionButton} onClick={handleGoogle} disabled={busy}>
-          <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24" aria-hidden="true">
-            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-          </svg>
-          Continue with Google
-        </Button>
-
-        <Button type="button" variant="outline" className={optionButton} onClick={handleApple} disabled={busy}>
-          <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <path d="M16.37 12.63c-.02-2.2 1.8-3.26 1.88-3.31-1.02-1.5-2.61-1.7-3.18-1.73-1.35-.14-2.64.8-3.33.8-.69 0-1.75-.78-2.88-.76-1.48.02-2.85.86-3.61 2.19-1.54 2.67-.39 6.63 1.1 8.8.73 1.06 1.6 2.25 2.74 2.21 1.1-.04 1.52-.71 2.85-.71 1.33 0 1.7.71 2.87.69 1.18-.02 1.94-1.08 2.66-2.15.84-1.23 1.18-2.42 1.2-2.48-.03-.01-2.29-.88-2.31-3.55zM14.2 6.17c.6-.73 1.01-1.75.9-2.76-.87.04-1.92.58-2.54 1.31-.56.65-1.05 1.69-.92 2.68.97.07 1.96-.49 2.56-1.23z"/>
-          </svg>
-          Continue with Apple
-        </Button>
-      </div>
-
-      <div className="flex items-center gap-3 my-5">
-        <div className="h-px flex-1 bg-border" />
-        <span className="text-xs text-muted-foreground">or use your phone</span>
-        <div className="h-px flex-1 bg-border" />
+      <div role="tablist" aria-label="Sign-in method" className="grid grid-cols-2 gap-1 p-1 mb-5 rounded-xl bg-muted">
+        {(["phone", "other"] as const).map((t) => (
+          <button
+            key={t}
+            type="button"
+            role="tab"
+            aria-selected={tab === t}
+            className={`h-9 rounded-lg text-sm font-medium transition-colors ${
+              tab === t ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+            }`}
+            onClick={() => {
+              setTab(t);
+              setError("");
+            }}
+          >
+            {t === "phone" ? "Phone" : "Other sign-in"}
+          </button>
+        ))}
       </div>
 
       <div id="recaptcha-container" />
+
+      {tab === "phone" ? (
+        <div role="tabpanel">
       <form onSubmit={handleSendOtp} className="space-y-3">
         <div>
           <Label htmlFor="phone" className="text-sm font-medium mb-1.5 block">
@@ -546,6 +554,31 @@ export function SignInChoices({ mode, inviteRef = "", inviteGid = "", nextPath =
           {busy ? "Sending code..." : "Continue with phone"}
         </Button>
       </form>
+        </div>
+      ) : (
+        <div role="tabpanel" className="space-y-3">
+          <p className="text-xs text-muted-foreground">
+            Google and Apple work once you have linked them to your Operator account. New here, or not linked yet? Use
+            the Phone tab first, then link them from your profile.
+          </p>
+        <Button type="button" variant="outline" className={optionButton} onClick={handleGoogle} disabled={busy}>
+          <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24" aria-hidden="true">
+            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+          </svg>
+          Continue with Google
+        </Button>
+
+        <Button type="button" variant="outline" className={optionButton} onClick={handleApple} disabled={busy}>
+          <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M16.37 12.63c-.02-2.2 1.8-3.26 1.88-3.31-1.02-1.5-2.61-1.7-3.18-1.73-1.35-.14-2.64.8-3.33.8-.69 0-1.75-.78-2.88-.76-1.48.02-2.85.86-3.61 2.19-1.54 2.67-.39 6.63 1.1 8.8.73 1.06 1.6 2.25 2.74 2.21 1.1-.04 1.52-.71 2.85-.71 1.33 0 1.7.71 2.87.69 1.18-.02 1.94-1.08 2.66-2.15.84-1.23 1.18-2.42 1.2-2.48-.03-.01-2.29-.88-2.31-3.55zM14.2 6.17c.6-.73 1.01-1.75.9-2.76-.87.04-1.92.58-2.54 1.31-.56.65-1.05 1.69-.92 2.68.97.07 1.96-.49 2.56-1.23z"/>
+          </svg>
+          Continue with Apple
+        </Button>
+        </div>
+      )}
 
       {error && (
         <p className="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-lg break-words mt-4">

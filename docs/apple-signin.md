@@ -37,10 +37,10 @@ Without this, sign-in still works but any email to a `@privaterelay.appleid.com`
 - The address Apple gives (`…@privaterelay.appleid.com`) is stored as `email` with `emailIsPrivateRelay: true`.
 - Identity is the Firebase uid, never the email. A relay address is **not** used to look for an existing account,
   because it can never equal the address the person uses elsewhere.
-- Consequence: someone who already has an account and then picks *Hide My Email* gets a **new, separate** account.
-  They can link to their app account the normal way (phone number / support code in the profile).
-- If they share their real email and it matches an existing Google account, Firebase refuses with
-  `auth/account-exists-with-different-credential` and the page tells them to use Google.
+- Apple (like Google) can no longer create an account on its own: if the sign-in would make a new Firebase user,
+  the site undoes it and asks the person to sign in with their phone first, then link Apple from their profile
+  (Sign-in methods). See [`phone-first-auth.md`](./phone-first-auth.md).
+- Once linked, Apple signs into that same account, whatever email Apple shares.
 
 ## Apple only sends the name once
 
