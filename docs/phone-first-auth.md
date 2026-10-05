@@ -53,6 +53,10 @@ list contains `phone`), and the same resolution applies. Failures (`auth/credent
 ## Protection against duplicate accounts
 
 - Google/Apple sign-in cannot create an account (above); the transient Firebase user is deleted.
+- If that delete fails, the retry is still refused: a Google/Apple user with no phone and no resolvable profile is
+  never let in (`hasProfile` in `decideFederatedSignIn`). A non-new user is only deleted if created in the last
+  15 minutes, and never on a failed profile lookup (the person is just signed out and asked to retry). The
+  console warns with the uid of any user that could not be deleted, for manual clean-up.
 - Linking attaches to the signed-in user only; Firebase refuses if the identity belongs to another user.
 - No email lookups, so an Apple private-relay or a coincidentally equal Google email cannot attach a session to
   someone else's profile.
@@ -115,6 +119,7 @@ practice this is verified in the environment the developer chooses, after deploy
 - Firebase Console, Authentication, Settings, "User account linking": confirm **one account per email** vs
   **link accounts that use the same email** behaves as intended. Not changed here. Automatic email linking would
   attach Google to any existing user holding the same verified email, which is the behaviour this change avoids.
+- `GroupSetupModal` (components/shared) is now unused: the old successful link opened it, and nothing else imports it. Decide whether to show it after a phone sign-in resolves to a linked profile, or remove it.
 - `user.delete()` right after popup sign-in is the "undo". A server-side check would be stricter but cannot stop
   Firebase from creating the user first.
 - `lib/admin-auth.ts` still has an email fallback for admin lookup. It is gated by the `admins` collection, was out

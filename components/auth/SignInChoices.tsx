@@ -22,7 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { markSignedIn, markSignedOut } from "@/lib/session-cookie";
-import { decideFederatedSignIn, PHONE_FIRST_MESSAGE } from "@/lib/auth-linking";
+import { decideFederatedSignIn, isRecentlyCreated, PHONE_FIRST_MESSAGE } from "@/lib/auth-linking";
 import {
   APPLE_PROVIDER_ID,
   appleErrorMessage,
@@ -201,15 +201,19 @@ export function SignInChoices({ mode, inviteRef = "", inviteGid = "", nextPath =
   }
 
   /**
-   * Google/Apple must never be how a second Operator account gets made. If this
-   * sign-in just created a Firebase user with no phone attached, undo it and
-   * send the person to phone sign-in first.
+   * Google/Apple must never be how a second Operator account gets made. Undo a
+   * user this sign-in created (or a recent leftover of one) and send the person
+   * to phone sign-in first. An older user is only signed out, never deleted.
+   * If the delete fails the person is still refused, and so is the retry: a
+   * user with no phone and no profile is not let in (see decideFederatedSignIn).
    */
-  async function rejectUnlinked(user: User) {
-    try {
-      await user.delete();
-    } catch (err) {
-      console.warn("Could not delete the unlinked sign-in user:", err);
+  async function rejectUnlinked(user: User, canDelete: boolean) {
+    if (canDelete) {
+      try {
+        await user.delete();
+      } catch (err) {
+        console.warn("Could not delete the unlinked sign-in user (uid " + user.uid + "):", err);
+      }
     }
     try {
       await signOut(auth);
@@ -221,17 +225,45 @@ export function SignInChoices({ mode, inviteRef = "", inviteGid = "", nextPath =
     setError(PHONE_FIRST_MESSAGE);
   }
 
+  /** True/false from /api/account/resolve, or null when it could not be asked. */
+  async function userHasProfile(user: User): Promise<boolean | null> {
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch("/api/account/resolve", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+      if (!res.ok) return null;
+      const data = (await res.json()) as { status?: string };
+      return data.status !== "unresolved";
+    } catch {
+      return null;
+    }
+  }
+
   async function gateFederated(cred: UserCredential, method: "google" | "apple") {
     const info = getAdditionalUserInfo(cred);
-    const decision = decideFederatedSignIn({
-      isNewUser: info?.isNewUser === true,
-      providerIds: cred.user.providerData.map((p) => p.providerId),
-    });
-    if (decision === "reject_unlinked") {
-      await rejectUnlinked(cred.user);
+    const user = cred.user;
+    const isNewUser = info?.isNewUser === true;
+    const providerIds = user.providerData.map((p) => p.providerId);
+
+    // A phone-linked or brand new user needs no lookup. Otherwise ask whether a profile exists.
+    const hasProfile = providerIds.includes("phone") || isNewUser ? false : await userHasProfile(user);
+    if (hasProfile === null) {
+      // Could not tell. Never delete on a guess: just sign out and ask to retry.
+      await signOut(auth).catch(() => undefined);
+      markSignedOut();
+      setError("We couldn't check your account just now. Please try again.");
       return;
     }
-    await afterSignIn(cred.user, method, info);
+
+    const decision = decideFederatedSignIn({ isNewUser, providerIds, hasProfile });
+    if (decision === "reject_unlinked") {
+      const canDelete = isNewUser || isRecentlyCreated(user.metadata.creationTime);
+      await rejectUnlinked(user, canDelete);
+      return;
+    }
+    await afterSignIn(user, method, info);
   }
 
   async function handleGoogle() {

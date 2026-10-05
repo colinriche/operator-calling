@@ -12,6 +12,7 @@ import {
   type User,
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
+import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -45,6 +46,7 @@ function providerFor(id: FederatedProviderId) {
  */
 export function SignInMethods() {
   const [user, setUser] = useState<User | null>(null);
+  const { refreshProfile } = useAuth();
   const [, setTick] = useState(0);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -119,9 +121,19 @@ export function SignInMethods() {
     setBusy(true);
     setError("");
     try {
-      await confirmationRef.current.confirm(otp);
+      const result = await confirmationRef.current.confirm(otp);
       setAwaitingCode(false);
       setOtp("");
+      // The number is now on this user. Ask the server to match it to an app
+      // profile (it reads the verified number from a fresh token), then reload
+      // the profile so the banner does not keep saying nothing was found.
+      try {
+        const idToken = await result.user.getIdToken(true);
+        await fetch("/api/account/resolve", { method: "POST", headers: { Authorization: `Bearer ${idToken}` } });
+        await refreshProfile();
+      } catch {
+        /* the match is retried at the next sign-in */
+      }
       setMessage("Phone verified. You can now link Google or Apple.");
       refresh();
     } catch (err) {

@@ -20,9 +20,12 @@ export function hasPhoneProvider(providerIds: readonly string[]): boolean {
 export type FederatedSignInDecision =
   /** The phone is attached to this UID, so Google/Apple was linked on purpose. */
   | "allow_linked"
-  /** An older website-only Google/Apple account that already existed. Kept working, not merged. */
+  /** An older website-only Google/Apple account with a profile. Kept working, not merged. */
   | "allow_legacy"
-  /** Firebase just created a brand new account for this sign-in. Refuse and undo it. */
+  /**
+   * No phone and no profile: either Firebase just created this user, or an earlier
+   * attempt did and its cleanup failed. Either way it is not an Operator account.
+   */
   | "reject_unlinked";
 
 /**
@@ -31,13 +34,18 @@ export type FederatedSignInDecision =
  * `isNewUser` comes from Firebase (getAdditionalUserInfo): true means this very
  * sign-in created the Auth user, i.e. nobody linked it to anything. That is
  * the case that would otherwise produce a second Operator account.
+ *
+ * `hasProfile` is whether /api/account/resolve found an Operator profile for
+ * this user. Without it, a user left behind by a failed cleanup would look like
+ * an old account on the next attempt and be let in.
  */
 export function decideFederatedSignIn(input: {
   isNewUser: boolean;
   providerIds: readonly string[];
+  hasProfile: boolean;
 }): FederatedSignInDecision {
   if (hasPhoneProvider(input.providerIds)) return "allow_linked";
-  if (input.isNewUser) return "reject_unlinked";
+  if (input.isNewUser || !input.hasProfile) return "reject_unlinked";
   return "allow_legacy";
 }
 
@@ -73,4 +81,12 @@ export function linkErrorMessage(code: string, providerLabel = "That account"): 
     default:
       return null;
   }
+}
+
+/** A user created this recently, with nothing attached, is safe to delete as a leftover. */
+export const LEFTOVER_MAX_AGE_MS = 15 * 60 * 1000;
+
+export function isRecentlyCreated(creationTime: string | undefined, now: number = Date.now()): boolean {
+  const created = creationTime ? Date.parse(creationTime) : NaN;
+  return Number.isFinite(created) && now - created >= 0 && now - created <= LEFTOVER_MAX_AGE_MS;
 }

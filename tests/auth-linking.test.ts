@@ -8,37 +8,56 @@ import {
   canLinkFederatedProvider,
   decideFederatedSignIn,
   hasPhoneProvider,
+  isRecentlyCreated,
   linkErrorMessage,
 } from "@/lib/auth-linking";
 import { POST as retiredLink } from "@/app/api/account/link/route";
 
 describe("decideFederatedSignIn", () => {
   it("refuses a Google/Apple sign-in that just created a new Firebase user (no second account)", () => {
-    expect(decideFederatedSignIn({ isNewUser: true, providerIds: [GOOGLE_PROVIDER_ID] })).toBe("reject_unlinked");
-    expect(decideFederatedSignIn({ isNewUser: true, providerIds: [APPLE_PROVIDER_ID] })).toBe("reject_unlinked");
+    expect(decideFederatedSignIn({ isNewUser: true, providerIds: [GOOGLE_PROVIDER_ID], hasProfile: false })).toBe("reject_unlinked");
+    expect(decideFederatedSignIn({ isNewUser: true, providerIds: [APPLE_PROVIDER_ID], hasProfile: false })).toBe("reject_unlinked");
   });
 
   it("allows a provider that was explicitly linked to a phone account", () => {
     expect(
-      decideFederatedSignIn({ isNewUser: false, providerIds: ["phone", GOOGLE_PROVIDER_ID] })
+      decideFederatedSignIn({ isNewUser: false, providerIds: ["phone", GOOGLE_PROVIDER_ID], hasProfile: false })
     ).toBe("allow_linked");
     expect(
-      decideFederatedSignIn({ isNewUser: false, providerIds: [APPLE_PROVIDER_ID, "phone"] })
+      decideFederatedSignIn({ isNewUser: false, providerIds: [APPLE_PROVIDER_ID, "phone"], hasProfile: false })
     ).toBe("allow_linked");
   });
 
   it("keeps a pre-existing website-only Google/Apple account working, without merging it", () => {
-    expect(decideFederatedSignIn({ isNewUser: false, providerIds: [GOOGLE_PROVIDER_ID] })).toBe("allow_legacy");
+    expect(decideFederatedSignIn({ isNewUser: false, providerIds: [GOOGLE_PROVIDER_ID], hasProfile: true })).toBe(
+      "allow_legacy"
+    );
+  });
+
+  it("still refuses on the retry after a failed cleanup (not new, no phone, no profile)", () => {
+    expect(decideFederatedSignIn({ isNewUser: false, providerIds: [GOOGLE_PROVIDER_ID], hasProfile: false })).toBe(
+      "reject_unlinked"
+    );
   });
 
   it("never lets a matching email change the outcome (email is not an input)", () => {
     expect(Object.keys({ isNewUser: true, providerIds: [] })).not.toContain("email");
-    expect(decideFederatedSignIn({ isNewUser: true, providerIds: [] })).toBe("reject_unlinked");
+    expect(decideFederatedSignIn({ isNewUser: true, providerIds: [], hasProfile: true })).toBe("reject_unlinked");
   });
 
   it("tells the person to use phone first", () => {
     expect(PHONE_FIRST_MESSAGE).toMatch(/phone number first/);
     expect(PHONE_FIRST_MESSAGE).not.toContain(String.fromCharCode(0x2014));
+  });
+});
+
+describe("isRecentlyCreated", () => {
+  const now = Date.parse("2026-10-05T12:00:00Z");
+  it("is true for a user made minutes ago and false for an old or unknown one", () => {
+    expect(isRecentlyCreated("2026-10-05T11:55:00Z", now)).toBe(true);
+    expect(isRecentlyCreated("2026-01-01T00:00:00Z", now)).toBe(false);
+    expect(isRecentlyCreated(undefined, now)).toBe(false);
+    expect(isRecentlyCreated("garbage", now)).toBe(false);
   });
 });
 
