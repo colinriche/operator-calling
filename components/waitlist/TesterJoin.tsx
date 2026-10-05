@@ -37,7 +37,7 @@ export function TesterJoin({ token }: { token: string }) {
       return;
     }
     try {
-      const res = await fetch(`/api/waitlist/tester?t=${encodeURIComponent(token)}`);
+      const res = await fetch(`/api/join/tester?t=${encodeURIComponent(token)}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Could not load this link");
       setSummary(data);
@@ -61,7 +61,7 @@ export function TesterJoin({ token }: { token: string }) {
     setSubmitting(true);
     try {
       const idToken = await user.getIdToken();
-      const res = await fetch("/api/waitlist/tester", {
+      const res = await fetch("/api/join/tester", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -95,7 +95,7 @@ export function TesterJoin({ token }: { token: string }) {
           We couldn&apos;t open that link
         </h1>
         <p className="text-muted-foreground leading-relaxed mb-4">{loadError}</p>
-        <Link href="/waitlist" className="text-primary underline underline-offset-2">
+        <Link href="/join" className="text-primary underline underline-offset-2">
           Back to the waitlist
         </Link>
       </div>
@@ -149,7 +149,7 @@ export function TesterJoin({ token }: { token: string }) {
             {TESTER_LOGIN_REASON}
           </p>
           <Link
-            href={`/login?next=${encodeURIComponent(`/waitlist/tester?t=${token}`)}`}
+            href={`/login?next=${encodeURIComponent(`/join/tester?t=${token}`)}`}
             className="inline-flex items-center gap-2 h-11 px-5 rounded-xl gradient-gold border-0 text-primary-foreground font-heading font-semibold text-sm hover:opacity-90 transition-opacity"
           >
             <LogIn className="w-4 h-4" aria-hidden="true" />

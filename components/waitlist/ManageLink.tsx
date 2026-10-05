@@ -13,7 +13,7 @@ export function ManageLink({ token }: { token: string }) {
 
   useEffect(() => setOrigin(window.location.origin), []);
 
-  const url = `${origin}/waitlist/manage?t=${encodeURIComponent(token)}`;
+  const url = `${origin}/join/manage?t=${encodeURIComponent(token)}`;
 
   async function handleCopy() {
     try {

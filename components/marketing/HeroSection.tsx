@@ -59,7 +59,7 @@ export function HeroSection() {
               transition={{ duration: 0.6, delay: 0.3 }}
             >
               <Link
-                href="/waitlist"
+                href="/join"
                 className={cn(buttonVariants({ size: "lg" }), "gradient-gold border-0 text-primary-foreground font-semibold text-base h-12 px-8 shadow-lg shadow-primary/20 hover:shadow-primary/30 hover:scale-[1.02] transition-all")}
               >
                 Join the waitlist <ArrowRight className="ml-2 w-4 h-4" />

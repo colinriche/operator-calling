@@ -37,7 +37,7 @@ describe("normaliseDestinationUrl", () => {
 
 // Appending the link twice is the specific failure the spec calls out.
 describe("composeWithLink", () => {
-  const link = "https://operatorcalling.com/waitlist?s=K7P4MX";
+  const link = "https://operatorcalling.com/join?s=K7P4MX";
 
   it("appends the link when it is absent", () => {
     expect(composeWithLink("Have a look at this.", link)).toBe(
@@ -51,7 +51,7 @@ describe("composeWithLink", () => {
   });
 
   it("does not append when it was pasted without the protocol", () => {
-    const text = "Have a look: operatorcalling.com/waitlist?s=K7P4MX";
+    const text = "Have a look: operatorcalling.com/join?s=K7P4MX";
     expect(composeWithLink(text, link)).toBe(text);
   });
 

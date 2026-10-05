@@ -153,7 +153,7 @@ cleared if someone raises the threshold.
 
 ## Public page behaviour
 
-`/waitlist?s=CODE` resolves the code server-side. Platform, audience label,
+`/join?s=CODE` resolves the code server-side. Platform, audience label,
 group and relationship status are read from the database and never taken from
 the query string, so a visitor cannot forge an endorsement by editing the URL.
 

@@ -53,7 +53,7 @@ export function ShareRow({
   }, []);
 
   function urlFor(channel: ShareChannel): string {
-    const base = `${origin}/waitlist`;
+    const base = `${origin}/join`;
     const params = new URLSearchParams();
     // Lowercase in the link that gets shared; the code posted to the share
     // endpoint below stays as resolved, and that route normalises anyway.
