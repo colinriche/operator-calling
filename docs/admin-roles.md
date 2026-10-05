@@ -155,3 +155,74 @@ the lookup refuses it rather than guessing.
    page and the Reports error both print the email and role the server found: compare it with the document name.
 2. `role` must be exactly `super_admin` or `admin`.
 3. Reload after changing it; the role is read on each request, so there is nothing to wait for.
+
+## Outreach ownership and admin activity
+
+Several admins can work outreach at once, each on their own records, with a super admin able to see all of it.
+There is one set of records, not one per admin: ownership is a field on the existing documents.
+
+### Ownership
+
+`groupDemandSources`, `sourceLinks` and `outreachRecords` carry:
+
+```
+ownerId     string  - the owner's Firebase Auth UID. The ONLY thing ownership is decided by.
+ownerName   string  - display only, copied at the time
+ownerEmail  string  - display only, copied at the time
+```
+
+The owner is a UID, not an email: an admin who changes their email keeps their records, and an email on its own
+grants nothing. (`admins` is keyed by email because it is the list of who may sign in; that is a different job.)
+
+`createdBy` (a uid) is unchanged. A source's owner is whoever created it; its links and outreach records take the
+**source's** owner, so a super admin adding a link to Ann's source does not take it out of Ann's view.
+
+| | `admin` | `super_admin` |
+|---|---|---|
+| Sees by default | their own records | everything |
+| Can ask for | only their own | `mine`, `all`, `unassigned`, `owner:<uid>` |
+| Edit a record | only one they own | any |
+| Reassign a record | no | yes |
+
+The rules are in `lib/waitlist/ownership.ts` (`resolveScope`, `canAccessRecord`, `matchesScope`). The `?scope=` query
+is only a request: an ordinary admin asking for `all`, `unassigned` or another admin gets a **403**, not a quietly
+narrowed list. Single-record routes answer **404** for a record that is not theirs, so ids cannot be probed. The role
+always comes from the `admins` collection via `requireAdmin`, never from the request.
+
+Routes that enforce it: `demand-sources` (list, create), `demand-sources/[id]` (PATCH), `…/registrations`, `…/group`,
+`…/image`, `…/owner`, `source-links`, `outreach`, `organisers`, `waitlist-library/images` (copying a source's
+photograph) and `admin-activity`.
+
+### Records that predate this
+
+A record with no `ownerId` is shown as **Unassigned (legacy)**. Ownership is never guessed from `createdBy` and nothing
+backfills it. Only super admins can see or assign these; an ordinary admin cannot see one, edit one, or claim one.
+A super admin assigns it with `POST /api/admin/demand-sources/[id]/owner { ownerId: <uid> }` (an owner dropdown on each
+source card); the source's links and outreach records move with it.
+
+The people offered as owners are admins who have signed in at least once (`lib/waitlist/admin-owners.ts` finds their
+UID from their email). Someone who never has cannot own anything yet. A person who signs in by more than one method
+(phone, Google) can hold more than one UID; records belong to the UID that created them, and a super admin can
+reassign if someone ends up split across two.
+
+### Duplicate-work guards look across owners, on purpose
+
+So two admins don't repeat each other's outreach, these ignore ownership: the "has this URL been posted before?"
+check on `GET /api/admin/outreach?destination=`, the duplicate-source warnings on create and edit, and quick-add. Quick-add on
+a community someone else owns answers **409** with `existing: { sourceId, sourceName, sourceUrl, ownerName, ownerEmail }`
+(`Unassigned (legacy)` and a null email for a legacy source) and adds nothing.
+
+### Activity
+
+`adminActivity` is the log of what **admins** did: `actorId/Email/Name/Role`, `at`, `action`, `targetType`, `targetId`,
+`demandSourceId`, `ownerId` (of the record at the time) and a one-line `summary`. It is written only by
+`recordAdminActivity` (`lib/waitlist/admin-activity.ts`), which never fails the action it records. Each source also
+carries `lastAdminActivityAt` / `lastAdminActivityBy`.
+
+It is deliberately separate from **visitor** activity (`sourceVisits`, `shareEvents`), which is anonymous and
+untouched. `GET /api/admin/admin-activity?demandSourceId=` returns the two as separate lists for one source.
+
+Entries are kept indefinitely; there is no retention policy yet.
+
+`adminActivity` is server-only. Verified against the app repo's `firestore.rules` (see
+[`firestore-rules.md`](./firestore-rules.md)): no client can read, create, update or delete it, and none needs to.

@@ -1,6 +1,15 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { requireAdmin } from "@/lib/admin-auth";
+import { recordAdminActivity } from "@/lib/waitlist/admin-activity";
+import {
+  canAccessRecord,
+  inheritedOwner,
+  ownerEmailOf,
+  ownerIdOf,
+  ownerLabel,
+  ownerStampFor,
+} from "@/lib/waitlist/ownership";
 import { warmWaitlistCard } from "@/lib/waitlist/og-card";
 import {
   COLLECTIONS,
@@ -98,9 +107,34 @@ export async function POST(req: NextRequest) {
     });
     const existing = blockingDuplicates(matches)[0];
 
+    let existingData: FirebaseFirestore.DocumentData = {};
     if (existing) {
+      // The community is already tracked. If it is another admin's, an ordinary
+      // admin cannot add a link to it or see more than whose it is - the usual
+      // answer is "ask them", and a super admin can reassign.
+      const existingSnap = await db.collection(COLLECTIONS.demandSources).doc(existing.id).get();
+      existingData = existingSnap.data() ?? {};
+      if (!canAccessRecord(caller, existingData)) {
+        return NextResponse.json(
+          {
+            error: `This community is already being worked by ${ownerLabel(existingData)}. Ask them, or ask a super admin to reassign it.`,
+            alreadyOwned: true,
+            // Enough to find the work and the person: this is a duplicate-work
+            // guard, and "someone has it" would leave nothing to act on.
+            existing: {
+              sourceId: existing.id,
+              sourceName: existing.sourceName,
+              sourceUrl: existing.sourceUrl,
+              ownerName: ownerLabel(existingData),
+              ownerEmail: ownerEmailOf(existingData),
+            },
+          },
+          { status: 409 }
+        );
+      }
+
       const sourceCode = await createUniqueSourceCode(db);
-      await db.collection(COLLECTIONS.sourceLinks).add({
+      const linkRef = await db.collection(COLLECTIONS.sourceLinks).add({
         sourceCode,
         platformId: existing.platformId,
         demandSourceId: existing.id,
@@ -111,6 +145,7 @@ export async function POST(req: NextRequest) {
         label: derived.postUrl.slice(0, 500),
         createdAt: FieldValue.serverTimestamp(),
         createdBy: caller.uid,
+      ...inheritedOwner(existingData),
         firstUsedAt: null,
         lastUsedAt: null,
         totalVisitCount: 0,
@@ -122,6 +157,15 @@ export async function POST(req: NextRequest) {
         hidden: false,
       });
       after(() => warmWaitlistCard(sourceCode));
+
+      await recordAdminActivity(db, caller, {
+        action: "link.create",
+        targetType: "link",
+        targetId: linkRef.id,
+        demandSourceId: existing.id,
+        ownerId: ownerIdOf(existingData),
+        summary: `Added a link to "${existing.sourceName}" from a pasted URL`,
+      });
 
       return NextResponse.json({
         created: "link",
@@ -170,6 +214,7 @@ export async function POST(req: NextRequest) {
       reviewedBy: null,
       createdAt: FieldValue.serverTimestamp(),
       createdBy: caller.uid,
+      ...ownerStampFor(caller),
       updatedAt: FieldValue.serverTimestamp(),
     });
 
@@ -185,6 +230,7 @@ export async function POST(req: NextRequest) {
       label: derived.postUrl.slice(0, 500),
       createdAt: FieldValue.serverTimestamp(),
       createdBy: caller.uid,
+      ...ownerStampFor(caller),
       firstUsedAt: null,
       lastUsedAt: null,
       totalVisitCount: 0,
@@ -197,6 +243,15 @@ export async function POST(req: NextRequest) {
     });
 
     after(() => warmWaitlistCard(sourceCode));
+
+    await recordAdminActivity(db, caller, {
+      action: "source.create",
+      targetType: "source",
+      targetId: sourceRef.id,
+      demandSourceId: sourceRef.id,
+      ownerId: ownerStampFor(caller).ownerId,
+      summary: `Created source "${sourceName}" from a pasted URL`,
+    });
 
     return NextResponse.json({
       created: "source",

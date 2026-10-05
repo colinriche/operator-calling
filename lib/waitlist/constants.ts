@@ -408,6 +408,8 @@ export const COLLECTIONS = {
   waitlistEntries: "waitlistEntries",
   sourceVisits: "sourceVisits",
   shareEvents: "shareEvents",
+  /** What ADMINS did to outreach records. Visitors are sourceVisits/shareEvents. */
+  adminActivity: "adminActivity",
   rateLimits: "rateLimits",
   settings: "settings",
   /** Uploaded pictures any source can choose. See lib/waitlist/library.ts. */

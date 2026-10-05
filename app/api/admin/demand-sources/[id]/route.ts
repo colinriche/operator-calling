@@ -2,6 +2,9 @@ import { NextRequest, NextResponse, after } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { requireAdmin } from "@/lib/admin-auth";
 import { getAdminBucket } from "@/lib/firebase-admin";
+import { recordAdminActivity } from "@/lib/waitlist/admin-activity";
+import { ownerIdOf } from "@/lib/waitlist/ownership";
+import { loadSourceForCaller } from "@/lib/waitlist/source-access";
 import { warmWaitlistCardsForSource } from "@/lib/waitlist/og-card";
 import { deleteWaitlistCards } from "@/lib/waitlist/og-store";
 import { OUTREACH_RECORDS_COLLECTION } from "@/lib/waitlist/outreach";
@@ -183,12 +186,11 @@ export async function PATCH(
 
   try {
     const db = waitlistDb();
-    const ref = db.collection(COLLECTIONS.demandSources).doc(id);
-    const snap = await ref.get();
-    if (!snap.exists) {
-      return NextResponse.json({ error: "Not found" }, { status: 404 });
-    }
-    const existing = snap.data() ?? {};
+    // Ownership is enforced on the stored document: an ordinary admin gets a 404
+    // for a source that is not theirs, whatever the request body says.
+    const access = await loadSourceForCaller(db, id, caller);
+    if (!access.ok) return access.response;
+    const { ref, data: existing } = access;
 
     // The picture. A library image's URL is looked up and copied here, never
     // taken from the request - see resolveImageChoice.
@@ -309,6 +311,27 @@ export async function PATCH(
     }
 
     await ref.set(update, { merge: true });
+
+    const became = typeof update.status === "string" && update.status !== existing.status
+      ? (update.status as string)
+      : null;
+    const name = typeof existing.sourceName === "string" ? existing.sourceName : id;
+    await recordAdminActivity(db, caller, {
+      action:
+        became === "archived"
+          ? "source.archive"
+          : existing.status === "archived" && became
+            ? "source.unarchive"
+            : became === "under_review"
+              ? "source.review"
+              : "source.update",
+      targetType: "source",
+      targetId: id,
+      demandSourceId: id,
+      ownerId: ownerIdOf(existing),
+      summary: became ? `Set "${name}" to ${became}` : `Edited "${name}"`,
+    });
+
     // Any edit can change the card - the family name, the mode, the artwork -
     // so make it now rather than on the first share, which WhatsApp will not
     // wait for. After the response, so saving is not slowed by a render.
@@ -480,6 +503,15 @@ export async function DELETE(
         `${counts.registrations} registrations, ${counts.links} links, ${counts.visits} visits, ` +
         `${counts.shares} share events, ${counts.outreach} outreach records, ${counts.cards} cards`
     );
+
+    await recordAdminActivity(db, caller, {
+      action: "source.delete",
+      targetType: "source",
+      targetId: id,
+      demandSourceId: id,
+      ownerId: ownerIdOf(source),
+      summary: `Permanently deleted "${name}" (${counts.registrations} registrations, ${counts.links} links)`,
+    });
 
     return NextResponse.json({ success: true, deleted: counts });
   } catch (err) {

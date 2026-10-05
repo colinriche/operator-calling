@@ -1,6 +1,16 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { requireAdmin } from "@/lib/admin-auth";
+import { listAdminOwners } from "@/lib/waitlist/admin-owners";
+import { recordAdminActivity } from "@/lib/waitlist/admin-activity";
+import {
+  matchesScope,
+  ownerIdOf,
+  ownerEmailOf,
+  ownerNameOf,
+  ownerStampFor,
+  resolveScope,
+} from "@/lib/waitlist/ownership";
 import { groupsDb } from "@/lib/waitlist/group-linking";
 import { warmWaitlistCard } from "@/lib/waitlist/og-card";
 import {
@@ -74,6 +84,9 @@ function buildLinkRow(
     trackedUrl: buildTrackedUrl(origin, data.sourceCode ?? "", topic),
     createdAt: toIso(data.createdAt),
     createdBy: data.createdBy ?? null,
+    ownerId: ownerIdOf(data),
+    ownerName: ownerNameOf(data),
+    ownerEmail: ownerEmailOf(data),
     firstUsedAt: toIso(data.firstUsedAt),
     lastUsedAt: toIso(data.lastUsedAt),
     totalVisitCount: data.totalVisitCount ?? 0,
@@ -94,15 +107,32 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Admin role required" }, { status: 403 });
   }
 
+  // What this caller may see is decided here, from their role in the `admins`
+  // collection. `?scope=` is only a request: an ordinary admin asking for
+  // anything but their own work is refused, not narrowed.
+  const scope = resolveScope(caller, req.nextUrl.searchParams.get("scope"));
+  if (!scope.ok) {
+    return NextResponse.json({ error: scope.error }, { status: scope.status });
+  }
+
   try {
     const db = waitlistDb();
     const origin = originFrom(req);
     const globalThreshold = await getGlobalThreshold(db);
 
-    const [sourceSnap, linkSnap] = await Promise.all([
+    const [allSourceSnap, allLinkSnap] = await Promise.all([
       db.collection(COLLECTIONS.demandSources).get(),
       db.collection(COLLECTIONS.sourceLinks).get(),
     ]);
+    // Filtered after the read: ownership is absent on legacy documents, which no
+    // Firestore equality query can express. The same filter applies to links
+    // through their source, so a link can never surface without its source.
+    const sourceDocs = allSourceSnap.docs.filter((d) => matchesScope(d.data(), scope.filter));
+    const visibleIds = new Set(sourceDocs.map((d) => d.id));
+    const sourceSnap = { docs: sourceDocs };
+    const linkSnap = {
+      docs: allLinkSnap.docs.filter((d) => visibleIds.has(d.data().demandSourceId ?? "")),
+    };
 
     // Calls state for any source that has a group, so the panel can show
     // whether a group is actually calling without a second round trip.
@@ -233,6 +263,11 @@ export async function GET(req: NextRequest) {
         reviewedBy: data.reviewedBy ?? null,
         createdAt: toIso(data.createdAt),
         createdBy: data.createdBy ?? null,
+        ownerId: ownerIdOf(data),
+        ownerName: ownerNameOf(data),
+        ownerEmail: ownerEmailOf(data),
+        lastAdminActivityAt: toIso(data.lastAdminActivityAt),
+        lastAdminActivityBy: data.lastAdminActivityBy ?? null,
         updatedAt: toIso(data.updatedAt),
         links: linksBySource.get(doc.id) ?? [],
       };
@@ -240,7 +275,18 @@ export async function GET(req: NextRequest) {
 
     sources.sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
 
-    return NextResponse.json({ sources, globalThreshold });
+    // The filter choices a super admin gets: every admin who has signed in (an
+    // owner is a Firebase UID, so someone who never has cannot own anything yet).
+    // Ordinary admins get nothing here.
+    const owners = caller.role === "super_admin" ? await listAdminOwners() : [];
+
+    return NextResponse.json({
+      sources,
+      globalThreshold,
+      viewer: { role: caller.role, ownerId: ownerStampFor(caller).ownerId },
+      scope: scope.filter,
+      owners,
+    });
   } catch (err) {
     console.error("[admin/demand-sources GET]", err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
@@ -379,6 +425,7 @@ export async function POST(req: NextRequest) {
       reviewedBy: null,
       createdAt: FieldValue.serverTimestamp(),
       createdBy: caller.uid,
+      ...ownerStampFor(caller),
       updatedAt: FieldValue.serverTimestamp(),
     });
 
@@ -394,6 +441,7 @@ export async function POST(req: NextRequest) {
       label: str(body.linkLabel, 500) || "Primary link",
       createdAt: FieldValue.serverTimestamp(),
       createdBy: caller.uid,
+      ...ownerStampFor(caller),
       firstUsedAt: null,
       lastUsedAt: null,
       totalVisitCount: 0,
@@ -406,6 +454,15 @@ export async function POST(req: NextRequest) {
     // A new link has no card yet. Made now, so it is ready before anyone can
     // paste the link into WhatsApp.
     after(() => warmWaitlistCard(sourceCode));
+
+    await recordAdminActivity(db, caller, {
+      action: "source.create",
+      targetType: "source",
+      targetId: sourceRef.id,
+      demandSourceId: sourceRef.id,
+      ownerId: ownerStampFor(caller).ownerId,
+      summary: `Created source "${sourceName}"`,
+    });
 
     return NextResponse.json({
       id: sourceRef.id,

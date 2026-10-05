@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
-import { COLLECTIONS } from "@/lib/waitlist/constants";
+import { recordAdminActivity } from "@/lib/waitlist/admin-activity";
+import { ownerIdOf } from "@/lib/waitlist/ownership";
+import { loadSourceForCaller } from "@/lib/waitlist/source-access";
+import { COLLECTIONS, GENERAL_DEMAND_SOURCE_ID } from "@/lib/waitlist/constants";
 import { toIso, waitlistDb } from "@/lib/waitlist/server";
 
 // GET /api/admin/demand-sources/[id]/registrations
@@ -24,6 +27,21 @@ export async function GET(
 
   try {
     const db = waitlistDb();
+
+    // Emails are only for the admin whose source this is (or a super admin).
+    // The general bucket (registrations with no code) has no owner and no source
+    // document, so it is a super admin's.
+    let ownerId: string | null = null;
+    if (id === GENERAL_DEMAND_SOURCE_ID) {
+      if (caller.role !== "super_admin") {
+        return NextResponse.json({ error: "Not found" }, { status: 404 });
+      }
+    } else {
+      const access = await loadSourceForCaller(db, id, caller);
+      if (!access.ok) return access.response;
+      ownerId = ownerIdOf(access.data);
+    }
+
     const snap = await db
       .collection(COLLECTIONS.waitlistEntries)
       .where("demandSourceId", "==", id)
@@ -60,6 +78,16 @@ export async function GET(
 
     // Sorted in memory so this needs no composite index - 500 rows is nothing.
     registrations.sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
+
+    // Reading registrant emails is the one read worth logging.
+    await recordAdminActivity(db, caller, {
+      action: "registrations.view",
+      targetType: "source",
+      targetId: id,
+      demandSourceId: id,
+      ownerId,
+      summary: `Viewed ${registrations.length} registrations`,
+    });
 
     return NextResponse.json({ registrations });
   } catch (err) {

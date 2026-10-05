@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { requireAdmin } from "@/lib/admin-auth";
+import { recordAdminActivity } from "@/lib/waitlist/admin-activity";
+import { inheritedOwner, ownerIdOf } from "@/lib/waitlist/ownership";
+import { loadSourceForCaller } from "@/lib/waitlist/source-access";
 import { warmWaitlistCard } from "@/lib/waitlist/og-card";
 import { COLLECTIONS, LINK_STATUSES } from "@/lib/waitlist/constants";
 import { createUniqueSourceCode, waitlistDb } from "@/lib/waitlist/server";
@@ -41,15 +44,13 @@ export async function POST(req: NextRequest) {
 
   try {
     const db = waitlistDb();
-    const sourceSnap = await db
-      .collection(COLLECTIONS.demandSources)
-      .doc(demandSourceId)
-      .get();
-    if (!sourceSnap.exists) {
+    // Links belong to their source's owner. An admin can add one only to a
+    // source they own (a super admin, to any), and the link inherits that owner.
+    const access = await loadSourceForCaller(db, demandSourceId, caller);
+    if (!access.ok) {
       return NextResponse.json({ error: "Demand source not found" }, { status: 404 });
     }
-
-    const sourceData = sourceSnap.data() ?? {};
+    const sourceData = access.data;
     const sourceCode = await createUniqueSourceCode(db);
 
     const ref = await db.collection(COLLECTIONS.sourceLinks).add({
@@ -66,6 +67,7 @@ export async function POST(req: NextRequest) {
           : "Tracked link",
       createdAt: FieldValue.serverTimestamp(),
       createdBy: caller.uid,
+      ...inheritedOwner(sourceData),
       firstUsedAt: null,
       lastUsedAt: null,
       totalVisitCount: 0,
@@ -80,6 +82,15 @@ export async function POST(req: NextRequest) {
     // A new link has no card yet. Made now, so it is ready before anyone can
     // paste the link into WhatsApp.
     after(() => warmWaitlistCard(sourceCode));
+
+    await recordAdminActivity(db, caller, {
+      action: "link.create",
+      targetType: "link",
+      targetId: ref.id,
+      demandSourceId,
+      ownerId: ownerIdOf(sourceData),
+      summary: `Created tracked link ${sourceCode} for "${sourceData.sourceName ?? demandSourceId}"`,
+    });
 
     return NextResponse.json({
       id: ref.id,
@@ -135,7 +146,24 @@ export async function PATCH(req: NextRequest) {
   try {
     const db = waitlistDb();
     const ref = db.collection(COLLECTIONS.sourceLinks).doc(id);
+    const linkSnap = await ref.get();
+    // Access is the parent source's. Same 404 for missing and not-yours.
+    const access = linkSnap.exists
+      ? await loadSourceForCaller(db, linkSnap.data()?.demandSourceId ?? "", caller)
+      : null;
+    if (!access || !access.ok) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
     await ref.set(update, { merge: true });
+
+    await recordAdminActivity(db, caller, {
+      action: "link.update",
+      targetType: "link",
+      targetId: id,
+      demandSourceId: linkSnap.data()?.demandSourceId ?? "",
+      ownerId: ownerIdOf(access.data),
+      summary: `Updated link ${linkSnap.data()?.sourceCode ?? id} (${Object.keys(update).join(", ")})`,
+    });
 
     // A link switched back on serves its page again, and its card may have
     // been replaced while it was paused.

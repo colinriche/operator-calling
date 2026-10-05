@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { requireAdmin } from "@/lib/admin-auth";
+import { recordAdminActivity } from "@/lib/waitlist/admin-activity";
+import { ownerIdOf } from "@/lib/waitlist/ownership";
+import { loadSourceForCaller } from "@/lib/waitlist/source-access";
 import { warmWaitlistCardsForSource } from "@/lib/waitlist/og-card";
 import { getAdminBucket } from "@/lib/firebase-admin";
 import { sniffImageType, storePublicImage } from "@/lib/waitlist/image-upload";
@@ -90,11 +93,10 @@ export async function POST(
 
   try {
     const db = waitlistDb();
-    const ref = db.collection(COLLECTIONS.demandSources).doc(id);
-    const snap = await ref.get();
-    if (!snap.exists) {
-      return NextResponse.json({ error: "Not found" }, { status: 404 });
-    }
+    const access = await loadSourceForCaller(db, id, caller);
+    if (!access.ok) return access.response;
+    const ref = access.ref;
+    const snap = { data: () => access.data };
 
     const { path, url: heroImageUrl } = await storePublicImage(
       `waitlist-hero/${id}`,
@@ -130,6 +132,15 @@ export async function POST(
     // link is not the request that has to wait for it.
     after(() => warmWaitlistCardsForSource(id));
 
+    await recordAdminActivity(db, caller, {
+      action: "source.image",
+      targetType: "source",
+      targetId: id,
+      demandSourceId: id,
+      ownerId: ownerIdOf(access.data),
+      summary: "Uploaded the public photograph",
+    });
+
     return NextResponse.json({ heroImageUrl });
   } catch (err) {
     console.error("[admin/demand-sources image POST]", err);
@@ -150,11 +161,10 @@ export async function DELETE(
 
   try {
     const db = waitlistDb();
-    const ref = db.collection(COLLECTIONS.demandSources).doc(id);
-    const snap = await ref.get();
-    if (!snap.exists) {
-      return NextResponse.json({ error: "Not found" }, { status: 404 });
-    }
+    const access = await loadSourceForCaller(db, id, caller);
+    if (!access.ok) return access.response;
+    const ref = access.ref;
+    const snap = { data: () => access.data };
 
     // Cleared first: the page and its preview must stop pointing at the image
     // even if removing the object itself fails.
@@ -177,6 +187,15 @@ export async function DELETE(
     await removeObject(snap.data()?.heroImagePath as string | undefined);
 
     after(() => warmWaitlistCardsForSource(id));
+
+    await recordAdminActivity(db, caller, {
+      action: "source.image",
+      targetType: "source",
+      targetId: id,
+      demandSourceId: id,
+      ownerId: ownerIdOf(access.data),
+      summary: "Removed the public photograph",
+    });
 
     return NextResponse.json({ success: true });
   } catch (err) {

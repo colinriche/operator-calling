@@ -91,11 +91,29 @@ not apply:
 
 **The waitlist and private website collections need no client access at all.**
 `groupDemandSources`, `sourceLinks`, `waitlistEntries`, `sourceVisits`,
-`shareEvents`, `rateLimits`, `settings` and `admins` are read and written only by
+`shareEvents`, `adminActivity`, `rateLimits`, `settings` and `admins` are read and written only by
 server routes. No browser touches them, and none should - `waitlistEntries` holds
 email addresses and `admins` is the permission list itself. Firestore denies a
 collection with no `match` block, and the shared ruleset has **no recursive
 `match /{document=**}`**, so they are already closed. Nothing to add.
+
+### `adminActivity` - verified, not assumed (2026-10-05)
+
+The admin activity log (`lib/waitlist/admin-activity.ts`) is written by the server and read through
+`GET /api/admin/admin-activity`. No browser touches it, so it needs **no client access at all**, read included.
+
+Checked against `firestore.rules` on the app repo's `development` branch (read only; nothing pulled, regenerated or
+deployed), loaded into the Firestore emulator and exercised over REST with four principals:
+
+- the file has no `adminActivity` match block and **no recursive `match /{document=**}`** (the only `{path=**}`
+  matches sit inside `call_heartbeats` and `group_calls`), so Firestore's default deny applies;
+- signed out, signed in as a non-admin, as an `admins/{uid}` admin, and as an `admins/{email}` super admin each got
+  **403 on get, list, create, update and delete**;
+- as a control, the same two admins got 200 reading `activity_log`, a collection the rules do open to admins,
+  and the seeded entry survived every attempt while the forged one never appeared.
+
+That is the file on `development`, the source of truth, not a pull of the live ruleset; if live has drifted from
+it, this check does not cover that. It needs no rules change, so nothing is handed to the app repo.
 
 ## Still client-side, and genuinely so
 

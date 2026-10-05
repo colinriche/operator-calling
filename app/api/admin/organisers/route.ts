@@ -5,6 +5,7 @@ import { getAdminServices } from "@/lib/firebase-admin";
 import { COLLECTIONS, ORGANISER_STATUSES } from "@/lib/waitlist/constants";
 import { groupsDb } from "@/lib/waitlist/group-linking";
 import { toIso, waitlistDb } from "@/lib/waitlist/server";
+import { canAccessRecord, matchesScope, resolveScope } from "@/lib/waitlist/ownership";
 
 // People who offered to help organise calls, and where they are in review.
 //
@@ -53,6 +54,13 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Admin role required" }, { status: 403 });
   }
 
+  // These rows carry registrants' emails, so they follow the source's owner:
+  // an ordinary admin sees organisers from their own sources only.
+  const scope = resolveScope(caller, req.nextUrl.searchParams.get("scope"));
+  if (!scope.ok) {
+    return NextResponse.json({ error: scope.error }, { status: scope.status });
+  }
+
   try {
     const wDb = waitlistDb();
     const snap = await wDb
@@ -79,6 +87,17 @@ export async function GET(req: NextRequest) {
       })
     );
 
+    // Entries with no source of their own (the general bucket) have no owner, so
+    // they are unassigned: a super admin's.
+    const visibleDocs = snap.docs.filter((doc) =>
+      matchesScope(sources.get(doc.data().demandSourceId) ?? {}, scope.filter)
+    );
+    emails.clear();
+    for (const doc of visibleDocs) {
+      const e = doc.data().normalisedEmail;
+      if (e) emails.add(e as string);
+    }
+
     const groups = new Map<string, FirebaseFirestore.DocumentData>();
     const gDb = groupsDb();
     await Promise.all(
@@ -104,7 +123,7 @@ export async function GET(req: NextRequest) {
       })
     );
 
-    const rows: OrganiserRow[] = snap.docs.map((doc) => {
+    const rows: OrganiserRow[] = visibleDocs.map((doc) => {
       const d = doc.data();
       const source = sources.get(d.demandSourceId) ?? {};
       const groupId = (source.groupId as string) ?? null;
@@ -194,10 +213,16 @@ export async function PATCH(req: NextRequest) {
   }
 
   try {
-    await waitlistDb()
-      .collection(COLLECTIONS.waitlistEntries)
-      .doc(id)
-      .set(update, { merge: true });
+    const wDb = waitlistDb();
+    const entryRef = wDb.collection(COLLECTIONS.waitlistEntries).doc(id);
+    const entry = await entryRef.get();
+    const sourceId = entry.data()?.demandSourceId;
+    const source = sourceId ? await wDb.collection(COLLECTIONS.demandSources).doc(sourceId).get() : null;
+    // Reviewing an organiser is work on their source, so it needs access to it.
+    if (!entry.exists || !canAccessRecord(caller, source?.data() ?? {})) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+    await entryRef.set(update, { merge: true });
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error("[admin/organisers PATCH]", err);

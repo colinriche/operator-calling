@@ -110,6 +110,16 @@ export interface DemandSourceRow {
   reviewedBy: string | null;
   createdAt: string | null;
   createdBy: string | null;
+  /**
+   * The admin whose work this is (their Firebase Auth UID). Null for records that
+   * predate ownership: shown as "Unassigned (legacy)" and never guessed at.
+   */
+  ownerId: string | null;
+  ownerName: string | null;
+  ownerEmail: string | null;
+  /** Last time an admin acted on this source, and who. Visitor traffic does not move it. */
+  lastAdminActivityAt: string | null;
+  lastAdminActivityBy: string | null;
   updatedAt: string | null;
   /** Tracked links pointing at this source. */
   links: SourceLinkRow[];
@@ -150,6 +160,13 @@ export interface SourceLinkRow {
   trackedUrl: string;
   createdAt: string | null;
   createdBy: string | null;
+  /**
+   * The admin whose work this is (an `admins` document id). Null for records that
+   * predate ownership: shown as "Unassigned (legacy)" and never guessed at.
+   */
+  ownerId: string | null;
+  ownerName: string | null;
+  ownerEmail: string | null;
   firstUsedAt: string | null;
   lastUsedAt: string | null;
   totalVisitCount: number;

@@ -1,3 +1,4 @@
+import { loadSourceForCaller } from "@/lib/waitlist/source-access";
 import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
@@ -65,10 +66,10 @@ export async function POST(req: NextRequest) {
       if (!fromSourceId) {
         return NextResponse.json({ error: "Nothing to add" }, { status: 400 });
       }
-      const sourceSnap = await db
-        .collection(COLLECTIONS.demandSources)
-        .doc(fromSourceId)
-        .get();
+      // Only from a source the caller owns (any, for a super admin).
+      const access = await loadSourceForCaller(db, fromSourceId, caller);
+      if (!access.ok) return access.response;
+      const sourceSnap = { data: () => access.data };
       const path = sourceSnap.data()?.heroImagePath;
       if (typeof path !== "string" || !path) {
         return NextResponse.json(

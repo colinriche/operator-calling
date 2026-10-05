@@ -33,6 +33,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { useAdminRole } from "@/hooks/useAdminRole";
+import { OwnerScopeSelect, type OwnerChoice } from "@/components/admin/OutreachOwnership";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 import {
@@ -323,6 +324,25 @@ const COLUMNS: Column[] = [
     sortBy: (s) => s.links.length,
   },
   {
+    // Whose work this is. Legacy rows say so rather than guessing an owner.
+    key: "ownerName",
+    label: "Owner",
+    width: 150,
+    kind: "readonly",
+    text: (s) => (s.ownerId ? s.ownerName || s.ownerId : "Unassigned (legacy)"),
+  },
+  {
+    key: "lastAdminActivityAt",
+    label: "Last admin activity",
+    width: 190,
+    kind: "readonly",
+    text: (s) =>
+      s.lastAdminActivityAt
+        ? `${shortDate(s.lastAdminActivityAt)} ${s.lastAdminActivityBy ?? ""}`.trim()
+        : "",
+    sortBy: (s) => s.lastAdminActivityAt ?? "",
+  },
+  {
     key: "updatedAt",
     label: "Updated",
     width: 105,
@@ -383,6 +403,10 @@ export function DemandSourceSpreadsheet() {
   // route re-checks the role. An admin who is not a super admin sees the
   // archived line and the rows, without the destructive buttons.
   const { isSuperAdmin } = useAdminRole();
+  // Whose sources the grid shows. Only a super admin can ask for anyone else's;
+  // the server refuses everyone else.
+  const [scope, setScope] = useState("");
+  const [owners, setOwners] = useState<OwnerChoice[]>([]);
   const [sources, setSources] = useState<DemandSourceRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -432,12 +456,13 @@ export function DemandSourceSpreadsheet() {
     setError("");
     try {
       const token = await user.getIdToken();
-      const res = await fetch("/api/admin/demand-sources", {
+      const res = await fetch(`/api/admin/demand-sources${scope ? `?scope=${encodeURIComponent(scope)}` : ""}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to load sources");
       setSources(data.sources ?? []);
+      setOwners(data.owners ?? []);
       setLoaded(true);
     } catch (err) {
       console.error(err);
@@ -445,7 +470,7 @@ export function DemandSourceSpreadsheet() {
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [user, scope]);
 
   useEffect(() => {
     if (user && !loaded) void load();
@@ -1369,6 +1394,17 @@ export function DemandSourceSpreadsheet() {
             </option>
           ))}
         </select>
+
+        <OwnerScopeSelect
+          scope={scope}
+          owners={owners}
+          isSuperAdmin={isSuperAdmin}
+          className={selectClass}
+          onChange={(next) => {
+            setScope(next);
+            setLoaded(false);
+          }}
+        />
 
         <select
           value={platformFilter}

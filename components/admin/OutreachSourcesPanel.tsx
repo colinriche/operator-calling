@@ -31,6 +31,14 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
+import { useAdminRole } from "@/hooks/useAdminRole";
+import {
+  ActivityToggle,
+  OwnerAssign,
+  OwnerBadge,
+  OwnerScopeSelect,
+  type OwnerChoice,
+} from "@/components/admin/OutreachOwnership";
 import { cn } from "@/lib/utils";
 import {
   CONNECTION_TYPES,
@@ -331,6 +339,12 @@ export function OutreachSourcesPanel({
   onTotals?: (totals: LinkTotals) => void;
 } = {}) {
   const { user } = useAuth();
+  const { isSuperAdmin } = useAdminRole();
+  // Whose work is shown. The server decides what is allowed: everyone starts on
+  // their own, and only a super admin is ever answered with anyone else's.
+  const [scope, setScope] = useState("");
+  const [owners, setOwners] = useState<OwnerChoice[]>([]);
+  const [viewerId, setViewerId] = useState("");
   const [sources, setSources] = useState<DemandSourceRow[]>([]);
   const [globalThreshold, setGlobalThreshold] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -418,12 +432,14 @@ export function OutreachSourcesPanel({
       }
       try {
         const token = await user.getIdToken();
-        const res = await fetch("/api/admin/demand-sources", {
+        const res = await fetch(`/api/admin/demand-sources${scope ? `?scope=${encodeURIComponent(scope)}` : ""}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error ?? "Failed to load sources");
         setSources(data.sources ?? []);
+        setOwners(data.owners ?? []);
+        setViewerId(data.viewer?.ownerId ?? "");
         setGlobalThreshold(data.globalThreshold ?? 0);
         if (!quiet) setThresholdDraft(String(data.globalThreshold ?? ""));
         setLoaded(true);
@@ -436,7 +452,7 @@ export function OutreachSourcesPanel({
         if (!quiet) setLoading(false);
       }
     },
-    [user]
+    [user, scope]
   );
 
   useEffect(() => {
@@ -1188,6 +1204,12 @@ export function OutreachSourcesPanel({
               <Badge variant="outline" className="text-xs">
                 {platformLabel(source.platformId)}
               </Badge>
+              <OwnerBadge
+                ownerId={source.ownerId}
+                ownerName={source.ownerName}
+                ownerEmail={source.ownerEmail}
+                viewerId={viewerId}
+              />
               <Badge
                 variant={source.thresholdReachedAt ? "default" : "secondary"}
                 className="text-xs"
@@ -1236,6 +1258,22 @@ export function OutreachSourcesPanel({
           </div>
         }
       >
+        <div className="mb-3 space-y-2">
+          <OwnerAssign
+            sourceId={source.id}
+            ownerId={source.ownerId}
+            owners={owners}
+            isSuperAdmin={isSuperAdmin}
+            onAssigned={() => void load(true)}
+          />
+          {source.lastAdminActivityAt && (
+            <p className="text-xs text-muted-foreground">
+              Last admin activity: {source.lastAdminActivityBy || "an admin"},{" "}
+              {new Date(source.lastAdminActivityAt).toLocaleString()}
+            </p>
+          )}
+          <ActivityToggle sourceId={source.id} />
+        </div>
         <div className="flex flex-wrap gap-2">
           <div className="flex flex-wrap gap-2">
             {asWebUrl(source.sourceUrl) && (
@@ -1958,6 +1996,8 @@ export function OutreachSourcesPanel({
       </form>
 
       {/* Controls */}
+      <ActivityToggle label="Admin activity for this view" scope={scope} />
+
       <div className="flex flex-wrap gap-2 items-center">
         <div className="relative flex-1 min-w-[220px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -1968,6 +2008,16 @@ export function OutreachSourcesPanel({
             onChange={(e) => setQuery(e.target.value)}
           />
         </div>
+
+        <OwnerScopeSelect
+          scope={scope}
+          owners={owners}
+          isSuperAdmin={isSuperAdmin}
+          onChange={(next) => {
+            setScope(next);
+            setLoaded(false);
+          }}
+        />
 
         <select
           value={platformFilter}

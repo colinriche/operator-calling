@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { requireAdmin } from "@/lib/admin-auth";
+import { recordAdminActivity } from "@/lib/waitlist/admin-activity";
+import { ownerIdOf } from "@/lib/waitlist/ownership";
+import { loadSourceForCaller } from "@/lib/waitlist/source-access";
 import { warmWaitlistCardsForSource } from "@/lib/waitlist/og-card";
 import { getAdminServices } from "@/lib/firebase-admin";
 import { COLLECTIONS } from "@/lib/waitlist/constants";
@@ -36,15 +39,9 @@ export async function GET(
   const { id } = await params;
 
   try {
-    const sourceSnap = await waitlistDb()
-      .collection(COLLECTIONS.demandSources)
-      .doc(id)
-      .get();
-    if (!sourceSnap.exists) {
-      return NextResponse.json({ error: "Not found" }, { status: 404 });
-    }
-
-    const source = sourceSnap.data() ?? {};
+    const access = await loadSourceForCaller(waitlistDb(), id, caller);
+    if (!access.ok) return access.response;
+    const source = access.data;
     const db = groupsDb();
 
     const [similar, groups] = await Promise.all([
@@ -94,13 +91,9 @@ export async function POST(
 
   try {
     const wDb = waitlistDb();
-    const sourceRef = wDb.collection(COLLECTIONS.demandSources).doc(id);
-    const sourceSnap = await sourceRef.get();
-    if (!sourceSnap.exists) {
-      return NextResponse.json({ error: "Not found" }, { status: 404 });
-    }
-
-    const source = sourceSnap.data() ?? {};
+    const access = await loadSourceForCaller(wDb, id, caller);
+    if (!access.ok) return access.response;
+    const { ref: sourceRef, data: source } = access;
 
     // Linking twice would orphan the first group and quietly move the
     // attribution history onto the second.
@@ -211,6 +204,15 @@ export async function POST(
     // The status just changed, which decides whether the links still serve
     // this page or fall back to the global one - either way, a different card.
     after(() => warmWaitlistCardsForSource(id));
+
+    await recordAdminActivity(wDb, caller, {
+      action: action === "link" ? "source.group_link" : "source.group_create",
+      targetType: "source",
+      targetId: id,
+      demandSourceId: id,
+      ownerId: ownerIdOf(source),
+      summary: `${action === "link" ? "Linked" : "Created"} group for "${source.sourceName ?? id}"`,
+    });
 
     return NextResponse.json({
       success: true,

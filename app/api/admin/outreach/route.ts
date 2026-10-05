@@ -1,6 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { requireAdmin } from "@/lib/admin-auth";
+import { recordAdminActivity } from "@/lib/waitlist/admin-activity";
+import {
+  inheritedOwner,
+  matchesScope,
+  ownerIdOf,
+  ownerEmailOf,
+  ownerNameOf,
+  resolveScope,
+} from "@/lib/waitlist/ownership";
+import { loadSourceForCaller } from "@/lib/waitlist/source-access";
 import { COLLECTIONS } from "@/lib/waitlist/constants";
 import {
   OUTREACH_RECORDS_COLLECTION,
@@ -64,17 +74,31 @@ export async function GET(req: NextRequest) {
         }),
       });
     }
-    let query = db.collection(OUTREACH_RECORDS_COLLECTION).limit(500) as
-      FirebaseFirestore.Query;
+    // One source's history: allowed when the source is the caller's (or the
+    // caller is a super admin). Everything on it is shown, whoever wrote it.
+    // Otherwise the list is filtered by scope - the caller's own work unless a
+    // super admin asked for more. An ordinary admin asking for more is refused.
+    let docs: FirebaseFirestore.QueryDocumentSnapshot[];
     if (sourceId) {
-      query = db
-        .collection(OUTREACH_RECORDS_COLLECTION)
-        .where("demandSourceId", "==", sourceId)
-        .limit(500);
+      const access = await loadSourceForCaller(db, sourceId, caller);
+      if (!access.ok) return access.response;
+      docs = (
+        await db
+          .collection(OUTREACH_RECORDS_COLLECTION)
+          .where("demandSourceId", "==", sourceId)
+          .limit(500)
+          .get()
+      ).docs;
+    } else {
+      const scope = resolveScope(caller, req.nextUrl.searchParams.get("scope"));
+      if (!scope.ok) {
+        return NextResponse.json({ error: scope.error }, { status: scope.status });
+      }
+      const all = await db.collection(OUTREACH_RECORDS_COLLECTION).limit(2000).get();
+      docs = all.docs.filter((d) => matchesScope(d.data(), scope.filter)).slice(0, 500);
     }
 
-    const snap = await query.get();
-    const records = snap.docs.map((doc) => {
+    const records = docs.map((doc) => {
       const d = doc.data();
       return {
         id: doc.id,
@@ -96,6 +120,9 @@ export async function GET(req: NextRequest) {
         copiedAt: toIso(d.copiedAt),
         createdAt: toIso(d.createdAt),
         createdBy: d.createdBy ?? null,
+        ownerId: ownerIdOf(d),
+        ownerName: ownerNameOf(d),
+        ownerEmail: ownerEmailOf(d),
       };
     });
 
@@ -133,14 +160,11 @@ export async function POST(req: NextRequest) {
 
   try {
     const db = waitlistDb();
-    const sourceSnap = await db
-      .collection(COLLECTIONS.demandSources)
-      .doc(demandSourceId)
-      .get();
-    if (!sourceSnap.exists) {
+    const access = await loadSourceForCaller(db, demandSourceId, caller);
+    if (!access.ok) {
       return NextResponse.json({ error: "Demand source not found" }, { status: 404 });
     }
-    const source = sourceSnap.data() ?? {};
+    const source = access.data;
 
     // Hard stop. do_not_contact is a decision someone made deliberately, and
     // the point of recording it is that it holds without anyone remembering.
@@ -182,7 +206,18 @@ export async function POST(req: NextRequest) {
       copiedAt: null,
       createdAt: FieldValue.serverTimestamp(),
       createdBy: caller.uid,
+      // Owned by whoever owns the source; the actor is in the activity log.
+      ...inheritedOwner(source),
       updatedAt: FieldValue.serverTimestamp(),
+    });
+
+    await recordAdminActivity(db, caller, {
+      action: "outreach.create",
+      targetType: "outreach",
+      targetId: ref.id,
+      demandSourceId,
+      ownerId: ownerIdOf(source),
+      summary: `Drafted a ${type} for "${source.sourceName ?? demandSourceId}"`,
     });
 
     // Bookkeeping the sources panel reads.
@@ -257,12 +292,31 @@ export async function PATCH(req: NextRequest) {
 
   try {
     const db = waitlistDb();
-    await db.collection(OUTREACH_RECORDS_COLLECTION).doc(id).set(update, { merge: true });
+    const recordRef = db.collection(OUTREACH_RECORDS_COLLECTION).doc(id);
+    const before = await recordRef.get();
+    // A record is changed only by the owner of its source (or a super admin).
+    const access = before.exists
+      ? await loadSourceForCaller(db, before.data()?.demandSourceId ?? "", caller)
+      : null;
+    if (!access || !access.ok) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+    await recordRef.set(update, { merge: true });
+
+    const status = typeof update.status === "string" ? update.status : null;
+    await recordAdminActivity(db, caller, {
+      action:
+        status === "posted" ? "outreach.posted" : status === "copied" ? "outreach.copied" : "outreach.update",
+      targetType: "outreach",
+      targetId: id,
+      demandSourceId: before.data()?.demandSourceId ?? "",
+      ownerId: ownerIdOf(access.data),
+      summary: status ? `Marked outreach ${status}` : "Edited outreach",
+    });
 
     // lastPostedAt drives the "posted here recently" warning.
     if (body.status === "posted") {
-      const snap = await db.collection(OUTREACH_RECORDS_COLLECTION).doc(id).get();
-      const sourceId = snap.data()?.demandSourceId;
+      const sourceId = before.data()?.demandSourceId;
       if (sourceId) {
         await db
           .collection(COLLECTIONS.demandSources)
