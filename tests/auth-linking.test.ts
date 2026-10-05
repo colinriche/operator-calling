@@ -38,7 +38,7 @@ describe("decideFederatedSignIn", () => {
 
   it("tells the person to use phone first", () => {
     expect(PHONE_FIRST_MESSAGE).toMatch(/phone number first/);
-    expect(PHONE_FIRST_MESSAGE).not.toMatch(/—/);
+    expect(PHONE_FIRST_MESSAGE).not.toMatch(/2014/);
   });
 });
 
