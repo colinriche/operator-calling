@@ -260,7 +260,7 @@ export function WaitlistForm({
 
           {manageToken ? (
             <Link
-              href={`/waitlist/tester?t=${encodeURIComponent(manageToken)}`}
+              href={`/join/tester?t=${encodeURIComponent(manageToken)}`}
               className="inline-flex items-center justify-center h-11 px-5 rounded-xl gradient-gold border-0 text-primary-foreground font-heading font-semibold text-sm hover:opacity-90 transition-opacity"
             >
               Join early access

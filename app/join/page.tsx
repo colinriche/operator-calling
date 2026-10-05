@@ -135,8 +135,8 @@ export async function generateMetadata({
   // submitted rather than reusing the composer's preview, and that second pass
   // is where an absent og:url costs you the card.
   const canonical = context.sourceCode
-    ? `${site}/waitlist?s=${encodeURIComponent(urlSourceCode(context.sourceCode))}`
-    : `${site}/waitlist`;
+    ? `${site}/join?s=${encodeURIComponent(urlSourceCode(context.sourceCode))}`
+    : `${site}/join`;
 
   // Title, description and image all come out of the same presentation object
   // the page renders from - there is nothing here to keep in sync by hand.

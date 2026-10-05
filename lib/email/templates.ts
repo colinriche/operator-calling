@@ -12,7 +12,7 @@ import { appBaseUrl, type EmailMessage } from "./send";
 // more than the unsubscribe does.
 
 function manageUrl(token: string): string {
-  return `${appBaseUrl()}/waitlist/manage?t=${encodeURIComponent(token)}`;
+  return `${appBaseUrl()}/join/manage?t=${encodeURIComponent(token)}`;
 }
 
 function wrap(bodyHtml: string, manageLink: string): string {

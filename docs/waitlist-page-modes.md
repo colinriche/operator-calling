@@ -1,6 +1,6 @@
 # The waitlist page: three modes, one source of truth
 
-`/waitlist?s=CODE` renders one of three quite different pages. Everything on it
+`/join?s=CODE` renders one of three quite different pages. Everything on it
 - heading, artwork, the wording of the form, the `og:title`, the generated
 preview image - is derived from a single object built by
 `lib/waitlist/presentation.ts`.
@@ -17,7 +17,7 @@ callers:
 
 | Caller | File |
 | --- | --- |
-| The page | `app/waitlist/page.tsx` |
+| The page | `app/join/page.tsx` |
 | The Open Graph tags | `generateMetadata` in the same file |
 | The preview image | `app/api/og/waitlist/route.tsx` |
 | The admin preview | `components/admin/WaitlistPagePanel.tsx` |

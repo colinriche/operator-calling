@@ -1,6 +1,14 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // The public sign-up page moved from /waitlist to /join. Links are already
+  // posted in forums, so the old address has to keep working.
+  // Next carries the query string across a redirect, so ?s=CODE survives.
+  // Only the exact path is redirected. /public/waitlist/* holds static images and
+  // must keep resolving.
+  async redirects() {
+    return [{ source: "/waitlist", destination: "/join", permanent: true }];
+  },
   async headers() {
     return [
       {

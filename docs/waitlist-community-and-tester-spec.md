@@ -41,7 +41,7 @@ Prefer **organiser** over **admin** in public copy, as before.
 
 ### Arriving from a tracked community link
 
-`/waitlist?s=CODE` resolves the community server-side, then does two things:
+`/join?s=CODE` resolves the community server-side, then does two things:
 
 1. **Registers interest in calls with people from that community.** This is the
    primary action and the reason they clicked.
@@ -53,7 +53,7 @@ additional opportunity, never as a requirement or a condition of joining.
 
 ### Arriving without a tracked link
 
-`/waitlist` with no code, or an unknown/expired one, offers the tester
+`/join` with no code, or an unknown/expired one, offers the tester
 programme and general interest only. No community is named, and no community
 interest record is created - there is no community to attribute it to.
 
@@ -229,7 +229,7 @@ local time loses the instant. Both are kept.
 ## 6. Controls: join, pause, leave
 
 Every registration issues an opaque **manage token**, giving a URL like
-`/waitlist/manage?t=<token>`. It is:
+`/join/manage?t=<token>`. It is:
 
 - shown on the confirmation page and saved in the browser, so it works
   immediately with no email infrastructure

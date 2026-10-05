@@ -1,8 +1,8 @@
 // ─── Tracked link URLs ───────────────────────────────────────────────────────
 //
-// A tracked link is `/waitlist?s=CODE`. When a source opts in, its topic is
+// A tracked link is `/join?s=CODE`. When a source opts in, its topic is
 // appended as `&t=<slug>` purely so the link reads sensibly when pasted into a
-// forum post - "…/waitlist?s=K7P4MX&t=live-poker" says more than the code alone.
+// forum post - "…/join?s=K7P4MX&t=live-poker" says more than the code alone.
 //
 // `t` is cosmetic and carries no meaning: the waitlist page ignores it entirely.
 // Everything public-facing (audience label, disclaimer, group) is still resolved
@@ -64,7 +64,7 @@ export function buildTrackedUrl(
   sourceCode: string,
   source?: TopicUrlOptions
 ): string {
-  const base = `${origin}/waitlist?s=${urlSourceCode(sourceCode)}`;
+  const base = `${origin}/join?s=${urlSourceCode(sourceCode)}`;
   if (source?.includeTopicInUrl !== true) return base;
 
   // topicSlug only ever emits [a-z0-9-], so no further encoding is needed.

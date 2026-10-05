@@ -26,7 +26,7 @@ export default function DownloadPage() {
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
           {/* App Store */}
           <Link
-            href="/waitlist"
+            href="/join"
             className="flex items-center gap-3 px-6 py-4 bg-foreground text-background rounded-2xl hover:bg-foreground/90 transition-colors"
           >
             <svg viewBox="0 0 24 24" fill="currentColor" className="w-7 h-7">
@@ -40,7 +40,7 @@ export default function DownloadPage() {
 
           {/* Google Play */}
           <Link
-            href="/waitlist"
+            href="/join"
             className="flex items-center gap-3 px-6 py-4 bg-foreground text-background rounded-2xl hover:bg-foreground/90 transition-colors"
           >
             <svg viewBox="0 0 24 24" fill="currentColor" className="w-7 h-7">

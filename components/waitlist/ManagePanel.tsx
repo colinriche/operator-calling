@@ -63,7 +63,7 @@ export function ManagePanel({ token }: { token: string }) {
       return;
     }
     try {
-      const res = await fetch(`/api/waitlist/manage?t=${encodeURIComponent(token)}`);
+      const res = await fetch(`/api/join/manage?t=${encodeURIComponent(token)}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Could not load this link");
       setState(data);
@@ -81,7 +81,7 @@ export function ManagePanel({ token }: { token: string }) {
   async function act(action: string, extra: Record<string, unknown> = {}) {
     setBusy(action);
     try {
-      const res = await fetch("/api/waitlist/manage", {
+      const res = await fetch("/api/join/manage", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token, action, ...extra }),
@@ -112,7 +112,7 @@ export function ManagePanel({ token }: { token: string }) {
           We couldn&apos;t open that link
         </h1>
         <p className="text-muted-foreground leading-relaxed mb-4">{error}</p>
-        <Link href="/waitlist" className="text-primary underline underline-offset-2">
+        <Link href="/join" className="text-primary underline underline-offset-2">
           Back to the waitlist
         </Link>
       </div>
@@ -351,7 +351,7 @@ export function ManagePanel({ token }: { token: string }) {
           )}
           {(state.testerStatus === "none" || state.testerStatus === "left") && (
             <Link
-              href={`/waitlist/tester?t=${encodeURIComponent(token)}`}
+              href={`/join/tester?t=${encodeURIComponent(token)}`}
               className="inline-flex items-center h-9 px-3.5 rounded-lg gradient-gold border-0 text-primary-foreground font-medium text-sm hover:opacity-90 transition-opacity"
             >
               Join early access

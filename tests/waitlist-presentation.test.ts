@@ -578,14 +578,14 @@ describe("source codes in URLs", () => {
   it("writes them lower case everywhere", () => {
     expect(urlSourceCode("K7P4MX")).toBe("k7p4mx");
     expect(buildTrackedUrl("https://operatorcalling.com", "K7P4MX")).toBe(
-      "https://operatorcalling.com/waitlist?s=k7p4mx"
+      "https://operatorcalling.com/join?s=k7p4mx"
     );
     expect(
       buildTrackedUrl("https://operatorcalling.com", "K7P4MX", {
         topicName: "Live Poker",
         includeTopicInUrl: true,
       })
-    ).toBe("https://operatorcalling.com/waitlist?s=k7p4mx&t=live-poker");
+    ).toBe("https://operatorcalling.com/join?s=k7p4mx&t=live-poker");
     expect(waitlistOgImageUrl("https://operatorcalling.com", "K7P4MX")).toContain(
       "s=k7p4mx"
     );

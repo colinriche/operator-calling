@@ -398,7 +398,7 @@ Each tracked link should use a short opaque source code.
 Example:
 
 ```text
-https://operatorcalling.com/waitlist?s=K7P4MX
+https://operatorcalling.com/join?s=K7P4MX
 ```
 
 The code is an attribution identifier, not an authentication token.
@@ -785,7 +785,7 @@ Example:
   "outreachType": "public_comment",
   "conversationText": "Pasted post or comment",
   "productDescription": "Operator Calling is a separate app for people who like talking on the phone with new people. It focuses on scheduled one-to-one voice calls. Users do not need to search for people or arrange calls. They make themselves available and Operator finds another suitable person and places the inbound call. Phone numbers are not exchanged.",
-  "trackedUrl": "https://operatorcalling.com/waitlist?s=K7P4MX",
+  "trackedUrl": "https://operatorcalling.com/join?s=K7P4MX",
   "requestedStyle": "casual, natural, brief, non-promotional UK English"
 }
 ```
@@ -1143,7 +1143,7 @@ share channel
 For example, preserve `s=K7P4MX` and add a non-sensitive share parameter:
 
 ```text
-/waitlist?s=K7P4MX&share=whatsapp
+/join?s=K7P4MX&share=whatsapp
 ```
 
 Do not create a new demand source merely because the link was shared.
@@ -1195,7 +1195,7 @@ Show share counts in analytics where useful, but keep demand based primarily on 
 When a visitor opens:
 
 ```text
-/waitlist?s=SOURCE_CODE
+/join?s=SOURCE_CODE
 ```
 
 the server should:
