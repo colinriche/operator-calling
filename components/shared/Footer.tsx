@@ -6,6 +6,7 @@ const footerLinks = {
     { href: "/how-it-works", label: "How it works" },
     { href: "/features", label: "Features" },
     { href: "/groups", label: "Groups" },
+    { href: "/groups/start", label: "Start a group" },
     { href: "/use-cases", label: "Use cases" },
     { href: "/download", label: "Download app" },
   ],
@@ -60,11 +61,23 @@ export function Footer() {
         </div>
 
         <div className="mt-12 pt-8 border-t border-background/10 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-background/50">
-          <p>© {new Date().getFullYear()} The Operator. All rights reserved.</p>
+          <p>
+            © {new Date().getFullYear()} The Operator. All rights reserved.
+            <br />
+            The Operator is operated by{" "}
+            <a
+              href="https://gomainstream.org"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline underline-offset-2 hover:text-background/80 transition-colors"
+            >
+              Mainstream Movement Ltd
+            </a>
+            , a company registered in England &amp; Wales (no. 09098347).
+          </p>
           <div className="flex gap-6">
             <Link href="/privacy" className="hover:text-background/80 transition-colors">Privacy</Link>
             <Link href="/faq#terms" className="hover:text-background/80 transition-colors">Terms</Link>
-            <Link href="/admin-login" className="hover:text-background/80 transition-colors">Admin</Link>
           </div>
         </div>
       </div>

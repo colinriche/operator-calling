@@ -166,7 +166,7 @@ function isReportForUsersGroup() {
 
 #### Collection rules (paste `match` blocks inside `match /databases/{database}/documents`)
 
-**`schedules`** — participants can read/write; optional admin read-all.
+**`schedules`** - participants can read/write; optional admin read-all.
 
 ```text
 match /schedules/{docId} {
@@ -186,7 +186,7 @@ match /schedules/{docId} {
 }
 ```
 
-**`callbacks`** — requester or target (same pattern as schedules).
+**`callbacks`** - requester or target (same pattern as schedules).
 
 ```text
 match /callbacks/{docId} {
@@ -206,7 +206,7 @@ match /callbacks/{docId} {
 }
 ```
 
-**`notifications`** — recipient only (admin generally does not need to read user notification inboxes).
+**`notifications`** - recipient only (admin generally does not need to read user notification inboxes).
 
 ```text
 match /notifications/{docId} {
@@ -216,7 +216,7 @@ match /notifications/{docId} {
 }
 ```
 
-**`memberships`** — **must** allow members of a group to read membership docs for that group (group admin UI queries `where("groupId", "==", groupId)`). Without this, you get `permission-denied`.
+**`memberships`** - **must** allow members of a group to read membership docs for that group (group admin UI queries `where("groupId", "==", groupId)`). Without this, you get `permission-denied`.
 
 ```text
 match /memberships/{docId} {
@@ -238,7 +238,7 @@ match /memberships/{docId} {
 }
 ```
 
-**`admin_controls`** — platform settings doc `platform`; restrict to web admin.
+**`admin_controls`** - platform settings doc `platform`; restrict to web admin.
 
 ```text
 match /admin_controls/{docId} {
@@ -246,7 +246,7 @@ match /admin_controls/{docId} {
 }
 ```
 
-**`invites`** — if you **do not** already have `match /invites/{docId}`. The group admin queries pending invites by `groupId` + `status`. Simple dev-friendly rule:
+**`invites`** - if you **do not** already have `match /invites/{docId}`. The group admin queries pending invites by `groupId` + `status`. Simple dev-friendly rule:
 
 ```text
 match /invites/{docId} {
@@ -254,7 +254,7 @@ match /invites/{docId} {
 }
 ```
 
-Tighter option (only inviter, group creator, or web admin — may require composite indexes for your queries):
+Tighter option (only inviter, group creator, or web admin - may require composite indexes for your queries):
 
 ```text
 match /invites/{docId} {
@@ -273,9 +273,9 @@ match /invites/{docId} {
 }
 ```
 
-**`reports`** — if you **do not** already have `match /reports/{docId}`. Super admin loads all reports; group admin filters by `groupId`.
+**`reports`** - if you **do not** already have `match /reports/{docId}`. Super admin loads all reports; group admin filters by `groupId`.
 
-Minimum (matches many existing projects; any signed-in user can read/update — tighten for production):
+Minimum (matches many existing projects; any signed-in user can read/update - tighten for production):
 
 ```text
 match /reports/{docId} {

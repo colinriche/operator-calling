@@ -8,7 +8,7 @@ export interface UserProfile {
   uid: string;
   email: string;
   displayName: string;
-  /** Flutter app field — present on mobile/linked accounts instead of displayName */
+  /** Flutter app field - present on mobile/linked accounts instead of displayName */
   name?: string;
   username?: string;
   city?: string;
@@ -18,11 +18,11 @@ export interface UserProfile {
   role: UserRole;
   banned?: boolean;
   archived?: boolean;
-  /** Set by the mobile app at registration — presence means account is linked */
+  /** Set by the mobile app at registration - presence means account is linked */
   systemName?: string;
   /** Populated when a web-first user links by entering their system name */
   linkedSystemName?: string;
-  /** Written on the app doc during account merge — the Firebase Auth UID of the merged web account */
+  /** Written on the app doc during account merge - the Firebase Auth UID of the merged web account */
   linkedWebUid?: string;
   createdAt: Date;
   updatedAt: Date;
@@ -35,6 +35,10 @@ export interface UserProfile {
     maxDailyCallMinutes?: number;
   };
 
+  // Auto-call count restriction (user-set)
+  autoCallRestrictionPeriod?: "daily" | "weekly" | "monthly" | null;
+  autoCallRestrictionMax?: number | null;
+
   // Privacy
   privacy: {
     showOnlineStatus: boolean;
@@ -45,7 +49,7 @@ export interface UserProfile {
   // Profile completeness
   interests: string[];
   bio?: string;
-  completeness: number; // 0–100
+  completeness: number; // 0-100
 
   // Notification settings
   notifications: {
@@ -141,6 +145,21 @@ export interface MobileDeepLinkPayload {
   sessionId?: string;
   webrtcRoomId?: string;
   groupId?: string;
+}
+
+// ─── Group Admin Requests ─────────────────────────────────────────────────────
+
+export interface GroupAdminRequest {
+  id: string;
+  requesterName: string;
+  requesterEmail: string;
+  groupName: string;
+  description: string;
+  location: string; // "global" or free-text region/city/country
+  memberEmails: string[];
+  status: "pending" | "approved" | "rejected";
+  createdAt: Date;
+  notes?: string;
 }
 
 // ─── Invites ──────────────────────────────────────────────────────────────────

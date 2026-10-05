@@ -7,7 +7,7 @@ const cases = [
   {
     emoji: "🏢",
     title: "Remote teams",
-    desc: "Replace Slack noise with scheduled voice check-ins. Get your team actually talking — without the meeting overhead.",
+    desc: "Replace Slack noise with scheduled voice check-ins. Get your team actually talking - without the meeting overhead.",
     scenarios: ["Weekly 1-to-1s with direct reports", "Spontaneous collaboration without scheduling nightmares", "Async availability matching across timezones"],
   },
   {

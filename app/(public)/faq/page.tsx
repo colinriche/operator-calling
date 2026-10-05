@@ -1,16 +1,18 @@
 import type { Metadata } from "next";
+import Link from "next/link";
+import { ContactForm } from "@/components/marketing/ContactForm";
 import { AnimatedSection } from "@/components/marketing/AnimatedSection";
 
 export const metadata: Metadata = { title: "FAQ" };
 
-const faqs = [
+const faqs: { q: string; a: string; link?: { href: string; label: string } }[] = [
   {
     q: "What is The Operator?",
-    a: "The Operator is a voice-first calling platform. It lets you schedule calls, request callbacks, and join community groups — all built around the idea that a 5-minute call beats a hundred messages.",
+    a: "The Operator is a voice-first calling platform. It lets you schedule calls, request callbacks, and join community groups - all built around the idea that a 5-minute call beats a hundred messages.",
   },
   {
     q: "What does 'only connects when both answer' mean?",
-    a: "When a call is initiated, The Operator rings both parties simultaneously. If both pick up, you're connected. If either side doesn't answer, the call doesn't connect — no voicemail, no missed-call guilt, just try again.",
+    a: "When a call is initiated, The Operator rings both parties simultaneously. If both pick up, you're connected. If either side doesn't answer, the call doesn't connect - no voicemail, no missed-call guilt, just try again.",
   },
   {
     q: "Can I call strangers?",
@@ -26,7 +28,7 @@ const faqs = [
   },
   {
     q: "Is it free?",
-    a: "The Operator has a free tier with core calling features. Group creation and advanced admin tools are part of the pro plan.",
+    a: "Yes, the app is free to beta testers and early adopters.",
   },
   {
     q: "How do you handle safety and abuse?",
@@ -35,6 +37,11 @@ const faqs = [
   {
     q: "Can I set my availability so I'm not disturbed?",
     a: "Yes. You set your available hours in your profile. The Operator will only attempt to connect calls during those windows.",
+  },
+  {
+    q: "How do I delete my account?",
+    a: "Open Profile in your dashboard and use the Delete account box. You have 30 days to restore it, after which it becomes eligible for permanent deletion by our team. Certain data may be retained longer when required by law.",
+    link: { href: "/account-deletion", label: "Read the full account deletion steps" },
   },
 ];
 
@@ -47,7 +54,7 @@ export default function FAQPage() {
         </h1>
         <p className="text-xl text-muted-foreground">
           Can't find an answer?{" "}
-          <a href="mailto:hello@theoperator.app" className="text-primary underline underline-offset-4">
+          <a href="#contact" className="text-primary underline underline-offset-4">
             Get in touch.
           </a>
         </p>
@@ -61,20 +68,35 @@ export default function FAQPage() {
                 {item.q}
                 <span className="ml-4 shrink-0 text-muted-foreground group-open:rotate-45 transition-transform text-xl leading-none">+</span>
               </summary>
-              <p className="px-5 pb-5 text-sm text-muted-foreground leading-relaxed">{item.a}</p>
+              <p className="px-5 pb-5 text-sm text-muted-foreground leading-relaxed">
+                {item.a}
+                {item.link && (
+                  <>
+                    {" "}
+                    <Link href={item.link.href} className="text-primary underline underline-offset-4">
+                      {item.link.label}
+                    </Link>
+                    .
+                  </>
+                )}
+              </p>
             </details>
           </AnimatedSection>
         ))}
       </div>
 
-      <AnimatedSection className="mt-16 text-center">
-        <p className="text-muted-foreground mb-4">Still have questions?</p>
-        <a
-          href="mailto:hello@theoperator.app"
-          className="inline-flex items-center gap-2 px-6 py-3 rounded-xl gradient-gold text-primary-foreground font-semibold text-sm hover:opacity-90 transition-opacity"
-        >
-          Contact us
-        </a>
+      {/* The footer's Contact link lands here. scroll-mt keeps the heading clear
+          of the sticky navbar. */}
+      <AnimatedSection className="mt-16">
+        <div id="contact" className="scroll-mt-24">
+          <h2 className="font-heading font-bold text-2xl text-foreground mb-2 text-center">
+            Still have questions?
+          </h2>
+          <p className="text-sm text-muted-foreground mb-6 text-center">
+            Send us a message and we&apos;ll get back to you.
+          </p>
+          <ContactForm />
+        </div>
       </AnimatedSection>
     </div>
   );

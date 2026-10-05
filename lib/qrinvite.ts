@@ -54,7 +54,7 @@ export type QRInviteState =
   | { status: "join_requested"; groupName?: string }
   | { status: "app_opening"; deepLink: string }
   | { status: "install_app"; platform: Platform; token: string; type: InviteType }
-  | { status: "pending_saved"; platform: Platform }
+  | { status: "pending_saved"; platform: Platform; token: string; type: InviteType; emailSaved: boolean }
   | { status: "resumed" }
   | { status: "error"; message?: string };
 
@@ -92,7 +92,7 @@ export function attemptAppOpen(deepLink: string, timeoutMs = 1800): Promise<bool
 
     const onVisibilityChange = () => {
       if (document.hidden) {
-        // App opened — page went to background
+        // App opened - page went to background
         clearTimeout(timer);
         document.removeEventListener("visibilitychange", onVisibilityChange);
         // Give it a moment, then resolve false (app opened)
@@ -173,12 +173,13 @@ export async function completeInvite(
 
 export async function createPendingConnection(
   token: string,
-  platform: Platform
+  platform: Platform,
+  phoneNumber?: string
 ): Promise<PendingResponse> {
   const res = await fetch("/api/qrinvite/pending", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ token, platform }),
+    body: JSON.stringify({ token, platform, ...(phoneNumber ? { phoneNumber } : {}) }),
   });
   if (!res.ok) return { success: false };
   return res.json() as Promise<PendingResponse>;

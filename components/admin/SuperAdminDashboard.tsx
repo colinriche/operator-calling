@@ -1,42 +1,35 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { Users, BarChart3, Shield, Settings, Search, AlertTriangle, CheckCircle2, Phone, Globe, Archive, Trash2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Users, BarChart3, Shield, Settings, Search, AlertTriangle, CheckCircle2, Phone, Globe, Archive, Trash2, Megaphone } from "lucide-react";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
+import { useAdminRole } from "@/hooks/useAdminRole";
 import { seedDashboardStarterData } from "@/lib/dashboardSeed";
-import {
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  serverTimestamp,
-  setDoc,
-  updateDoc,
-} from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { OutreachSourcesPanel } from "@/components/admin/OutreachSourcesPanel";
+import { ReportsQueue } from "@/components/admin/ReportsQueue";
+import { DeletionRequestsPanel } from "@/components/admin/DeletionRequestsPanel";
+import { ACCOUNT_LABEL, ACCOUNT_TONE } from "@/components/admin/moderationFormat";
+import type { AccountStatus, QueueCounts } from "@/lib/moderation-model";
+import { firebaseProjectId } from "@/lib/firebase-env";
 
 interface UserRow {
   id: string;
   name: string;
   email: string;
   role: string;
-  status: "active" | "banned";
+  status: AccountStatus;
+  warnings: number;
+  reportsReceived: number;
+  reportsMade: number;
   joinedAt: Date | null;
-}
-
-interface ReportRow {
-  id: string;
-  reporter: string;
-  reported: string;
-  reason: string;
-  createdAt: Date | null;
-  targetUserId: string | null;
 }
 
 interface ArchiveRow {
@@ -55,11 +48,18 @@ interface ArchiveRow {
   deletionType: string;
 }
 
-const USER_MANAGEMENT_FUNCTION_URL =
-  "https://us-central1-webrtc-clone-dc88c.cloudfunctions.net/sendFcmMessage";
+// The app's user-management Cloud Function, in the project the site uses. This
+// URL was once hardcoded to a different project, which rejected the site's ID
+// tokens outright - the function verifies the token with its own project's
+// Admin SDK, and a token is only valid for its issuer.
+//
+// Derived rather than hardcoded so it can never again name a project the rest
+// of the site has left. It does require the function to be deployed in
+// `operator-calling`; that lives in the app repo, not this one.
+const USER_MANAGEMENT_FUNCTION_URL = `https://us-central1-${firebaseProjectId()}.cloudfunctions.net/sendFcmMessage`;
 
 export function SuperAdminDashboard() {
-  const { user, profile } = useAuth();
+  const { user, profile, loading: authLoading } = useAuth();
   const [userSearch, setUserSearch] = useState("");
   const [maintenanceMode, setMaintenanceMode] = useState(false);
   const [newUserSignups, setNewUserSignups] = useState(true);
@@ -69,7 +69,7 @@ export function SuperAdminDashboard() {
 
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState<UserRow[]>([]);
-  const [reports, setReports] = useState<ReportRow[]>([]);
+  const [unresolvedReports, setUnresolvedReports] = useState(0);
   const [archives, setArchives] = useState<ArchiveRow[]>([]);
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
   const [purgingArchiveId, setPurgingArchiveId] = useState<string | null>(null);
@@ -79,8 +79,11 @@ export function SuperAdminDashboard() {
   const [completedCalls30d, setCompletedCalls30d] = useState(0);
   const [failedCalls30d, setFailedCalls30d] = useState(0);
 
-  const canSeedDashboardData = profile?.role === "admin";
-  const canPermanentlyDeleteArchives = profile?.role === "super_admin";
+  // Authority comes from the `admins` collection, not from the `user` document
+  // - see hooks/useAdminRole.ts. Server routes re-check regardless.
+  const { isAdmin, isSuperAdmin } = useAdminRole();
+  const canSeedDashboardData = isAdmin;
+  const canPermanentlyDeleteArchives = isSuperAdmin;
 
   const filteredUsers = users.filter(
     (u) =>
@@ -89,8 +92,7 @@ export function SuperAdminDashboard() {
       u.email.toLowerCase().includes(userSearch.toLowerCase())
   );
 
-  const openReports = useMemo(() => reports.slice(0, 10), [reports]);
-  const openReportsCount = reports.length;
+  const openReportsCount = unresolvedReports;
 
   const platformStats = useMemo(
     () => [
@@ -110,98 +112,58 @@ export function SuperAdminDashboard() {
     () => [
       { label: "Open reports", value: openReportsCount.toString(), ok: openReportsCount < 10 },
       { label: "Banned users", value: users.filter((u) => u.status === "banned").length.toString(), ok: true },
+      { label: "Suspended users", value: users.filter((u) => u.status === "suspended").length.toString(), ok: true },
       { label: "Completed calls (30d)", value: completedCalls30d.toString(), ok: true },
       { label: "Failed calls (30d)", value: failedCalls30d.toString(), ok: failedCalls30d < completedCalls30d + 5 },
     ],
     [completedCalls30d, failedCalls30d, openReportsCount, users]
   );
 
+  // Loaded through /api/admin/overview rather than the client SDK. Three of
+  // these five reads are denied by the shared Firestore ruleset, and one denial
+  // failed the whole batch - see the route for which and why.
   useEffect(() => {
     let cancelled = false;
 
     async function loadData() {
+      if (authLoading) return;
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+
       setLoading(true);
       try {
-        const [usersSnap, groupsSnap, reportsSnap, schedulesSnap, controlsSnap] = await Promise.all([
-          getDocs(collection(db, "user")),
-          getDocs(collection(db, "groups")),
-          getDocs(collection(db, "reports")),
-          getDocs(collection(db, "schedules")),
-          getDoc(doc(db, "admin_controls", "platform")),
-        ]);
-
+        const token = await user.getIdToken();
+        const res = await fetch("/api/admin/overview", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? "Failed to load admin data");
         if (cancelled) return;
 
-        const loadedUsers: UserRow[] = usersSnap.docs.map((docSnap) => {
-          const data = docSnap.data() as Record<string, unknown>;
-          return {
-            id: docSnap.id,
-            name: toStringOrFallback(data.displayName, "Unnamed user"),
-            email: toStringOrFallback(data.email, `${docSnap.id}@unknown`),
-            role: toStringOrFallback(data.role, "user"),
-            status: data.banned === true ? "banned" : "active",
-            joinedAt: toDate(data.createdAt),
-          };
-        });
-
-        const loadedReports: ReportRow[] = reportsSnap.docs
-          .map((docSnap) => {
-            const data = docSnap.data() as Record<string, unknown>;
-            const status = toStringOrFallback(data.status, "open");
-            if (status === "resolved" || status === "dismissed") return null;
-            return {
-              id: docSnap.id,
-              reporter: toStringOrFallback(data.reporterName, toStringOrFallback(data.reporterId, "Unknown reporter")),
-              reported: toStringOrFallback(data.reportedName, toStringOrFallback(data.reportedId, "Unknown user")),
-              reason: toStringOrFallback(data.reason, "No reason provided"),
-              createdAt: toDate(data.createdAt),
-              targetUserId: asOptionalString(data.reportedId),
-            } satisfies ReportRow;
-          })
-          .filter((value): value is ReportRow => value !== null)
-          .sort((a, b) => (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0));
-
-        const now = new Date();
-        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-
-        let todayCount = 0;
-        let completed30d = 0;
-        let failed30d = 0;
-        for (const scheduleDoc of schedulesSnap.docs) {
-          const data = scheduleDoc.data() as Record<string, unknown>;
-          const scheduledAt = toDate(data.scheduledAt);
-          if (!scheduledAt) continue;
-          if (scheduledAt >= startOfToday) todayCount += 1;
-          if (scheduledAt < thirtyDaysAgo) continue;
-          const status = toStringOrFallback(data.status, "pending");
-          if (status === "completed" || status === "confirmed") completed30d += 1;
-          if (status === "missed" || status === "cancelled") failed30d += 1;
-        }
-
-        const controls = controlsSnap.exists()
-          ? (controlsSnap.data() as Record<string, unknown>)
-          : {};
-
         setUsers(
-          loadedUsers.sort(
-            (a, b) => (b.joinedAt?.getTime() ?? 0) - (a.joinedAt?.getTime() ?? 0)
-          )
+          (data.users ?? []).map((row: Record<string, unknown>) => ({
+            ...row,
+            joinedAt: row.joinedAt ? new Date(row.joinedAt as string) : null,
+          })) as UserRow[]
         );
-        setReports(loadedReports);
-        setGroupsCount(groupsSnap.size);
-        setCallsToday(todayCount);
-        setCompletedCalls30d(completed30d);
-        setFailedCalls30d(failed30d);
-        setNewUserSignups(Boolean(controls.allowNewUserSignups ?? true));
-        setStrangerCalls(Boolean(controls.enableStrangerCalls ?? true));
-        setMaintenanceMode(Boolean(controls.maintenanceMode ?? false));
+        setUnresolvedReports(typeof data.unresolvedReports === "number" ? data.unresolvedReports : 0);
+        setGroupsCount(data.groupsCount ?? 0);
+        setCallsToday(data.callsToday ?? 0);
+        setCompletedCalls30d(data.completedCalls30d ?? 0);
+        setFailedCalls30d(data.failedCalls30d ?? 0);
+        setNewUserSignups(data.controls?.allowNewUserSignups !== false);
+        setStrangerCalls(data.controls?.enableStrangerCalls !== false);
+        setMaintenanceMode(data.controls?.maintenanceMode === true);
       } catch (error) {
-        toast.error(
-          `Failed loading admin data: ${
-            error instanceof Error ? error.message : "Unknown error"
-          }`
-        );
+        if (!cancelled) {
+          toast.error(
+            `Failed loading admin data: ${
+              error instanceof Error ? error.message : "Unknown error"
+            }`
+          );
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -211,7 +173,7 @@ export function SuperAdminDashboard() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [user, authLoading]);
 
   async function loadArchives() {
     if (!user) return;
@@ -387,85 +349,30 @@ export function SuperAdminDashboard() {
     }
   }
 
-  async function updateUserRole(userId: string, role: string, name: string) {
-    try {
-      await updateDoc(doc(db, "user", userId), {
-        role,
-        updatedAt: serverTimestamp(),
-      });
-      setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, role } : u)));
-      toast.success(`Role updated for ${name}`);
-    } catch (error) {
-      toast.error(
-        `Failed to update role: ${error instanceof Error ? error.message : "Unknown error"}`
-      );
-    }
-  }
-
-  async function setUserBanned(userId: string, banned: boolean, name: string) {
-    try {
-      await updateDoc(doc(db, "user", userId), {
-        banned,
-        updatedAt: serverTimestamp(),
-      });
-      setUsers((prev) =>
-        prev.map((u) => (u.id === userId ? { ...u, status: banned ? "banned" : "active" } : u))
-      );
-      toast.success(`${name} ${banned ? "banned" : "unbanned"}`);
-    } catch (error) {
-      toast.error(
-        `Failed updating user status: ${
-          error instanceof Error ? error.message : "Unknown error"
-        }`
-      );
-    }
-  }
-
-  async function dismissReport(reportId: string) {
-    try {
-      await updateDoc(doc(db, "reports", reportId), {
-        status: "dismissed",
-        updatedAt: serverTimestamp(),
-      });
-      setReports((prev) => prev.filter((report) => report.id !== reportId));
-      toast.success("Report dismissed");
-    } catch (error) {
-      toast.error(
-        `Failed to dismiss report: ${
-          error instanceof Error ? error.message : "Unknown error"
-        }`
-      );
-    }
-  }
-
-  async function banFromReport(report: ReportRow) {
-    if (!report.targetUserId) {
-      toast.error("No target user on this report.");
-      return;
-    }
-
-    await Promise.all([
-      setUserBanned(report.targetUserId, true, report.reported),
-      dismissReport(report.id),
-    ]);
-  }
-
+  // Server-side: `admin_controls` has no rules block, so a client write is
+  // denied. The route also restricts these platform-wide switches to super_admin.
   async function savePlatformControls(next: {
     allowNewUserSignups?: boolean;
     enableStrangerCalls?: boolean;
     maintenanceMode?: boolean;
   }) {
+    if (!user) {
+      toast.error("Please sign in first.");
+      return;
+    }
     try {
       setIsSavingControls(true);
-      await setDoc(
-        doc(db, "admin_controls", "platform"),
-        {
-          ...next,
-          updatedBy: user?.uid ?? null,
-          updatedAt: serverTimestamp(),
+      const token = await user.getIdToken();
+      const res = await fetch("/api/admin/overview", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
-        { merge: true }
-      );
+        body: JSON.stringify(next),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to save");
     } catch (error) {
       toast.error(
         `Failed saving platform control: ${
@@ -484,10 +391,13 @@ export function SuperAdminDashboard() {
           <h1 className="font-heading font-bold text-3xl text-foreground mb-1">Super Admin</h1>
           <p className="text-muted-foreground">Platform-wide management and oversight.</p>
         </div>
-        <Badge variant="outline" className="border-amber-400 text-amber-700 bg-amber-50 gap-1.5">
+        <Link
+          href="/admin/super/reports"
+          className={cn(buttonVariants({ variant: "outline" }), "gap-1.5 border-amber-400 text-amber-700 bg-amber-50 hover:bg-amber-100")}
+        >
           <AlertTriangle className="w-3.5 h-3.5" />
-          {openReportsCount} open reports
-        </Badge>
+          Reports ({openReportsCount} open)
+        </Link>
       </div>
 
       {/* Platform stats */}
@@ -512,11 +422,13 @@ export function SuperAdminDashboard() {
       <Tabs defaultValue="users" onValueChange={(value) => {
         if (value === "archive") void loadArchives();
       }}>
-        <TabsList className="grid grid-cols-5 w-full mb-6">
+        <TabsList className="grid grid-cols-3 sm:grid-cols-7 w-full mb-6">
           <TabsTrigger value="users" className="gap-1.5 text-xs"><Users className="w-3.5 h-3.5" />Users</TabsTrigger>
-          <TabsTrigger value="moderation" className="gap-1.5 text-xs"><Shield className="w-3.5 h-3.5" />Moderation</TabsTrigger>
+          <TabsTrigger value="moderation" className="gap-1.5 text-xs"><Shield className="w-3.5 h-3.5" />Reports ({openReportsCount})</TabsTrigger>
           <TabsTrigger value="analytics" className="gap-1.5 text-xs"><BarChart3 className="w-3.5 h-3.5" />Analytics</TabsTrigger>
+          <TabsTrigger value="outreach" className="gap-1.5 text-xs"><Megaphone className="w-3.5 h-3.5" />Outreach</TabsTrigger>
           <TabsTrigger value="archive" className="gap-1.5 text-xs"><Archive className="w-3.5 h-3.5" />Archive</TabsTrigger>
+          <TabsTrigger value="deletions" className="gap-1.5 text-xs"><Trash2 className="w-3.5 h-3.5" />Deletions</TabsTrigger>
           <TabsTrigger value="system" className="gap-1.5 text-xs"><Settings className="w-3.5 h-3.5" />System</TabsTrigger>
         </TabsList>
 
@@ -546,44 +458,25 @@ export function SuperAdminDashboard() {
                     </p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    <Badge
-                      variant="outline"
-                      className={`text-xs capitalize ${
-                        u.status === "banned" ? "border-destructive/40 text-destructive bg-destructive/5" : ""
-                      }`}
-                    >
-                      {u.status}
+                    <Badge variant="outline" className={`text-xs ${ACCOUNT_TONE[u.status]}`}>
+                      {ACCOUNT_LABEL[u.status]}
                     </Badge>
-                    <select
-                      value={u.role}
-                      className="text-xs border border-border rounded-lg px-2 py-1 bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                      onChange={(event) => {
-                        void updateUserRole(u.id, event.target.value, u.name);
-                      }}
+                    {/* Role is read-only here. It used to be a dropdown writing the
+                        legacy `role` field on the user document straight from the
+                        browser, which the app's rules no longer allow (and which
+                        was the weakness the `admins` collection replaced). */}
+                    <span className="text-xs text-muted-foreground capitalize">{u.role.replace("_", " ")}</span>
+                    <Link
+                      href={`/admin/super/users/${u.id}`}
+                      className="text-xs text-primary hover:underline whitespace-nowrap"
                     >
-                      <option value="user">User</option>
-                      <option value="group_admin">Group admin</option>
-                      <option value="super_admin">Super admin</option>
-                    </select>
-                    {u.status !== "banned" ? (
-                      <button
-                        className="text-xs text-destructive hover:underline"
-                        onClick={() => {
-                          void setUserBanned(u.id, true, u.name);
-                        }}
-                      >
-                        Ban
-                      </button>
-                    ) : (
-                      <button
-                        className="text-xs text-green-600 hover:underline"
-                        onClick={() => {
-                          void setUserBanned(u.id, false, u.name);
-                        }}
-                      >
-                        Unban
-                      </button>
-                    )}
+                      Moderation
+                      {u.reportsReceived + u.reportsMade + u.warnings > 0 && (
+                        <span className="ml-1 text-muted-foreground">
+                          ({u.reportsReceived} received · {u.reportsMade} made · {u.warnings} warned)
+                        </span>
+                      )}
+                    </Link>
                     <Button
                       size="sm"
                       variant="outline"
@@ -603,49 +496,9 @@ export function SuperAdminDashboard() {
           </div>
         </TabsContent>
 
-        {/* Moderation */}
+        {/* Reports: the moderation queue. Opening a report does not change it. */}
         <TabsContent value="moderation" className="space-y-4">
-          <div className="bg-card rounded-2xl border border-border/60 overflow-hidden">
-            <div className="p-4 border-b border-border/60">
-              <h2 className="font-semibold text-sm text-foreground">Open reports ({openReports.length})</h2>
-            </div>
-            <div className="divide-y divide-border/60">
-              {openReports.map((report) => (
-                <div key={report.id} className="p-5">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <p className="text-sm font-semibold text-foreground mb-0.5">
-                        {report.reporter} reported {report.reported}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        Reason: {report.reason} - {formatRelative(report.createdAt)}
-                      </p>
-                    </div>
-                    <div className="flex gap-2 shrink-0">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          void dismissReport(report.id);
-                        }}
-                      >
-                        Dismiss
-                      </Button>
-                      <Button
-                        size="sm"
-                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                        onClick={() => {
-                          void banFromReport(report);
-                        }}
-                      >
-                        Ban user
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          <ReportsQueue onCounts={(c: QueueCounts) => setUnresolvedReports(c.unresolved)} />
         </TabsContent>
 
         {/* Analytics */}
@@ -677,6 +530,11 @@ export function SuperAdminDashboard() {
               ))}
             </div>
           </div>
+        </TabsContent>
+
+        {/* Outreach - demand sources and tracked waitlist links */}
+        <TabsContent value="outreach" className="space-y-4">
+          <OutreachSourcesPanel />
         </TabsContent>
 
         {/* Archive */}
@@ -741,6 +599,11 @@ export function SuperAdminDashboard() {
               ))}
             </div>
           </div>
+        </TabsContent>
+
+        {/* Deletion requests - filed in the app or on the website; an admin reviews them here */}
+        <TabsContent value="deletions" className="space-y-4">
+          <DeletionRequestsPanel />
         </TabsContent>
 
         {/* System */}
@@ -833,27 +696,6 @@ export function SuperAdminDashboard() {
       </Tabs>
     </div>
   );
-}
-
-function toDate(value: unknown): Date | null {
-  if (value instanceof Date) return value;
-  if (
-    value &&
-    typeof value === "object" &&
-    "toDate" in value &&
-    typeof (value as { toDate?: unknown }).toDate === "function"
-  ) {
-    return (value as { toDate: () => Date }).toDate();
-  }
-  return null;
-}
-
-function asOptionalString(value: unknown): string | null {
-  return typeof value === "string" && value.length > 0 ? value : null;
-}
-
-function toStringOrFallback(value: unknown, fallback: string): string {
-  return typeof value === "string" && value.trim() ? value.trim() : fallback;
 }
 
 function percentage(numerator: number, denominator: number): string {

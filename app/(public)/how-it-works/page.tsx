@@ -7,7 +7,7 @@ const steps = [
   {
     n: "01",
     title: "Create your profile",
-    desc: "Set your name, availability windows, and call preferences. Tell us what kinds of conversations you're open to — work, casual, community, or all three.",
+    desc: "Set your name, availability windows, and call preferences. Tell us what kinds of conversations you're open to - work, casual, community, or all three.",
   },
   {
     n: "02",
@@ -21,18 +21,18 @@ const steps = [
   },
   {
     n: "04",
-    title: "Both phones ring",
-    desc: "When the moment comes, The Operator dials both of you simultaneously. No one waits. No one is caught off guard.",
+    title: "The phone rings",
+    desc: "If you're up for a chat, you pick up and talk with someone who's also willing to chat. You often get connected to the right person at just the right time, someone you know, or someone new. If you can't take the call, no worries, you'll get invited again soon.",
   },
   {
     n: "05",
-    title: "Both answer? Connected.",
-    desc: "If you both pick up, you're connected instantly. If either of you can't answer, there's no voicemail, no awkwardness — just reschedule.",
+    title: "For people you know",
+    desc: "No waiting for someone else to call, wondering whether you're imposing, or putting off making contact. The Operator takes away the need to make the first move, helping you stay connected with the people already in your life.",
   },
   {
     n: "06",
-    title: "Real conversation happens",
-    desc: "That's it. A real phone call between two people who both wanted to talk. The way it should be.",
+    title: "For people you don't",
+    desc: "Meet someone new without profiles, swiping or awkward introductions. You both wanted a conversation, so when the phone rings, you already have that in common.",
   },
 ];
 

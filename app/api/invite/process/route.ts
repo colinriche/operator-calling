@@ -1,25 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { initializeApp, getApps, cert } from "firebase-admin/app";
-import { getFirestore, FieldValue } from "firebase-admin/firestore";
-import { getAuth } from "firebase-admin/auth";
-
-function getAdminServices() {
-  if (!getApps().length) {
-    initializeApp({
-      credential: cert({
-        projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-        privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
-      }),
-    });
-  }
-  return { db: getFirestore(), adminAuth: getAuth() };
-}
+import { FieldValue } from "firebase-admin/firestore";
+import { getAdminServices } from "@/lib/firebase-admin";
 
 // ─── POST /api/invite/process ─────────────────────────────────────────────────
 // Called after a new user provides their phone number following signup via an
 // SMS invite link. Creates the appropriate friend request or group invite so
-// the inviter–invitee relationship is established on both the website and the
+// the inviter-invitee relationship is established on both the website and the
 // mobile app.
 //
 // Body: { inviterUsername: string, groupId?: string, inviteeUid: string, inviteePhone: string }
@@ -56,6 +42,11 @@ export async function POST(req: NextRequest) {
     if (decoded.uid !== inviteeUid) {
       return NextResponse.json({ error: "Identity mismatch" }, { status: 403 });
     }
+
+    // Only a number proved by Firebase Phone Auth may key an invite. The body's
+    // inviteePhone is client-supplied and is ignored unless it equals the verified one.
+    const verifiedPhone = typeof decoded.phone_number === "string" ? decoded.phone_number : "";
+    const phoneForInvite = verifiedPhone && inviteePhone === verifiedPhone ? verifiedPhone : "";
 
     // Look up inviter by username (unique, human-readable identifier)
     const inviterQuery = await db
@@ -132,11 +123,11 @@ export async function POST(req: NextRequest) {
 
     // Phone-keyed record in the mobile app's `invites` collection so that
     // matchPendingInvites() picks it up when the user signs in on the phone app.
-    if (inviteePhone) {
+    if (phoneForInvite) {
       batch.set(db.collection("invites").doc(), {
         senderId: inviterUid,
         senderName: inviterName,
-        phoneNumber: inviteePhone,
+        phoneNumber: phoneForInvite,
         method: "web_signup",
         groupId: groupId ?? null,
         groupName: groupId ? ((await db.collection("groups").doc(groupId).get()).data()?.name ?? null) : null,

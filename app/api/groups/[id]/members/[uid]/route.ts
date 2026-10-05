@@ -4,7 +4,7 @@ import { getAdminServices, verifyAuth } from "@/lib/firebase-admin";
 
 type Params = { params: Promise<{ id: string; uid: string }> };
 
-// PATCH /api/groups/[id]/members/[uid] — update member role (creator only)
+// PATCH /api/groups/[id]/members/[uid] - update member role (creator only)
 // Body: { role: "member" | "moderator" }
 export async function PATCH(req: NextRequest, { params }: Params) {
   const callerId = await verifyAuth(req.headers.get("authorization") ?? "");
@@ -38,7 +38,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   return NextResponse.json({ success: true });
 }
 
-// DELETE /api/groups/[id]/members/[uid] — remove a member (creator only)
+// DELETE /api/groups/[id]/members/[uid] - remove a member (creator only)
 export async function DELETE(req: NextRequest, { params }: Params) {
   const callerId = await verifyAuth(req.headers.get("authorization") ?? "");
   if (!callerId) return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });

@@ -1,0 +1,2402 @@
+"use client";
+
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  ChevronDown,
+  ChevronRight,
+  Copy,
+  Eye,
+  EyeOff,
+  Info,
+  Download,
+  ExternalLink,
+  Link2,
+  Loader2,
+  Plus,
+  RefreshCw,
+  Search,
+  AlertTriangle,
+  Table2,
+  UsersRound,
+  GitBranch,
+  MessageSquare,
+  LayoutTemplate,
+  Pencil,
+  Sparkles,
+} from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
+import { toast } from "sonner";
+import { useAuth } from "@/hooks/useAuth";
+import { cn } from "@/lib/utils";
+import {
+  CONNECTION_TYPES,
+  DEMAND_STATUSES,
+  PLATFORMS,
+  REFERRAL_SOURCES,
+  RELATIONSHIP_STATUSES,
+  SOURCE_TYPES,
+  WAITLIST_MODES,
+  platformLabel,
+} from "@/lib/waitlist/constants";
+import { countryName, languageName } from "@/lib/waitlist/locales";
+import { topicSlug } from "@/lib/waitlist/tracked-url";
+import {
+  csvFilename,
+  demandSourcesToCsv,
+  downloadCsv,
+} from "@/lib/waitlist/csv";
+import {
+  CollapsibleCard,
+  Highlight,
+  useSeenBaseline,
+} from "@/components/admin/CollapsibleSection";
+import { DuplicateSourceWarning } from "@/components/admin/DuplicateSourceWarning";
+import { OutreachComposer } from "@/components/admin/OutreachComposer";
+import { WaitlistPagePanel } from "@/components/admin/WaitlistPagePanel";
+import {
+  applySourceUrlInference,
+  inferSourceFromUrl,
+  type SourceUrlInferenceKey,
+} from "@/lib/waitlist/parse-source-url";
+import { asWebUrl } from "@/lib/waitlist/external-url";
+import type { DemandSourceRow, SimilarSourceRow } from "@/lib/waitlist/types";
+
+// ─── Outreach sources ────────────────────────────────────────────────────────
+//
+// Where a possible calling group is tracked before it becomes a real group:
+// the audience, the tracked links posted for it, and how much demand those
+// links have actually produced.
+//
+// Adding a source here creates no Operator group. One is created automatically
+// when demand clears the threshold, then flagged for review - with its calls
+// off until a group admin is appointed and turns them on.
+//
+// Archived sources collapse into one line at the foot. They are kept, not
+// deleted, and this panel is the wrong place to work on them: archiving,
+// restoring and deleting all live on the spreadsheet, which is where a source
+// is removed in the first place.
+
+type SortKey =
+  | "recent"
+  | "signups"
+  | "visits"
+  | "conversion"
+  | "closest"
+  | "name";
+
+const SORTS: Array<{ id: SortKey; label: string }> = [
+  { id: "recent", label: "Most recent" },
+  { id: "signups", label: "Most registrations" },
+  { id: "visits", label: "Most visits" },
+  { id: "conversion", label: "Best conversion" },
+  { id: "closest", label: "Closest to threshold" },
+  { id: "name", label: "Source name" },
+];
+
+interface SimilarGroup {
+  id: string;
+  name: string;
+  description: string;
+  memberCount: number;
+  score: number;
+  reason: string;
+}
+
+interface GroupOption {
+  id: string;
+  name: string;
+  memberCount: number;
+}
+
+interface ReviewState {
+  similar: SimilarGroup[];
+  groups: GroupOption[];
+  strongDuplicateScore: number;
+  groupProject: string;
+  suggestedName: string;
+}
+
+interface RegistrationRow {
+  id: string;
+  email: string;
+  displayName: string;
+  interestedInOrganising: boolean;
+  communityInterest: boolean;
+  testerStatus: string;
+  testerConsentAt: string | null;
+  testerConsentVersion: string | null;
+  timezone: string | null;
+  country: string;
+  englishFirstLanguage: boolean;
+  firstLanguage: string | null;
+  sourceCode: string | null;
+  shareChannel: string | null;
+  /** Self-reported; only ever set when this registration had no sourceCode. */
+  referralSource: string | null;
+  createdAt: string | null;
+}
+
+export interface LinkTotals {
+  visits: number;
+  uniques: number;
+  registrations: number;
+}
+
+/** A single growing number standing in for "anything new happened here" -
+ *  registrations, visits, testers or organiser interest, any of them rising
+ *  is activity, so they are summed rather than picking just one to watch. */
+function sourceActivity(source: DemandSourceRow): number {
+  return (
+    source.uniqueRegistrationCount +
+    source.totalVisitCount +
+    source.testerCount +
+    source.organiserInterestCount
+  );
+}
+
+/** A source's registrations, each row marked green if it arrived after the
+ *  last time this browser looked at this source's registrations. */
+function RegistrationsPanel({
+  sourceId,
+  loading,
+  registrations,
+}: {
+  sourceId: string;
+  loading: boolean;
+  registrations: RegistrationRow[];
+}) {
+  const latestTs = registrations.reduce(
+    (max, r) => Math.max(max, r.createdAt ? Date.parse(r.createdAt) : 0),
+    0
+  );
+  const baseline = useSeenBaseline(`source:${sourceId}:registrations-seen`, latestTs);
+
+  if (loading) {
+    return (
+      <p className="text-xs text-muted-foreground flex items-center gap-2">
+        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+        Loading registrations…
+      </p>
+    );
+  }
+  if (registrations.length === 0) {
+    return <p className="text-xs text-muted-foreground">No registrations yet.</p>;
+  }
+
+  const newCount =
+    baseline === null
+      ? 0
+      : registrations.filter(
+          (r) => r.createdAt !== null && Date.parse(r.createdAt) > baseline
+        ).length;
+
+  return (
+    <div className="overflow-x-auto">
+      {newCount > 0 && (
+        <p className="mb-2 text-xs font-medium text-green-600 dark:text-green-400">
+          +{newCount} new since you last looked
+        </p>
+      )}
+      <table className="w-full text-xs">
+        <thead>
+          <tr className="text-left text-muted-foreground">
+            <th className="pb-2 pr-3 font-medium">Email</th>
+            <th className="pb-2 pr-3 font-medium">Name</th>
+            <th className="pb-2 pr-3 font-medium">Country</th>
+            <th className="pb-2 pr-3 font-medium">First language</th>
+            <th className="pb-2 pr-3 font-medium">Tester</th>
+            <th className="pb-2 pr-3 font-medium">Time zone</th>
+            <th className="pb-2 pr-3 font-medium">Organiser</th>
+            <th className="pb-2 pr-3 font-medium">Code</th>
+            <th className="pb-2 pr-3 font-medium">Referral</th>
+            <th className="pb-2 font-medium">Joined</th>
+          </tr>
+        </thead>
+        <tbody>
+          {registrations.map((r) => {
+            const isNew =
+              baseline !== null && r.createdAt !== null && Date.parse(r.createdAt) > baseline;
+            return (
+              <tr
+                key={r.id}
+                className={cn(
+                  "border-t border-border/40",
+                  isNew && "bg-green-500/10"
+                )}
+              >
+                <td className="py-2 pr-3 text-foreground">
+                  <span className="flex items-center gap-1.5">
+                    {isNew && (
+                      <span
+                        aria-label="New"
+                        title="New since you last looked"
+                        className="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0"
+                      />
+                    )}
+                    {r.email}
+                  </span>
+                </td>
+                <td className="py-2 pr-3 text-muted-foreground">
+                  {r.displayName || "-"}
+                </td>
+                <td className="py-2 pr-3 text-muted-foreground">
+                  {r.country ? countryName(r.country) : "-"}
+                </td>
+                <td className="py-2 pr-3 text-muted-foreground">
+                  {r.englishFirstLanguage
+                    ? "English"
+                    : r.firstLanguage
+                      ? languageName(r.firstLanguage)
+                      : "-"}
+                </td>
+                <td className="py-2 pr-3">
+                  {r.testerStatus === "none" ? (
+                    <span className="text-muted-foreground">-</span>
+                  ) : (
+                    <span
+                      title={
+                        r.testerConsentAt
+                          ? `Consented ${new Date(r.testerConsentAt).toLocaleString()} (${r.testerConsentVersion ?? "unknown version"})`
+                          : undefined
+                      }
+                      className={cn(
+                        "capitalize",
+                        r.testerStatus === "active"
+                          ? "text-primary font-medium"
+                          : "text-muted-foreground"
+                      )}
+                    >
+                      {r.testerStatus}
+                    </span>
+                  )}
+                </td>
+                <td className="py-2 pr-3 text-muted-foreground">
+                  {r.timezone ?? "-"}
+                </td>
+                <td className="py-2 pr-3 text-muted-foreground">
+                  {r.interestedInOrganising ? "Yes" : "-"}
+                </td>
+                <td className="py-2 pr-3 font-mono text-muted-foreground">
+                  {r.sourceCode ?? "-"}
+                </td>
+                <td className="py-2 pr-3 text-muted-foreground">
+                  {/* Self-reported, and only ever present for a registration
+                      with no tracked code - see normaliseReferralSource. */}
+                  {r.referralSource
+                    ? (REFERRAL_SOURCES.find((s) => s.id === r.referralSource)
+                        ?.label ?? r.referralSource)
+                    : "-"}
+                </td>
+                <td className="py-2 text-muted-foreground">
+                  {r.createdAt ? new Date(r.createdAt).toLocaleDateString() : "-"}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+const BLANK_FORM = {
+  sourceName: "",
+  waitlistMode: "community",
+  connectionType: "shared_interest",
+  familyName: "",
+  platformId: "reddit",
+  sourceType: "subreddit",
+  topicName: "",
+  includeTopicInUrl: false,
+  sourceUrl: "",
+  publicAudienceLabel: "",
+  postingRules: "",
+  internalNotes: "",
+  demandThreshold: "",
+};
+
+const POLL_MS = 30_000;
+
+export function OutreachSourcesPanel({
+  onActivity,
+  onTotals,
+}: {
+  /** Reports a number that grows when something new arrives. */
+  onActivity?: (value: number) => void;
+  /** Reports visits, unique visits and registrations summed over every link. */
+  onTotals?: (totals: LinkTotals) => void;
+} = {}) {
+  const { user } = useAuth();
+  const [sources, setSources] = useState<DemandSourceRow[]>([]);
+  const [globalThreshold, setGlobalThreshold] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState("");
+
+  const [query, setQuery] = useState("");
+  const [sort, setSort] = useState<SortKey>("recent");
+  const [platformFilter, setPlatformFilter] = useState("all");
+
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ ...BLANK_FORM });
+  // Set while the open form is editing an existing source rather than
+  // creating one. Cleared whenever the form closes.
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  // Quick add - paste one post URL, no other decision. Finds or creates the
+  // source and adds the pasted URL as a tracked link, all on the server.
+  const [quickUrl, setQuickUrl] = useState("");
+  const [quickAdding, setQuickAdding] = useState(false);
+  // Fields the admin typed themselves. URL autofill skips these so a paste
+  // never overwrites a deliberate choice; defaults and earlier autofills stay
+  // eligible to update when the URL changes.
+  const [lockedFields, setLockedFields] = useState<Set<SourceUrlInferenceKey>>(
+    () => new Set()
+  );
+  const [saving, setSaving] = useState(false);
+  // Sources the server refused this one as a duplicate of. Cleared whenever the
+  // name or URL changes, so a stale warning never sits above a corrected form.
+  const [duplicates, setDuplicates] = useState<SimilarSourceRow[]>([]);
+  // A refusal to be overridden, or a notice about a create that already went
+  // through. Only an identical URL produces the first.
+  const [duplicateNotice, setDuplicateNotice] = useState(false);
+
+  // Registrations are loaded per source on demand - emails are the most
+  // sensitive thing here, so they are never bulk-loaded with the list. The
+  // route is open to admin and super_admin.
+  const [openRegistrations, setOpenRegistrations] = useState<string | null>(null);
+  const [registrations, setRegistrations] = useState<RegistrationRow[]>([]);
+  const [loadingRegistrations, setLoadingRegistrations] = useState(false);
+
+  // Demand review - creating or linking a group. Loaded per source on demand,
+  // since it scans the groups collection for possible duplicates.
+  const [openReview, setOpenReview] = useState<string | null>(null);
+  const [review, setReview] = useState<ReviewState | null>(null);
+  const [loadingReview, setLoadingReview] = useState(false);
+  const [reviewMode, setReviewMode] = useState<"create" | "link">("create");
+  const [groupName, setGroupName] = useState("");
+  const [groupDescription, setGroupDescription] = useState("");
+  const [groupPrivate, setGroupPrivate] = useState(true);
+  const [linkGroupId, setLinkGroupId] = useState("");
+  const [acknowledgeDuplicates, setAcknowledgeDuplicates] = useState(false);
+  const [savingGroup, setSavingGroup] = useState(false);
+
+  // Threshold editing - global default, and per-source overrides.
+  const [thresholdDraft, setThresholdDraft] = useState("");
+  const [savingThreshold, setSavingThreshold] = useState(false);
+  const [togglingCalls, setTogglingCalls] = useState<string | null>(null);
+  const [savingTopicUrl, setSavingTopicUrl] = useState<string | null>(null);
+  const [openOutreach, setOpenOutreach] = useState<string | null>(null);
+  const [openPage, setOpenPage] = useState<string | null>(null);
+  // Archived sources are one line until asked for. Closed on every load: the
+  // point of the line is that a tidied source stops taking up the panel.
+  const [archivedOpen, setArchivedOpen] = useState(false);
+  // Sources whose hidden links are currently being shown. Hiding a link only
+  // takes it out of this list; it is never deleted.
+  const [revealHidden, setRevealHidden] = useState<Set<string>>(() => new Set());
+  const [sourceThresholdDraft, setSourceThresholdDraft] = useState<
+    Record<string, string>
+  >({});
+  // The one link whose label is currently being edited inline, and its draft
+  // text. Only one at a time - opening another closes it.
+  const [editingLinkId, setEditingLinkId] = useState<string | null>(null);
+  const [linkLabelDraft, setLinkLabelDraft] = useState("");
+  const [savingLinkLabel, setSavingLinkLabel] = useState(false);
+
+  // `quiet` is the background poll: no spinner, no error banner, and it leaves
+  // the threshold field alone so a refresh never overwrites what is being typed.
+  const load = useCallback(
+    async (quiet = false) => {
+      if (!user) return;
+      if (!quiet) {
+        setLoading(true);
+        setError("");
+      }
+      try {
+        const token = await user.getIdToken();
+        const res = await fetch("/api/admin/demand-sources", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? "Failed to load sources");
+        setSources(data.sources ?? []);
+        setGlobalThreshold(data.globalThreshold ?? 0);
+        if (!quiet) setThresholdDraft(String(data.globalThreshold ?? ""));
+        setLoaded(true);
+      } catch (err) {
+        console.error(err);
+        if (!quiet) {
+          setError(err instanceof Error ? err.message : "Failed to load sources");
+        }
+      } finally {
+        if (!quiet) setLoading(false);
+      }
+    },
+    [user]
+  );
+
+  useEffect(() => {
+    if (user && !loaded) void load();
+  }, [user, loaded, load]);
+
+  // Poll so new visits and registrations show up without a refresh. Skipped
+  // while the tab is hidden, with one catch-up fetch when it comes back.
+  useEffect(() => {
+    if (!user || !loaded) return;
+    const tick = () => {
+      if (document.visibilityState === "visible") void load(true);
+    };
+    const timer = window.setInterval(tick, POLL_MS);
+    document.addEventListener("visibilitychange", tick);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", tick);
+    };
+  }, [user, loaded, load]);
+
+  useEffect(() => {
+    if (!loaded) return;
+    // Any of these growing counts as activity, not just registrations - a
+    // source with only more visits or a new organiser is still something new.
+    onActivity?.(
+      sources.reduce((sum, s) => sum + sourceActivity(s), 0)
+    );
+    onTotals?.({
+      visits: sources.reduce((n, s) => n + s.totalVisitCount, 0),
+      uniques: sources.reduce((n, s) => n + s.uniqueVisitCount, 0),
+      registrations: sources.reduce((n, s) => n + s.uniqueRegistrationCount, 0),
+    });
+  }, [loaded, sources, onActivity, onTotals]);
+
+  // A duplicate warning is about a specific name and URL. Once either changes
+  // it is describing something that is no longer on screen, so it goes.
+  useEffect(() => {
+    setDuplicates([]);
+  }, [form.sourceName, form.sourceUrl]);
+
+  function lockField(key: SourceUrlInferenceKey) {
+    setLockedFields((prev) => {
+      if (prev.has(key)) return prev;
+      const next = new Set(prev);
+      next.add(key);
+      return next;
+    });
+  }
+
+  function updateFormField<K extends keyof typeof BLANK_FORM>(
+    key: K,
+    value: (typeof BLANK_FORM)[K]
+  ) {
+    if (
+      key === "sourceName" ||
+      key === "platformId" ||
+      key === "sourceType"
+    ) {
+      lockField(key);
+    }
+    setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function updateSourceUrl(value: string) {
+    setForm((prev) =>
+      applySourceUrlInference(
+        { ...prev, sourceUrl: value },
+        inferSourceFromUrl(value),
+        lockedFields
+      )
+    );
+  }
+
+  function startEdit(source: DemandSourceRow) {
+    setEditingId(source.id);
+    setForm({
+      sourceName: source.sourceName,
+      waitlistMode: source.waitlistMode,
+      connectionType: source.connectionType,
+      familyName: source.familyName,
+      platformId: source.platformId,
+      sourceType: source.sourceType,
+      topicName: source.topicName,
+      includeTopicInUrl: source.includeTopicInUrl,
+      sourceUrl: source.sourceUrl,
+      publicAudienceLabel: source.publicAudienceLabel,
+      postingRules: source.postingRules,
+      internalNotes: source.internalNotes,
+      demandThreshold:
+        source.demandThreshold === null ? "" : String(source.demandThreshold),
+    });
+    // These came from the stored record, not a URL paste - lock them so
+    // editing the URL afterwards cannot silently overwrite a deliberate
+    // value the same way a fresh paste would infer one.
+    setLockedFields(new Set(["sourceName", "platformId", "sourceType"]));
+    setDuplicates([]);
+    setDuplicateNotice(false);
+    setShowForm(true);
+  }
+
+  function closeForm() {
+    setShowForm(false);
+    setEditingId(null);
+    setDuplicates([]);
+    setLockedFields(new Set());
+    setForm({ ...BLANK_FORM });
+  }
+
+  async function copy(text: string, label: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success(label);
+    } catch {
+      toast.error("Could not copy - check clipboard permissions");
+    }
+  }
+
+  async function handleQuickAdd(e: React.FormEvent) {
+    e.preventDefault();
+    if (!user || !quickUrl.trim()) return;
+
+    setQuickAdding(true);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch("/api/admin/demand-sources/quick-add", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ url: quickUrl.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Couldn't add that link");
+
+      await copy(
+        data.trackedUrl,
+        data.created === "source"
+          ? `Created "${data.sourceName}" - waitlist link copied`
+          : `Added to "${data.sourceName}" - new tracked link copied`
+      );
+      setQuickUrl("");
+      await load();
+    } catch (err) {
+      console.error(err);
+      toast.error(err instanceof Error ? err.message : "Couldn't add that link");
+    } finally {
+      setQuickAdding(false);
+    }
+  }
+
+  async function handleCreate(
+    e: React.FormEvent | null,
+    acknowledgeDuplicates = false
+  ) {
+    e?.preventDefault();
+    if (!user) return;
+    if (!form.sourceName.trim()) {
+      toast.error("Source name is required");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const token = await user.getIdToken();
+      const threshold = parseInt(form.demandThreshold, 10);
+      const editing = editingId;
+      const res = await fetch(
+        editing ? `/api/admin/demand-sources/${editing}` : "/api/admin/demand-sources",
+        {
+          method: editing ? "PATCH" : "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            ...form,
+            demandThreshold: Number.isFinite(threshold) && threshold > 0 ? threshold : null,
+            acknowledgeDuplicates,
+          }),
+        }
+      );
+      const data = await res.json();
+
+      // Another source with this exact URL is a refusal, not a warning: the
+      // form stays open with the matches above it until someone either edits it
+      // or says it really is a different place.
+      if (res.status === 409 && data.requiresAcknowledgement) {
+        setDuplicateNotice(false);
+        setDuplicates(data.similar ?? []);
+        toast.error(data.error ?? "This may already be tracked");
+        return;
+      }
+      if (!res.ok) {
+        throw new Error(
+          data.error ?? (editing ? "Failed to save source" : "Failed to create source")
+        );
+      }
+
+      if (editing) {
+        setDuplicateNotice((data.similar?.length ?? 0) > 0);
+        setDuplicates(data.similar ?? []);
+        toast.success("Source updated");
+      } else {
+        // A matching name is the other register: created, and here is what it
+        // resembles. Kept on screen after the form closes so it is read rather
+        // than flashed past in a toast.
+        setDuplicateNotice(true);
+        setDuplicates(data.similar ?? []);
+        await copy(data.trackedUrl, "Source created - waitlist link copied");
+      }
+      setForm({ ...BLANK_FORM });
+      setLockedFields(new Set());
+      setEditingId(null);
+      setShowForm(false);
+      await load();
+    } catch (err) {
+      console.error(err);
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : editingId
+            ? "Failed to save source"
+            : "Failed to create source"
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  /**
+   * Export what is on screen - the search, the platform filter and the sort all
+   * apply. The database stays the source of truth; this is a read-only snapshot
+   * for reading in a spreadsheet, and there is deliberately no way back in.
+   */
+  function exportCsv() {
+    if (visible.length === 0) {
+      toast.error("Nothing to export - clear the filters or add a source");
+      return;
+    }
+    downloadCsv(csvFilename("operator-outreach-sources"), demandSourcesToCsv(visible));
+    toast.success(
+      visible.length === sources.length
+        ? `Exported ${visible.length} source${visible.length === 1 ? "" : "s"}`
+        : `Exported ${visible.length} of ${sources.length} sources (current filters)`
+    );
+  }
+
+  async function addLink(sourceId: string) {
+    if (!user) return;
+    const label = window.prompt(
+      "Label for this tracked link (e.g. 'Comment on weekly thread, 6 Aug')"
+    );
+    if (label === null) return;
+
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch("/api/admin/source-links", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ demandSourceId: sourceId, label }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to create link");
+
+      await copy(data.trackedUrl, "New tracked link copied");
+      await load();
+    } catch (err) {
+      console.error(err);
+      toast.error(err instanceof Error ? err.message : "Failed to create link");
+    }
+  }
+
+  // Optimistic: the box flips at once and is put back if the save fails.
+  async function setLinkFlag(
+    sourceId: string,
+    linkId: string,
+    field: "posted" | "hidden",
+    next: boolean
+  ) {
+    if (!user) return;
+    const apply = (value: boolean) =>
+      setSources((prev) =>
+        prev.map((s) =>
+          s.id === sourceId
+            ? {
+                ...s,
+                links: s.links.map((l) =>
+                  l.id === linkId ? { ...l, [field]: value } : l
+                ),
+              }
+            : s
+        )
+      );
+    apply(next);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch("/api/admin/source-links", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ id: linkId, [field]: next }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to save");
+    } catch (err) {
+      console.error(err);
+      apply(!next);
+      toast.error(err instanceof Error ? err.message : "Failed to save");
+    }
+  }
+
+  async function saveLinkLabel(sourceId: string, linkId: string) {
+    if (!user) return;
+    const label = linkLabelDraft.trim();
+    if (!label) {
+      toast.error("A link needs a label");
+      return;
+    }
+    setSavingLinkLabel(true);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch("/api/admin/source-links", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ id: linkId, label }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to save");
+      setSources((prev) =>
+        prev.map((s) =>
+          s.id === sourceId
+            ? {
+                ...s,
+                links: s.links.map((l) =>
+                  l.id === linkId ? { ...l, label } : l
+                ),
+              }
+            : s
+        )
+      );
+      setEditingLinkId(null);
+    } catch (err) {
+      console.error(err);
+      toast.error(err instanceof Error ? err.message : "Failed to save");
+    } finally {
+      setSavingLinkLabel(false);
+    }
+  }
+
+  async function toggleRegistrations(sourceId: string) {
+    if (openRegistrations === sourceId) {
+      setOpenRegistrations(null);
+      return;
+    }
+    if (!user) return;
+
+    setOpenRegistrations(sourceId);
+    setRegistrations([]);
+    setLoadingRegistrations(true);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(
+        `/api/admin/demand-sources/${sourceId}/registrations`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to load registrations");
+      setRegistrations(data.registrations ?? []);
+    } catch (err) {
+      console.error(err);
+      toast.error(
+        err instanceof Error ? err.message : "Failed to load registrations"
+      );
+      setOpenRegistrations(null);
+    } finally {
+      setLoadingRegistrations(false);
+    }
+  }
+
+  async function saveGlobalThreshold() {
+    if (!user) return;
+    const value = parseInt(thresholdDraft, 10);
+    if (!Number.isFinite(value) || value < 1) {
+      toast.error("Threshold must be 1 or more");
+      return;
+    }
+
+    setSavingThreshold(true);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch("/api/admin/demand-settings", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ minimumWaitlistSignups: value }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to save threshold");
+      toast.success(`Default threshold set to ${value}`);
+      await load();
+    } catch (err) {
+      console.error(err);
+      toast.error(err instanceof Error ? err.message : "Failed to save threshold");
+    } finally {
+      setSavingThreshold(false);
+    }
+  }
+
+  async function saveSourceThreshold(sourceId: string, raw: string) {
+    if (!user) return;
+    const trimmed = raw.trim();
+    // Empty clears the override and falls back to the global default.
+    const value = trimmed === "" ? null : parseInt(trimmed, 10);
+    if (value !== null && (!Number.isFinite(value) || value < 1)) {
+      toast.error("Threshold must be 1 or more, or blank to use the default");
+      return;
+    }
+
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/admin/demand-sources/${sourceId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ demandThreshold: value }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to save");
+      toast.success(
+        value === null ? "Using the default threshold" : `Threshold set to ${value}`
+      );
+      setSourceThresholdDraft((prev) => {
+        const next = { ...prev };
+        delete next[sourceId];
+        return next;
+      });
+      await load();
+    } catch (err) {
+      console.error(err);
+      toast.error(err instanceof Error ? err.message : "Failed to save");
+    }
+  }
+
+  // Sources created before this option existed, and ones whose topic was added
+  // later, need a way to opt in without recreating anything. Tracked codes are
+  // untouched - only how the URL is written out changes.
+  async function toggleTopicInUrl(sourceId: string, include: boolean) {
+    if (!user) return;
+    setSavingTopicUrl(sourceId);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/admin/demand-sources/${sourceId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ includeTopicInUrl: include }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to save");
+      await load();
+    } catch (err) {
+      console.error(err);
+      toast.error(err instanceof Error ? err.message : "Failed to save");
+    } finally {
+      setSavingTopicUrl(null);
+    }
+  }
+
+  async function appointGroupAdmin(groupId: string) {
+    if (!user || !groupId) return;
+    const identifier = window.prompt(
+      "Appoint a group admin - username, email address or uid.\n\nThis does not switch calls on; they turn them on themselves when ready."
+    );
+    if (!identifier?.trim()) return;
+
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/admin/groups/${groupId}/admin`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ identifier: identifier.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to appoint");
+      toast.success(
+        `${data.displayName ?? "Group admin"} appointed - calls unchanged, they turn them on`
+      );
+      await load();
+    } catch (err) {
+      console.error(err);
+      toast.error(err instanceof Error ? err.message : "Failed to appoint");
+    }
+  }
+
+  async function toggleCalls(groupId: string, enable: boolean) {
+    if (!user || !groupId) return;
+    setTogglingCalls(groupId);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/groups/${groupId}/calls`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ callsEnabled: enable }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to change calls");
+      toast.success(
+        enable
+          ? "Calls on - resuming from the next scheduled occurrence"
+          : "Calls paused - the schedule is unchanged"
+      );
+      await load();
+    } catch (err) {
+      console.error(err);
+      toast.error(err instanceof Error ? err.message : "Failed to change calls");
+    } finally {
+      setTogglingCalls(null);
+    }
+  }
+
+  async function toggleReview(source: DemandSourceRow) {
+    if (openReview === source.id) {
+      setOpenReview(null);
+      return;
+    }
+    if (!user) return;
+
+    setOpenReview(source.id);
+    setReview(null);
+    setReviewMode("create");
+    setAcknowledgeDuplicates(false);
+    setLinkGroupId("");
+    setLoadingReview(true);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/admin/demand-sources/${source.id}/group`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to load review");
+      setReview(data);
+      setGroupName(data.suggestedName || source.sourceName);
+      setGroupDescription(
+        source.publicDescription ||
+          `Calling group for people interested in ${source.publicAudienceLabel || source.topicName || source.sourceName}.`
+      );
+    } catch (err) {
+      console.error(err);
+      toast.error(err instanceof Error ? err.message : "Failed to load review");
+      setOpenReview(null);
+    } finally {
+      setLoadingReview(false);
+    }
+  }
+
+  async function submitGroup(sourceId: string) {
+    if (!user) return;
+    setSavingGroup(true);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/admin/demand-sources/${sourceId}/group`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(
+          reviewMode === "link"
+            ? { action: "link", groupId: linkGroupId }
+            : {
+                action: "create",
+                name: groupName,
+                description: groupDescription,
+                isPrivate: groupPrivate,
+                acknowledgeDuplicates,
+              }
+        ),
+      });
+      const data = await res.json();
+
+      // The server repeats the duplicate check even though the UI shows it, so
+      // a 409 here means a strong match the reviewer has not acknowledged.
+      if (res.status === 409 && data.requiresAcknowledgement) {
+        setReview((prev) => (prev ? { ...prev, similar: data.similar } : prev));
+        toast.error("Possible duplicate group - review and confirm to continue");
+        return;
+      }
+      if (!res.ok) throw new Error(data.error ?? "Failed to save");
+
+      toast.success(
+        reviewMode === "link" ? "Linked to existing group" : "Group created"
+      );
+      setOpenReview(null);
+      await load();
+    } catch (err) {
+      console.error(err);
+      toast.error(err instanceof Error ? err.message : "Failed to save");
+    } finally {
+      setSavingGroup(false);
+    }
+  }
+
+  /**
+   * The live sources, and the archived ones held back for the line at the foot.
+   *
+   * Archived is not a status you can reach from this panel - it is set on the
+   * spreadsheet - so before this there was no way to stop one taking up a card
+   * here for good. Split rather than dropped: they are still searchable, and
+   * still exported.
+   */
+  const { activeRows, archivedRows } = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const filtered = sources.filter((s) => {
+      if (platformFilter !== "all" && s.platformId !== platformFilter) return false;
+      if (!q) return true;
+      return [
+        s.sourceName,
+        s.topicName,
+        s.publicAudienceLabel,
+        s.sourceUrl,
+        s.internalNotes,
+        s.postingRules,
+        platformLabel(s.platformId),
+        ...s.links.map((l) => l.sourceCode),
+      ]
+        .filter(Boolean)
+        .some((field) => String(field).toLowerCase().includes(q));
+    });
+
+    const sorted = [...filtered];
+    sorted.sort((a, b) => {
+      switch (sort) {
+        case "signups":
+          return b.uniqueRegistrationCount - a.uniqueRegistrationCount;
+        case "visits":
+          return b.uniqueVisitCount - a.uniqueVisitCount;
+        case "conversion":
+          return b.conversionRate - a.conversionRate;
+        case "closest": {
+          // Sources already over the line first, then by proportion complete.
+          const ratio = (s: DemandSourceRow) =>
+            s.effectiveThreshold > 0
+              ? s.uniqueRegistrationCount / s.effectiveThreshold
+              : 0;
+          return ratio(b) - ratio(a);
+        }
+        case "name":
+          return a.sourceName.localeCompare(b.sourceName);
+        case "recent":
+        default:
+          return (b.createdAt ?? "").localeCompare(a.createdAt ?? "");
+      }
+    });
+    return {
+      activeRows: sorted.filter((s) => s.status !== "archived"),
+      archivedRows: sorted.filter((s) => s.status === "archived"),
+    };
+  }, [sources, query, sort, platformFilter]);
+
+  /** Everything on screen, in the order it appears. */
+  const visible = useMemo(
+    () => [...activeRows, ...archivedRows],
+    [activeRows, archivedRows]
+  );
+
+  const archivedRegistrations = archivedRows.reduce(
+    (total, s) => total + s.uniqueRegistrationCount,
+    0
+  );
+
+  // Only sources still awaiting a decision. thresholdReachedAt stays stamped
+  // after review as a historical fact, so filtering on it alone would leave the
+  // banner up forever once a group had been created.
+  // Archived sources are left out: a source that cleared the threshold and was
+  // then archived is a decision already taken, and naming it here would be the
+  // banner asking for a review of something deliberately put away.
+  const thresholdReached = sources.filter(
+    (s) => s.thresholdReachedAt && !s.groupId && s.status !== "archived"
+  );
+
+  const typedSourceLink = asWebUrl(form.sourceUrl);
+
+  const inputClass =
+    "w-full h-10 px-3 rounded-lg border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40";
+
+  /**
+   * One source's card.
+   *
+   * A function rather than the map's body: the same card is rendered above
+   * the archived line and under it once it is opened, and two copies of six
+   * hundred lines would drift apart within a week.
+   */
+  function renderSource(source: DemandSourceRow) {
+    // Progress tracks the count the threshold is actually judged on.
+    const registrationCount = source.uniqueRegistrationCount;
+    const pct =
+      source.effectiveThreshold > 0
+        ? Math.min(
+            100,
+            Math.round((registrationCount / source.effectiveThreshold) * 100)
+          )
+        : 0;
+    const statusLabel =
+      DEMAND_STATUSES.find((s) => s.id === source.status)?.label ?? source.status;
+    const relLabel =
+      RELATIONSHIP_STATUSES.find((r) => r.id === source.relationshipStatus)
+        ?.label ?? source.relationshipStatus;
+
+    const showHidden = revealHidden.has(source.id);
+    const hiddenCount = source.links.filter((l) => l.hidden).length;
+    const shownLinks = showHidden
+      ? source.links
+      : source.links.filter((l) => !l.hidden);
+
+    return (
+      <CollapsibleCard
+        key={source.id}
+        id={`source:${source.id}`}
+        activity={sourceActivity(source)}
+        className="rounded-xl border border-border/60 bg-card p-5"
+        header={
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2 mb-1">
+              <h3 className="font-heading font-semibold text-base text-foreground">
+                {source.sourceName}
+              </h3>
+              <Badge variant="outline" className="text-xs">
+                {platformLabel(source.platformId)}
+              </Badge>
+              <Badge
+                variant={source.thresholdReachedAt ? "default" : "secondary"}
+                className="text-xs"
+              >
+                {statusLabel}
+              </Badge>
+              <Badge
+                variant="outline"
+                className={cn(
+                  "text-xs",
+                  source.relationshipStatus === "unverified" &&
+                    "text-muted-foreground"
+                )}
+              >
+                {relLabel}
+              </Badge>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              {source.topicName || "No topic recorded"}
+              {source.publicAudienceLabel && (
+                <>
+                  {" · public label: "}
+                  <span className="text-foreground">
+                    {source.publicAudienceLabel}
+                  </span>
+                </>
+              )}
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              <Highlight
+                id={`source:${source.id}:stat:registrations`}
+                value={registrationCount}
+              >
+                {registrationCount}
+              </Highlight>{" "}
+              of {source.effectiveThreshold} registrations
+              {" · "}
+              <Highlight
+                id={`source:${source.id}:stat:visits`}
+                value={source.totalVisitCount}
+              >
+                {source.totalVisitCount}
+              </Highlight>{" "}
+              visits
+            </p>
+          </div>
+        }
+      >
+        <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2">
+            {asWebUrl(source.sourceUrl) && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  window.open(asWebUrl(source.sourceUrl) ?? undefined, "_blank", "noopener")
+                }
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                Open source
+              </Button>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => startEdit(source)}
+            >
+              <Pencil className="w-3.5 h-3.5" />
+              Edit
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void addLink(source.id)}
+            >
+              <Link2 className="w-3.5 h-3.5" />
+              New link
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void toggleRegistrations(source.id)}
+            >
+              <UsersRound className="w-3.5 h-3.5" />
+              {openRegistrations === source.id ? "Hide" : "Registrations"}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                setOpenPage((cur) => (cur === source.id ? null : source.id))
+              }
+            >
+              <LayoutTemplate className="w-3.5 h-3.5" />
+              {openPage === source.id ? "Hide" : "Waitlist page"}
+            </Button>
+            <Button
+              variant={
+                source.status === "do_not_contact" ? "outline" : "outline"
+              }
+              size="sm"
+              onClick={() =>
+                setOpenOutreach((cur) =>
+                  cur === source.id ? null : source.id
+                )
+              }
+            >
+              <MessageSquare className="w-3.5 h-3.5" />
+              {openOutreach === source.id ? "Hide" : "Outreach"}
+            </Button>
+            {!source.groupId && (
+              <Button
+                variant={source.thresholdReachedAt ? "default" : "outline"}
+                size="sm"
+                onClick={() => void toggleReview(source)}
+              >
+                <GitBranch className="w-3.5 h-3.5" />
+                {openReview === source.id ? "Cancel" : "Review demand"}
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* Demand */}
+        <div>
+          <div className="flex flex-wrap justify-between gap-2 text-xs text-muted-foreground mb-1.5">
+            <span>
+              <Highlight
+                id={`source:${source.id}:stat:registrations`}
+                value={registrationCount}
+              >
+                {registrationCount}
+              </Highlight>{" "}
+              of {source.effectiveThreshold} registrations
+              {source.demandThreshold === null && " (global default)"}
+            </span>
+            <span className="flex items-center gap-1.5">
+              <label htmlFor={`threshold-${source.id}`} className="sr-only">
+                Threshold override for {source.sourceName}
+              </label>
+              <input
+                id={`threshold-${source.id}`}
+                type="number"
+                min={1}
+                placeholder={String(globalThreshold)}
+                value={
+                  sourceThresholdDraft[source.id] ??
+                  (source.demandThreshold === null
+                    ? ""
+                    : String(source.demandThreshold))
+                }
+                onChange={(e) =>
+                  setSourceThresholdDraft((prev) => ({
+                    ...prev,
+                    [source.id]: e.target.value,
+                  }))
+                }
+                className="h-7 w-16 px-2 rounded-md border border-border bg-background text-xs"
+              />
+              {sourceThresholdDraft[source.id] !== undefined && (
+                <button
+                  type="button"
+                  className="text-primary underline underline-offset-2"
+                  onClick={() =>
+                    void saveSourceThreshold(
+                      source.id,
+                      sourceThresholdDraft[source.id]
+                    )
+                  }
+                >
+                  Save
+                </button>
+              )}
+              <span>{pct}%</span>
+            </span>
+          </div>
+          <Progress value={pct} className="h-2" />
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-6 gap-3 text-sm">
+          {[
+            {
+              key: "visits",
+              label: "Visits",
+              id: `source:${source.id}:stat:visits`,
+              value: source.totalVisitCount,
+            },
+            {
+              key: "unique",
+              label: "Unique",
+              id: `source:${source.id}:stat:unique`,
+              value: source.uniqueVisitCount,
+            },
+            {
+              key: "registrations",
+              label: "Registrations",
+              id: `source:${source.id}:stat:registrations`,
+              value: registrationCount,
+            },
+            {
+              key: "testers",
+              label: "Testers",
+              id: `source:${source.id}:stat:testers`,
+              value: source.testerCount,
+            },
+            {
+              key: "organisers",
+              label: "Organisers",
+              id: `source:${source.id}:stat:organisers`,
+              value: source.organiserInterestCount,
+            },
+          ].map((stat) => (
+            <div key={stat.key}>
+              <p className="text-xs text-muted-foreground">{stat.label}</p>
+              <Highlight
+                id={stat.id}
+                value={stat.value}
+                className="block font-heading font-semibold"
+              >
+                {stat.value}
+              </Highlight>
+            </div>
+          ))}
+          <div>
+            <p className="text-xs text-muted-foreground">Conversion</p>
+            <p className="font-heading font-semibold text-foreground">
+              {Math.round(source.conversionRate * 100)}%
+            </p>
+          </div>
+        </div>
+
+        {/* Tracked links */}
+        <div className="space-y-2 pt-1">
+          {/* Only offered where there is a topic to put in the URL. */}
+          {topicSlug(source.topicName) && (
+            <label className="flex items-center gap-2 text-xs text-muted-foreground">
+              <input
+                type="checkbox"
+                checked={source.includeTopicInUrl}
+                disabled={savingTopicUrl === source.id}
+                onChange={(e) =>
+                  void toggleTopicInUrl(source.id, e.target.checked)
+                }
+                className="w-4 h-4 shrink-0 rounded border-border accent-primary"
+              />
+              Include the topic in these links -{" "}
+              <code className="font-mono">
+                &amp;t={topicSlug(source.topicName)}
+              </code>
+            </label>
+          )}
+          {source.links.length === 0 && (
+            <p className="text-xs text-muted-foreground">
+              No tracked links yet.
+            </p>
+          )}
+          {hiddenCount > 0 && (
+            <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+              <span>
+                {hiddenCount} hidden link{hiddenCount === 1 ? "" : "s"}
+              </span>
+              <button
+                type="button"
+                className="text-primary underline underline-offset-2"
+                onClick={() =>
+                  setRevealHidden((prev) => {
+                    const next = new Set(prev);
+                    if (next.has(source.id)) next.delete(source.id);
+                    else next.add(source.id);
+                    return next;
+                  })
+                }
+              >
+                {showHidden ? "Stop showing hidden" : "Show hidden"}
+              </button>
+            </div>
+          )}
+          {shownLinks.map((link) => (
+            <div
+              key={link.id}
+              className={cn(
+                "flex flex-wrap items-center gap-2 rounded-lg border border-border/60 bg-background px-3 py-2",
+                link.hidden && "opacity-60"
+              )}
+            >
+              {/* The tooltip sits above the box and ignores the pointer, so it
+                  can never cover or intercept the checkbox. */}
+              <span className="relative group inline-flex shrink-0">
+                <input
+                  type="checkbox"
+                  checked={link.posted}
+                  onChange={(e) =>
+                    void setLinkFlag(source.id, link.id, "posted", e.target.checked)
+                  }
+                  aria-label="Posted/sent"
+                  className="w-4 h-4 rounded border-border accent-primary"
+                />
+                <span
+                  role="tooltip"
+                  className="pointer-events-none absolute left-1/2 bottom-full mb-2 -translate-x-1/2 whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-xs text-background opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+                >
+                  Posted/sent
+                </span>
+              </span>
+              <code className="text-xs font-mono text-foreground">
+                {link.sourceCode}
+              </code>
+              {editingLinkId === link.id ? (
+                <>
+                  <input
+                    autoFocus
+                    value={linkLabelDraft}
+                    onChange={(e) => setLinkLabelDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") void saveLinkLabel(source.id, link.id);
+                      if (e.key === "Escape") setEditingLinkId(null);
+                    }}
+                    placeholder="Label or URL"
+                    className="flex-1 min-w-[180px] h-8 px-2 rounded-md border border-border bg-background text-xs"
+                  />
+                  <Button
+                    size="sm"
+                    disabled={savingLinkLabel}
+                    onClick={() => void saveLinkLabel(source.id, link.id)}
+                  >
+                    {savingLinkLabel && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                    Save
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={savingLinkLabel}
+                    onClick={() => setEditingLinkId(null)}
+                  >
+                    Cancel
+                  </Button>
+                </>
+              ) : (
+                <>
+                  {asWebUrl(link.label) ? (
+                    <a
+                      href={asWebUrl(link.label) ?? undefined}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-primary underline underline-offset-2 truncate max-w-[220px]"
+                    >
+                      {link.label}
+                    </a>
+                  ) : (
+                    <span className="text-xs text-muted-foreground truncate max-w-[220px]">
+                      {link.label}
+                    </span>
+                  )}
+                  <span className="text-xs text-muted-foreground ml-auto">
+                    {link.uniqueVisitCount} unique · {link.signupCount} joined ·{" "}
+                    {link.shareClickCount} shares
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setEditingLinkId(link.id);
+                      setLinkLabelDraft(link.label);
+                    }}
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                    Edit
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => void copy(link.trackedUrl, "Link copied")}
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                    Copy
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() =>
+                      window.open(
+                        `${link.trackedUrl}&preview=1`,
+                        "_blank",
+                        "noopener"
+                      )
+                    }
+                  >
+                    Preview
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() =>
+                      void setLinkFlag(source.id, link.id, "hidden", !link.hidden)
+                    }
+                  >
+                    {link.hidden ? (
+                      <Eye className="w-3.5 h-3.5" />
+                    ) : (
+                      <EyeOff className="w-3.5 h-3.5" />
+                    )}
+                    {link.hidden ? "Unhide" : "Hide"}
+                  </Button>
+                  {/* Tooltip only, not a button. Above the icon and pointer-proof. */}
+                  <span className="relative group inline-flex shrink-0 text-muted-foreground">
+                    <Info className="w-3.5 h-3.5" aria-hidden />
+                    <span
+                      role="tooltip"
+                      className="pointer-events-none absolute right-0 bottom-full mb-2 w-56 rounded-md bg-foreground px-2 py-1.5 text-xs text-background opacity-0 transition-opacity group-hover:opacity-100"
+                    >
+                      Hide only removes this row from the list. The link, its
+                      code and its data are kept, and the waitlist URL still
+                      works.
+                    </span>
+                  </span>
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {openPage === source.id && (
+          <WaitlistPagePanel source={source} onSaved={() => load()} />
+        )}
+
+        {source.groupId && (
+          <div className="border-t border-border/60 pt-3 space-y-1.5">
+            <p className="text-xs text-muted-foreground flex flex-wrap items-center gap-1.5">
+              <GitBranch className="w-3.5 h-3.5 text-primary shrink-0" />
+              {source.autoCreatedGroupAt
+                ? "Group activated automatically"
+                : "Linked to group"}{" "}
+              <code className="font-mono text-foreground">
+                {source.groupId}
+              </code>
+            </p>
+            {/* Interest and membership are different things - a group can
+                open on 20 expressions of interest while only 2 of those
+                people have accounts yet. Showing one number would imply
+                20 callable members. */}
+            <p className="text-xs text-muted-foreground">
+              <strong className="text-foreground">
+                {registrationCount} interested
+              </strong>{" "}
+              ·{" "}
+              <strong className="text-foreground">
+                {source.activeMemberCount} active member
+                {source.activeMemberCount !== 1 ? "s" : ""}
+              </strong>{" "}
+              · {source.pendingMemberCount} awaiting an account, joined
+              automatically when they sign up
+            </p>
+            {/* Whether the group is actually calling is a different
+                question from whether it exists, and needs to be obvious
+                at a glance. */}
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <span
+                className={cn(
+                  "text-xs px-2 py-0.5 rounded-full border font-medium",
+                  source.callsEnabled
+                    ? "border-primary/40 bg-primary/10 text-foreground"
+                    : "border-border bg-muted/60 text-muted-foreground"
+                )}
+              >
+                {source.callsEnabled ? "Calls on" : "Calls paused"}
+              </span>
+              {!source.callsEnabled && source.callsPausedReason && (
+                <span className="text-xs text-muted-foreground">
+                  {source.callsPausedReason === "awaiting_group_admin"
+                    ? "awaiting group admin"
+                    : source.callsPausedReason === "admin_paused"
+                      ? "paused by an administrator"
+                      : "paused by the group admin"}
+                </span>
+              )}
+              {source.callsPausedReason === "awaiting_group_admin" && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void appointGroupAdmin(source.groupId!)}
+                >
+                  <UsersRound className="w-3.5 h-3.5" />
+                  Appoint group admin
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={togglingCalls === source.groupId}
+                onClick={() =>
+                  void toggleCalls(source.groupId!, !source.callsEnabled)
+                }
+              >
+                {togglingCalls === source.groupId && (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                )}
+                {source.callsEnabled ? "Turn calls off" : "Turn calls on"}
+              </Button>
+            </div>
+            {source.reviewRequiredAfterCreate && (
+              <p className="text-xs text-primary flex items-center gap-1.5">
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                Created without review - check the name and that it is not a
+                duplicate.
+              </p>
+            )}
+          </div>
+        )}
+
+        {openReview === source.id && (
+          <div className="border-t border-border/60 pt-4 space-y-4">
+            {loadingReview ? (
+              <p className="text-xs text-muted-foreground flex items-center gap-2">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                Checking for similar groups…
+              </p>
+            ) : review ? (
+              <>
+                {review.similar.length > 0 && (
+                  <div className="rounded-lg border border-primary/40 bg-primary/10 p-3">
+                    <p className="text-xs font-semibold text-foreground mb-2 flex items-center gap-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5 text-primary" />
+                      {review.similar.length} existing group
+                      {review.similar.length !== 1 ? "s" : ""} may already cover
+                      this audience
+                    </p>
+                    <ul className="space-y-1.5">
+                      {review.similar.map((s) => (
+                        <li
+                          key={s.id}
+                          className="text-xs text-muted-foreground flex flex-wrap gap-x-2"
+                        >
+                          <span className="text-foreground font-medium">
+                            {s.name}
+                          </span>
+                          <span>
+                            {s.memberCount} member
+                            {s.memberCount !== 1 ? "s" : ""}
+                          </span>
+                          <span>· {s.reason}</span>
+                          <button
+                            type="button"
+                            className="text-primary underline underline-offset-2"
+                            onClick={() => {
+                              setReviewMode("link");
+                              setLinkGroupId(s.id);
+                            }}
+                          >
+                            Link to this instead
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                <div className="flex gap-2">
+                  {(["create", "link"] as const).map((mode) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => setReviewMode(mode)}
+                      className={cn(
+                        "px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors",
+                        reviewMode === mode
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : "bg-background text-muted-foreground border-border hover:border-primary/40"
+                      )}
+                    >
+                      {mode === "create"
+                        ? "Create new group"
+                        : "Link existing group"}
+                    </button>
+                  ))}
+                </div>
+
+                {reviewMode === "create" ? (
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-foreground mb-1.5">
+                        Group name *
+                      </label>
+                      <input
+                        value={groupName}
+                        onChange={(e) => setGroupName(e.target.value)}
+                        className={inputClass}
+                      />
+                    </div>
+                    <div className="flex items-end pb-2">
+                      <label className="flex items-center gap-2 text-xs text-foreground">
+                        <input
+                          type="checkbox"
+                          checked={groupPrivate}
+                          onChange={(e) => setGroupPrivate(e.target.checked)}
+                          className="w-4 h-4 rounded border-border accent-primary"
+                        />
+                        Private group
+                      </label>
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="block text-xs font-medium text-foreground mb-1.5">
+                        Description
+                      </label>
+                      <textarea
+                        value={groupDescription}
+                        onChange={(e) => setGroupDescription(e.target.value)}
+                        rows={2}
+                        className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/40"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-xs font-medium text-foreground mb-1.5">
+                      Existing group
+                    </label>
+                    <select
+                      value={linkGroupId}
+                      onChange={(e) => setLinkGroupId(e.target.value)}
+                      className={inputClass}
+                    >
+                      <option value="">Select a group…</option>
+                      {review.groups.map((g) => (
+                        <option key={g.id} value={g.id}>
+                          {g.name} ({g.memberCount} member
+                          {g.memberCount !== 1 ? "s" : ""})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {reviewMode === "create" &&
+                  review.similar.some(
+                    (s) => s.score >= review.strongDuplicateScore
+                  ) && (
+                    <label className="flex items-start gap-2 text-xs text-foreground">
+                      <input
+                        type="checkbox"
+                        checked={acknowledgeDuplicates}
+                        onChange={(e) =>
+                          setAcknowledgeDuplicates(e.target.checked)
+                        }
+                        className="mt-0.5 w-4 h-4 shrink-0 rounded border-border accent-primary"
+                      />
+                      I&apos;ve checked the groups above and this is genuinely a
+                      different audience.
+                    </label>
+                  )}
+
+                <div className="flex items-center gap-3">
+                  <Button
+                    size="sm"
+                    disabled={
+                      savingGroup ||
+                      (reviewMode === "link"
+                        ? !linkGroupId
+                        : !groupName.trim())
+                    }
+                    onClick={() => void submitGroup(source.id)}
+                  >
+                    {savingGroup && (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    )}
+                    {reviewMode === "link"
+                      ? "Link this group"
+                      : "Create group"}
+                  </Button>
+                  <span className="text-xs text-muted-foreground">
+                    Group lands in the{" "}
+                    <code className="font-mono">{review.groupProject}</code>{" "}
+                    project
+                  </span>
+                </div>
+              </>
+            ) : null}
+          </div>
+        )}
+
+        {openOutreach === source.id && (
+          <div className="border-t border-border/60 pt-4">
+            <OutreachComposer
+              sourceId={source.id}
+              sourceName={source.sourceName}
+              doNotContact={source.status === "do_not_contact"}
+              postingRules={source.postingRules}
+              trackedUrl={source.links[0]?.trackedUrl ?? ""}
+              sourceCode={source.links[0]?.sourceCode ?? null}
+              lastPostedAt={source.lastPostedAt}
+            />
+          </div>
+        )}
+
+        {openRegistrations === source.id && (
+          <div className="border-t border-border/60 pt-3">
+            <RegistrationsPanel
+              sourceId={source.id}
+              loading={loadingRegistrations}
+              registrations={registrations}
+            />
+          </div>
+        )}
+
+        {source.postingRules && (
+          <p className="text-xs text-muted-foreground border-t border-border/60 pt-3">
+            <span className="font-medium text-foreground">Posting rules:</span>{" "}
+            {source.postingRules}
+          </p>
+        )}
+      </CollapsibleCard>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Threshold alerts */}
+      {thresholdReached.length > 0 && (
+        <div className="rounded-xl border border-primary/40 bg-primary/10 p-4">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+            <div>
+              <p className="font-heading font-semibold text-sm text-foreground mb-1">
+                {thresholdReached.length} source
+                {thresholdReached.length !== 1 ? "s have" : " has"} reached the demand
+                threshold
+              </p>
+              <p className="text-sm text-muted-foreground">
+                {thresholdReached.map((s) => s.sourceName).join(", ")} - review the
+                demand before creating any group. Nothing is created automatically.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quick add - the fast path. One URL, no other decision: it works out
+          the platform and community, finds a matching source by its exact
+          URL, and either adds a link there or creates the source. */}
+      <form
+        onSubmit={(e) => void handleQuickAdd(e)}
+        className="rounded-xl border border-primary/30 bg-primary/5 p-4 flex flex-wrap items-center gap-3"
+      >
+        <Sparkles className="w-4 h-4 text-primary shrink-0" />
+        <div className="flex-1 min-w-[240px]">
+          <label htmlFor="quick-add-url" className="sr-only">
+            Paste a post URL
+          </label>
+          <input
+            id="quick-add-url"
+            value={quickUrl}
+            onChange={(e) => setQuickUrl(e.target.value)}
+            placeholder="Paste a post URL - we'll find or create the source"
+            className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+          />
+        </div>
+        <Button type="submit" size="sm" disabled={quickAdding || !quickUrl.trim()}>
+          {quickAdding ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <Sparkles className="w-4 h-4" />
+          )}
+          Add
+        </Button>
+        <p className="basis-full text-xs text-muted-foreground">
+          Already tracking that community? The link is added there. New
+          community? A source is created from it automatically.
+        </p>
+      </form>
+
+      {/* Controls */}
+      <div className="flex flex-wrap gap-2 items-center">
+        <div className="relative flex-1 min-w-[220px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            className="pl-9"
+            placeholder="Search sources, topics, notes, tracking codes…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </div>
+
+        <select
+          value={platformFilter}
+          onChange={(e) => setPlatformFilter(e.target.value)}
+          className="h-9 px-2 rounded-lg border border-border bg-background text-sm"
+          aria-label="Filter by platform"
+        >
+          <option value="all">All platforms</option>
+          {PLATFORMS.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.label}
+            </option>
+          ))}
+        </select>
+
+        <select
+          value={sort}
+          onChange={(e) => setSort(e.target.value as SortKey)}
+          className="h-9 px-2 rounded-lg border border-border bg-background text-sm"
+          aria-label="Sort sources"
+        >
+          {SORTS.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.label}
+            </option>
+          ))}
+        </select>
+
+        <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading}>
+          {loading ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <RefreshCw className="w-4 h-4" />
+          )}
+        </Button>
+
+        <Button variant="outline" size="sm" onClick={exportCsv} disabled={loading}>
+          <Download className="w-4 h-4" />
+          Export CSV
+        </Button>
+
+        <Link
+          href="/admin/outreach/spreadsheet"
+          className={cn(
+            buttonVariants({ variant: "outline", size: "sm" }),
+            "gap-2"
+          )}
+        >
+          <Table2 className="w-4 h-4" />
+          Spreadsheet view
+        </Link>
+
+        <Button
+          size="sm"
+          onClick={() => (showForm ? closeForm() : setShowForm(true))}
+        >
+          <Plus className="w-4 h-4" />
+          Add source
+        </Button>
+      </div>
+
+      {error && (
+        <p className="text-sm text-destructive bg-destructive/10 px-4 py-3 rounded-lg">
+          {error}
+        </p>
+      )}
+
+      {/* Global threshold - editable here so changing it needs no deploy. */}
+      <div className="rounded-xl border border-border/60 bg-card px-4 py-3 flex flex-wrap items-center gap-3">
+        <label
+          htmlFor="global-threshold"
+          className="text-sm text-foreground font-medium"
+        >
+          Default demand threshold
+        </label>
+        <input
+          id="global-threshold"
+          type="number"
+          min={1}
+          value={thresholdDraft}
+          onChange={(e) => setThresholdDraft(e.target.value)}
+          className="h-9 w-24 px-3 rounded-lg border border-border bg-background text-sm"
+        />
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => void saveGlobalThreshold()}
+          disabled={savingThreshold || thresholdDraft === String(globalThreshold)}
+        >
+          {savingThreshold && <Loader2 className="w-4 h-4 animate-spin" />}
+          Save
+        </Button>
+        <span className="text-xs text-muted-foreground">
+          Registrations needed before a source is flagged for review. Sources with
+          their own override are unaffected.
+        </span>
+      </div>
+
+      {/* Create form */}
+      {showForm && (
+        <form
+          onSubmit={handleCreate}
+          className="rounded-xl border border-border/60 bg-card p-5 space-y-4"
+        >
+          <p className="text-sm text-muted-foreground">
+            {editingId
+              ? "Editing this source. Its tracked links, registrations and history are unaffected."
+              : "Creates a demand source and its first tracked link. No Operator group is created."}
+          </p>
+
+          {duplicates.length > 0 && !duplicateNotice && (
+            <DuplicateSourceWarning
+              matches={duplicates}
+              action={editingId ? "save" : "create"}
+              overriding={saving}
+              onDismiss={() => setDuplicates([])}
+              onOverride={() => void handleCreate(null, true)}
+            />
+          )}
+
+          <div className="grid sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-foreground mb-1.5">
+                Source name *
+              </label>
+              <input
+                required
+                value={form.sourceName}
+                onChange={(e) => updateFormField("sourceName", e.target.value)}
+                placeholder="e.g. r/phonecalls"
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-foreground mb-1.5">
+                Topic
+              </label>
+              <input
+                value={form.topicName}
+                onChange={(e) => setForm({ ...form, topicName: e.target.value })}
+                placeholder="e.g. Talking with new people"
+                className={inputClass}
+              />
+              {/* Cosmetic: the topic makes a pasted link readable. The waitlist
+                  page ignores it, so it changes nothing about where people land. */}
+              <label
+                className={cn(
+                  "flex items-start gap-2 text-xs mt-1.5",
+                  form.topicName.trim()
+                    ? "text-foreground"
+                    : "text-muted-foreground"
+                )}
+              >
+                <input
+                  type="checkbox"
+                  disabled={!form.topicName.trim()}
+                  checked={form.includeTopicInUrl && !!form.topicName.trim()}
+                  onChange={(e) =>
+                    setForm({ ...form, includeTopicInUrl: e.target.checked })
+                  }
+                  className="mt-0.5 w-4 h-4 shrink-0 rounded border-border accent-primary disabled:opacity-50"
+                />
+                <span>
+                  Include the topic in the tracked URL
+                  {topicSlug(form.topicName) && (
+                    <>
+                      {" - "}
+                      <code className="font-mono text-muted-foreground">
+                        &amp;t={topicSlug(form.topicName)}
+                      </code>
+                    </>
+                  )}
+                </span>
+              </label>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-foreground mb-1.5">
+                Waitlist page
+              </label>
+              <select
+                value={form.waitlistMode}
+                onChange={(e) => setForm({ ...form, waitlistMode: e.target.value })}
+                className={inputClass}
+              >
+                {WAITLIST_MODES.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.label}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-muted-foreground mt-1.5">
+                {WAITLIST_MODES.find((m) => m.id === form.waitlistMode)?.hint}
+              </p>
+            </div>
+            {form.waitlistMode !== "family" && (
+              <div>
+                <label className="block text-xs font-medium text-foreground mb-1.5">
+                  Do these people already know each other?
+                </label>
+                <select
+                  value={form.connectionType}
+                  onChange={(e) =>
+                    setForm({ ...form, connectionType: e.target.value })
+                  }
+                  className={inputClass}
+                >
+                  {CONNECTION_TYPES.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-muted-foreground mt-1.5">
+                  {CONNECTION_TYPES.find((c) => c.id === form.connectionType)?.hint}
+                </p>
+              </div>
+            )}
+            {form.waitlistMode === "family" && (
+              <div>
+                <label className="block text-xs font-medium text-foreground mb-1.5">
+                  Family name
+                </label>
+                <input
+                  value={form.familyName}
+                  onChange={(e) => setForm({ ...form, familyName: e.target.value })}
+                  placeholder="e.g. the Smith family"
+                  className={inputClass}
+                />
+                <p className="text-xs text-muted-foreground mt-1.5">
+                  The page heading. Add the optional hero image afterwards, under
+                  Waitlist page.
+                </p>
+              </div>
+            )}
+            <div>
+              <label className="block text-xs font-medium text-foreground mb-1.5">
+                Platform
+              </label>
+              <select
+                value={form.platformId}
+                onChange={(e) => updateFormField("platformId", e.target.value)}
+                className={inputClass}
+              >
+                {PLATFORMS.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-foreground mb-1.5">
+                Source type
+              </label>
+              <select
+                value={form.sourceType}
+                onChange={(e) => updateFormField("sourceType", e.target.value)}
+                className={inputClass}
+              >
+                {SOURCE_TYPES.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-medium text-foreground mb-1.5">
+                Source URL
+              </label>
+              <input
+                value={form.sourceUrl}
+                onChange={(e) => updateSourceUrl(e.target.value)}
+                placeholder="https://…"
+                className={inputClass}
+              />
+              {typedSourceLink && (
+                <a
+                  href={typedSourceLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-1.5 inline-flex items-center gap-1 text-xs text-primary underline underline-offset-2 break-all"
+                >
+                  <ExternalLink className="w-3 h-3 shrink-0" />
+                  Open {typedSourceLink}
+                </a>
+              )}
+            </div>
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-medium text-foreground mb-1.5">
+                Public audience label
+              </label>
+              <input
+                value={form.publicAudienceLabel}
+                onChange={(e) =>
+                  setForm({ ...form, publicAudienceLabel: e.target.value })
+                }
+                placeholder="e.g. live poker - completes “people interested in …”"
+                className={inputClass}
+              />
+              <p className="text-xs text-muted-foreground mt-1.5">
+                Shown publicly. Leave blank to use the neutral fallback. Don&apos;t use
+                &ldquo;official&rdquo;, &ldquo;partner&rdquo; or &ldquo;approved&rdquo;
+                unless it is accurate.
+              </p>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-foreground mb-1.5">
+                Threshold override
+              </label>
+              <input
+                type="number"
+                min={1}
+                value={form.demandThreshold}
+                onChange={(e) =>
+                  setForm({ ...form, demandThreshold: e.target.value })
+                }
+                placeholder={`Default: ${globalThreshold}`}
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-foreground mb-1.5">
+                Posting rules
+              </label>
+              <input
+                value={form.postingRules}
+                onChange={(e) => setForm({ ...form, postingRules: e.target.value })}
+                placeholder="e.g. No repetitive promotion"
+                className={inputClass}
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-medium text-foreground mb-1.5">
+                Internal notes
+              </label>
+              <textarea
+                value={form.internalNotes}
+                onChange={(e) => setForm({ ...form, internalNotes: e.target.value })}
+                rows={2}
+                className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/40"
+              />
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            <Button type="submit" size="sm" disabled={saving}>
+              {saving && <Loader2 className="w-4 h-4 animate-spin" />}
+              {editingId ? "Save changes" : "Create source and link"}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={closeForm}
+            >
+              Cancel
+            </Button>
+          </div>
+        </form>
+      )}
+
+      {/* Created, with something worth knowing about it. Rendered outside the
+          form because the form has closed by the time this appears. */}
+      {duplicateNotice && duplicates.length > 0 && (
+        <DuplicateSourceWarning
+          matches={duplicates}
+          action="create"
+          onDismiss={() => {
+            setDuplicates([]);
+            setDuplicateNotice(false);
+          }}
+        />
+      )}
+
+      {/* Rows */}
+      {loaded && visible.length === 0 && (
+        <p className="text-sm text-muted-foreground rounded-xl border border-border/60 bg-card p-6 text-center">
+          {sources.length === 0
+            ? "No outreach sources yet. Add one to generate a tracked waitlist link."
+            : "No sources match those filters."}
+        </p>
+      )}
+
+      <div className="space-y-3">
+        {activeRows.map(renderSource)}
+
+        {/* Everything archived, as one line. Archiving happens on the
+            spreadsheet and is not undoable from here, so this says where to go
+            rather than pretending otherwise. */}
+        {archivedRows.length > 0 && (
+          <div className="rounded-xl border border-border/60 bg-muted/20">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-5 py-3">
+              <button
+                type="button"
+                onClick={() => setArchivedOpen((v) => !v)}
+                aria-expanded={archivedOpen}
+                className="flex items-center gap-1.5 text-sm font-medium text-foreground rounded px-1 py-0.5 hover:bg-muted"
+              >
+                {archivedOpen ? (
+                  <ChevronDown className="w-4 h-4" />
+                ) : (
+                  <ChevronRight className="w-4 h-4" />
+                )}
+                {archivedRows.length} archived source
+                {archivedRows.length === 1 ? "" : "s"}
+              </button>
+
+              <span className="text-xs text-muted-foreground tabular-nums">
+                still holding {archivedRegistrations} registration
+                {archivedRegistrations === 1 ? "" : "s"}
+              </span>
+
+              <Link
+                href="/admin/outreach/spreadsheet"
+                className="ml-auto text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
+              >
+                Restore or delete on the spreadsheet
+              </Link>
+            </div>
+
+            {archivedOpen && (
+              <div className="space-y-3 px-3 pb-3">
+                {archivedRows.map(renderSource)}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

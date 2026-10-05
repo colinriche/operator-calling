@@ -1,77 +1,24 @@
-import { NextRequest, NextResponse } from "next/server";
-import { initializeApp, getApps, cert } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
-import { getAuth } from "firebase-admin/auth";
+import { NextResponse } from "next/server";
 
-function getAdminServices() {
-  if (!getApps().length) {
-    initializeApp({
-      credential: cert({
-        projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-        privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
-      }),
-    });
-  }
-  return { db: getFirestore(), adminAuth: getAuth() };
-}
+// ─── POST /api/admin/token - RETIRED ──────────────────────────────────────────
+//
+// This route used to mint an admin session from an email address alone: no
+// password, no code, no second factor. Anyone who knew or guessed an
+// administrator's address could become that administrator.
+//
+// It is gone, not disabled behind a flag: there is no longer any code here that
+// can create a session. Administrators sign in with a real credential (Google or
+// phone) at /login like everyone else, and what they may do is decided by their
+// record in the `admins` collection (lib/admins.ts, lib/admin-auth.ts).
+//
+// `ADMIN_LOGIN_ENABLED` is no longer read anywhere and can be removed from the
+// environment.
 
-// ─── POST /api/admin/token ────────────────────────────────────────────────────
-// Body: { username: string }
-// Returns a Firebase custom token for an admin user matched by displayName.
-// Only active when ADMIN_LOGIN_ENABLED=true.
+export const runtime = "nodejs";
 
-export async function POST(req: NextRequest) {
-  if (process.env.ADMIN_LOGIN_ENABLED !== "true") {
-    return NextResponse.json({ error: "Not available" }, { status: 403 });
-  }
-
-  let body: { username?: string };
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid request" }, { status: 400 });
-  }
-
-  const username = body.username?.trim();
-  if (!username) {
-    return NextResponse.json({ error: "Username is required" }, { status: 400 });
-  }
-
-  try {
-    const { db, adminAuth } = getAdminServices();
-
-    // Try username → name → email in order
-    console.log(`[admin/token] project=${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID} searching for "${username}"`);
-    const col = db.collection("user");
-    let snap = await col.where("username", "==", username).limit(1).get();
-    console.log(`[admin/token] by username: ${snap.size}`);
-    if (snap.empty) snap = await col.where("name", "==", username).limit(1).get();
-    console.log(`[admin/token] by name: ${snap.size}`);
-    if (snap.empty) snap = await col.where("email", "==", username).limit(1).get();
-    console.log(`[admin/token] by email: ${snap.size}`);
-
-    if (!snap || snap.empty) {
-      // Deliberately vague — don't reveal whether user exists
-      return NextResponse.json({ error: "No admin account found for that username" }, { status: 404 });
-    }
-
-    const userDoc = snap.docs[0];
-    const data = userDoc.data();
-
-    if (data.role !== "admin") {
-      return NextResponse.json({ error: "No admin account found for that username" }, { status: 403 });
-    }
-
-    const customToken = await adminAuth.createCustomToken(userDoc.id, {
-      role: data.role,
-    });
-
-    console.log(`[admin/token] Admin login: uid=${userDoc.id} displayName=${data.displayName} role=${data.role}`);
-
-    return NextResponse.json({ token: customToken });
-  } catch (err) {
-    console.error("[admin/token]", err);
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
-  }
+export async function POST() {
+  return NextResponse.json(
+    { error: "Admin sessions are no longer issued here. Sign in at /login." },
+    { status: 410 }
+  );
 }

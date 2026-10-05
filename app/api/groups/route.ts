@@ -3,7 +3,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import type { QueryDocumentSnapshot } from "firebase-admin/firestore";
 import { getAdminServices, verifyAuth } from "@/lib/firebase-admin";
 
-// GET /api/groups — list groups the caller belongs to
+// GET /api/groups - list groups the caller belongs to
 export async function GET(req: NextRequest) {
   const uid = await verifyAuth(req.headers.get("authorization") ?? "");
   if (!uid) return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
@@ -47,6 +47,7 @@ export async function GET(req: NextRequest) {
       createdBy: data.createdBy,
       memberCount: (data.memberIds ?? []).length,
       isPrivate: data.isPrivate ?? true,
+      type: data.type ?? "general",
       tags: data.tags ?? [],
       createdAt: data.createdAt?.toDate?.()?.toISOString() ?? null,
       scheduleSettings: data.scheduleSettings ?? null,
@@ -56,12 +57,15 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ groups });
 }
 
-// POST /api/groups — create a new group
+// POST /api/groups - create a new group
 export async function POST(req: NextRequest) {
   const uid = await verifyAuth(req.headers.get("authorization") ?? "");
   if (!uid) return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
 
-  let body: { name?: string; description?: string; isPrivate?: boolean };
+  const VALID_TYPES = ["general", "family", "work", "sport", "social", "college"] as const;
+  type GroupType = (typeof VALID_TYPES)[number];
+
+  let body: { name?: string; description?: string; isPrivate?: boolean; type?: string };
   try {
     body = await req.json();
   } catch {
@@ -70,6 +74,10 @@ export async function POST(req: NextRequest) {
 
   const name = body.name?.trim();
   if (!name) return NextResponse.json({ error: "Group name required" }, { status: 400 });
+
+  const groupType: GroupType = VALID_TYPES.includes(body.type as GroupType)
+    ? (body.type as GroupType)
+    : "general";
 
   const { db, adminAuth } = getAdminServices();
 
@@ -92,6 +100,7 @@ export async function POST(req: NextRequest) {
     name,
     description: body.description?.trim() ?? "",
     isPrivate: body.isPrivate ?? true,
+    type: groupType,
     createdBy: uid,
     memberIds: [uid],
     members: {

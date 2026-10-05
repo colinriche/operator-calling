@@ -21,7 +21,7 @@ export default async function QRInvitePage({ searchParams }: PageProps) {
   void sanitizeGroupId(params.groupId);
   void params.ctx?.trim();
 
-  // Pass invalid state directly to the flow — never silently redirect.
+  // Pass invalid state directly to the flow - never silently redirect.
   // The user scanned a QR code and deserves to know what went wrong.
   if (!token) {
     return <QRInviteFlow token="" type={type} invalidReason="missing" />;

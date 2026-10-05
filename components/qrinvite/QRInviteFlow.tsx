@@ -135,7 +135,7 @@ function Shell({ children }: { children: React.ReactNode }) {
           <div className="space-y-3 text-sm text-muted-foreground leading-relaxed">
             <p>
               <span className="font-semibold text-foreground">The Operator</span> is a
-              voice-first communication platform — real conversation, better timed.
+              voice-first communication platform - real conversation, better timed.
             </p>
             <p>
               A call only connects when both people answer, removing call pressure and
@@ -143,7 +143,8 @@ function Shell({ children }: { children: React.ReactNode }) {
               calls with people globally, and group-based calling.
             </p>
             <p className="text-xs pt-1 border-t border-border/50">
-              © {new Date().getFullYear()} The Operator
+              © {new Date().getFullYear()} The Operator. Operated by Mainstream
+              Movement Ltd, registered in England &amp; Wales (no. 09098347).
             </p>
           </div>
         </DialogContent>
@@ -295,7 +296,7 @@ function ExpiredScreen() {
       </IconBadge>
       <h1 className="font-heading font-bold text-2xl text-foreground mb-2">Invite expired</h1>
       <p className="text-muted-foreground text-sm max-w-xs mx-auto">
-        This QR code has expired — they're short-lived for security. Ask the person who shared it to generate a new one.
+        This QR code has expired - they're short-lived for security. Ask the person who shared it to generate a new one.
       </p>
     </motion.div>
   );
@@ -371,24 +372,43 @@ function InstallAppScreen({
   platform: Platform;
   token: string;
   type: InviteType;
-  onPendingSaved: (p: Platform) => void;
+  onPendingSaved: (p: Platform, emailSaved: boolean) => void;
 }) {
+  const [phone, setPhone] = useState("");
   const [saving, setSaving] = useState(false);
-  const hasSaved = useRef(false);
+  const [error, setError] = useState("");
 
-  useEffect(() => {
-    if (hasSaved.current) return;
-    hasSaved.current = true;
+  const save = async (withPhone: boolean) => {
     setSaving(true);
-    createPendingConnection(token, platform)
-      .then((res) => {
-        if (res.success) onPendingSaved(platform);
-      })
-      .catch(() => {
-        // Pending save failed silently — store buttons still shown
-      })
-      .finally(() => setSaving(false));
-  }, [token, platform, onPendingSaved]);
+    setError("");
+    try {
+      const res = await createPendingConnection(
+        token,
+        platform,
+        withPhone ? phone.trim() : undefined
+      );
+      if (res.success) {
+        onPendingSaved(platform, withPhone && !!phone.trim());
+      } else {
+        setError("Couldn't save your invite. Try again.");
+      }
+    } catch {
+      setError("Couldn't save your invite. Try again.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!phone.trim()) { setError("Please enter your phone number."); return; }
+    // Must have at least 7 digits after stripping non-digits
+    if (phone.replace(/\D/g, "").length < 7) {
+      setError("Please enter a valid phone number with country code, e.g. +447911123456");
+      return;
+    }
+    void save(true);
+  };
 
   return (
     <motion.div key="install_app" {...fadeUp} className="text-center">
@@ -396,21 +416,55 @@ function InstallAppScreen({
         <Download className="w-8 h-8" />
       </IconBadge>
       <h1 className="font-heading font-bold text-2xl text-foreground mb-2">Get The Operator</h1>
-      <p className="text-muted-foreground text-sm max-w-xs mx-auto mb-6">
-        Download the app to accept this invite. Your invite will be waiting when you sign up.
+      <p className="text-muted-foreground text-sm max-w-xs mx-auto mb-4">
+        Download the app to accept this invite. Enter the phone number you'll
+        sign up with and we'll apply the invite automatically once you're in.
       </p>
+
+      <form onSubmit={handleSubmit} className="mb-4 flex flex-col gap-2 text-left">
+        <input
+          type="tel"
+          placeholder="+44 7911 123456"
+          value={phone}
+          onChange={(e) => { setPhone(e.target.value); setError(""); }}
+          className="w-full rounded-xl border border-border bg-background px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+          disabled={saving}
+        />
+        {error && <p className="text-xs text-destructive">{error}</p>}
+        <button
+          type="submit"
+          disabled={saving}
+          className="w-full gradient-gold text-primary-foreground font-heading font-semibold text-sm py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 hover:opacity-90 transition-opacity disabled:opacity-60"
+        >
+          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save my invite"}
+        </button>
+        <button
+          type="button"
+          disabled={saving}
+          onClick={() => void save(false)}
+          className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground transition-colors"
+        >
+          Skip - I'll scan the QR code again after installing
+        </button>
+      </form>
+
       <StoreButtons platform={platform} />
-      {saving && (
-        <p className="mt-4 text-xs text-muted-foreground flex items-center justify-center gap-1.5">
-          <Loader2 className="w-3 h-3 animate-spin" />
-          Saving your invite…
-        </p>
-      )}
     </motion.div>
   );
 }
 
-function PendingSavedScreen({ platform }: { platform: Platform }) {
+function PendingSavedScreen({
+  platform,
+  token,
+  type,
+  emailSaved,
+}: {
+  platform: Platform;
+  token: string;
+  type: InviteType;
+  emailSaved: boolean;
+}) {
+  const deepLink = buildDeepLink(token, type);
   return (
     <motion.div key="pending_saved" {...fadeUp} className="text-center">
       <IconBadge variant="muted">
@@ -418,9 +472,19 @@ function PendingSavedScreen({ platform }: { platform: Platform }) {
       </IconBadge>
       <h1 className="font-heading font-bold text-2xl text-foreground mb-2">Invite saved</h1>
       <p className="text-muted-foreground text-sm max-w-xs mx-auto mb-6">
-        Download The Operator and sign up — your invite will connect automatically once you're in.
+        {emailSaved
+          ? "Download The Operator and sign up with that phone number - your invite will be applied automatically."
+          : "Download The Operator, then scan the QR code again or return to this page to claim your invite."}
       </p>
       <StoreButtons platform={platform} />
+      <p className="mt-5 text-xs text-muted-foreground">Already installed?</p>
+      <a
+        href={deepLink}
+        className="mt-1 inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+      >
+        Open invite in The Operator
+        <ArrowRight className="w-3.5 h-3.5" />
+      </a>
     </motion.div>
   );
 }
@@ -491,7 +555,7 @@ export function QRInviteFlow({ token, type, invalidReason }: QRInviteFlowProps) 
 
   useEffect(() => {
     if (ran.current) return;
-    if (invalidReason) return; // already initialised to error state — skip async flow
+    if (invalidReason) return; // already initialised to error state - skip async flow
     ran.current = true;
 
     const platform = detectPlatform();
@@ -513,7 +577,7 @@ export function QRInviteFlow({ token, type, invalidReason }: QRInviteFlowProps) 
             setState({ status: "used" });
             break;
           case "network_error":
-            toast.error("No connection — check your network.");
+            toast.error("No connection - check your network.");
             setState({ status: "network_error" });
             break;
           default:
@@ -531,8 +595,12 @@ export function QRInviteFlow({ token, type, invalidReason }: QRInviteFlowProps) 
 
         if (!mounted.current) return;
 
-        if (user) {
-          // ── Branch A: trusted existing user ─────────────────────────────
+        if (user && platform === "web") {
+          // ── Branch A: desktop logged-in user - complete on the website ───
+          // On mobile we always fire the deep link (Branch B) regardless of
+          // auth state, so the app is the sole caller of /api/qrinvite/complete.
+          // This prevents the website and the app from racing to redeem the
+          // same single-use personal token.
           setState({ status: "completing" });
 
           try {
@@ -547,7 +615,7 @@ export function QRInviteFlow({ token, type, invalidReason }: QRInviteFlowProps) 
             const isGroup = !!tokenData.groupId;
             if (result.success) {
               if (result.pending) {
-                toast.success("Join request sent — waiting for approval.");
+                toast.success("Join request sent - waiting for approval.");
                 setState({ status: "join_requested", groupName: tokenData.groupName });
               } else {
                 toast.success(
@@ -572,7 +640,7 @@ export function QRInviteFlow({ token, type, invalidReason }: QRInviteFlowProps) 
             }
           } catch {
             if (!mounted.current) return;
-            toast.error("Couldn't complete the invite — please try again.");
+            toast.error("Couldn't complete the invite - please try again.");
             setState({ status: "error" });
           }
         } else {
@@ -587,22 +655,26 @@ export function QRInviteFlow({ token, type, invalidReason }: QRInviteFlowProps) 
           if (appNotInstalled) {
             setState({ status: "install_app", platform, token, type });
           }
-          // If the app opened, the page went to background — no further action needed.
+          // If the app opened, the page went to background - no further action needed.
         }
       });
     }
 
     run().catch(() => {
       if (mounted.current) {
-        toast.error("Something went wrong — please try again.");
+        toast.error("Something went wrong - please try again.");
         setState({ status: "error" });
       }
     });
   }, [token, type, invalidReason]);
 
-  const handlePendingSaved = (platform: Platform) => {
-    toast.success("Invite saved — it'll be waiting when you sign up.");
-    setState({ status: "pending_saved", platform });
+  const handlePendingSaved = (platform: Platform, emailSaved: boolean) => {
+    toast.success(
+      emailSaved
+        ? "Invite saved - we'll apply it automatically when you sign up."
+        : "Invite saved - scan the QR code again after installing."
+    );
+    setState({ status: "pending_saved", platform, token, type, emailSaved });
   };
 
   return (
@@ -634,7 +706,12 @@ export function QRInviteFlow({ token, type, invalidReason }: QRInviteFlowProps) 
         />
       )}
       {state.status === "pending_saved" && (
-        <PendingSavedScreen platform={state.platform} />
+        <PendingSavedScreen
+          platform={state.platform}
+          token={state.token}
+          type={state.type}
+          emailSaved={state.emailSaved}
+        />
       )}
       {state.status === "join_requested" && (
         <JoinRequestedScreen groupName={"groupName" in state ? state.groupName : undefined} />

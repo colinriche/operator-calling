@@ -227,7 +227,7 @@ export function useDashboardData(): DashboardDataState {
         const code = (err as { code?: string }).code ?? "";
         // Silently fall back to empty data on permission-denied.
         // This happens when Firestore rules haven't been configured for these
-        // collections yet — show an empty dashboard rather than an error.
+        // collections yet - show an empty dashboard rather than an error.
         if (code === "permission-denied") {
           setState({ ...INITIAL_STATE, loading: false });
           return;

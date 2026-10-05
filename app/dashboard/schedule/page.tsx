@@ -10,7 +10,7 @@ export default function SchedulePage() {
 
       <div className="bg-card rounded-2xl p-6 border border-border/60">
         <p className="text-sm text-muted-foreground text-center py-8">
-          Scheduling UI — enter a contact, choose a window, and The Operator finds the mutual time.
+          Scheduling UI - enter a contact, choose a window, and The Operator finds the mutual time.
         </p>
       </div>
     </div>

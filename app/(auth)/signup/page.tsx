@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import type { Metadata } from "next";
-import { AuthForm } from "@/components/shared/AuthForm";
+import { SignInChoices } from "@/components/auth/SignInChoices";
 import { sanitizeGroupId, sanitizeInviteRef, sanitizeNextPath } from "@/lib/deep-link-params";
 
 export const metadata: Metadata = { title: "Create account" };
@@ -16,7 +16,7 @@ export default async function SignupPage({ searchParams }: Props) {
   const gid = sanitizeGroupId(params.gid);
   const nextPath = sanitizeNextPath(params.next);
   return (
-    <AuthForm
+    <SignInChoices
       mode="signup"
       inviteRef={ref}
       inviteGid={gid}

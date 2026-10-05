@@ -37,6 +37,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { db } from "@/lib/firebase";
+import { GroupCallsToggle } from "@/components/admin/GroupCallsToggle";
 import { useAuth } from "@/hooks/useAuth";
 
 // ─── Interfaces ───────────────────────────────────────────────────────────────
@@ -182,6 +183,7 @@ export function GroupAdminDashboard({ defaultTab = "members" }: { defaultTab?: s
   const [callType, setCallType] = useState<"audio" | "video">("audio");
   const [durationMinutes, setDurationMinutes] = useState<number | "">("");
   const [selectedUids, setSelectedUids] = useState<Set<string>>(new Set());
+  const [showUser, setShowUser] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [cancelling, setCancelling] = useState<string | null>(null);
 
@@ -590,17 +592,19 @@ export function GroupAdminDashboard({ defaultTab = "members" }: { defaultTab?: s
         participantVoipTokens,
         scheduledAt: Timestamp.fromDate(scheduledDate),
         callType,
+        showUser,
         ...(durationMinutes ? { durationMinutes: Number(durationMinutes) } : {}),
         status: "scheduled",
         createdAt: Timestamp.now(),
       });
 
-      toast.success("Call scheduled — it will fire automatically at the chosen time");
+      toast.success("Call scheduled - it will fire automatically at the chosen time");
       setShowForm(false);
       setScheduledAt("");
       setSelectedUids(new Set());
       setCallType("audio");
       setDurationMinutes("");
+      setShowUser(false);
       await loadScheduledCalls();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to schedule call");
@@ -628,8 +632,13 @@ export function GroupAdminDashboard({ defaultTab = "members" }: { defaultTab?: s
     <div className="max-w-5xl mx-auto">
       <div className="mb-8">
         <h1 className="font-heading font-bold text-3xl text-foreground mb-1">Group Admin</h1>
-        <p className="text-muted-foreground">{groupName} — manage your group, members, and calls.</p>
+        <p className="text-muted-foreground">{groupName} - manage your group, members, and calls.</p>
       </div>
+
+      {/* Whether this group is calling at all - above the stats, because a
+          group created from waitlist demand arrives with calls off and nothing
+          else on this page explains why nobody is being called. */}
+      <GroupCallsToggle groupId={groupId} />
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
@@ -782,7 +791,7 @@ export function GroupAdminDashboard({ defaultTab = "members" }: { defaultTab?: s
                 </div>
 
                 <div>
-                  <Label className="text-xs text-muted-foreground mb-1 block">Max duration (minutes) — optional</Label>
+                  <Label className="text-xs text-muted-foreground mb-1 block">Max duration (minutes) - optional</Label>
                   <Input
                     type="number"
                     min={1}
@@ -836,12 +845,20 @@ export function GroupAdminDashboard({ defaultTab = "members" }: { defaultTab?: s
                   )}
                 </div>
 
+                <div className="flex items-center justify-between py-1">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Show partner identity</p>
+                    <p className="text-xs text-muted-foreground">When off, participants see a generic label instead of each other&apos;s names</p>
+                  </div>
+                  <Switch checked={showUser} onCheckedChange={setShowUser} />
+                </div>
+
                 <div className="flex gap-2 justify-end">
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => { setShowForm(false); setSelectedUids(new Set()); setScheduledAt(""); }}
+                    onClick={() => { setShowForm(false); setSelectedUids(new Set()); setScheduledAt(""); setShowUser(false); }}
                   >
                     Cancel
                   </Button>
@@ -885,7 +902,7 @@ export function GroupAdminDashboard({ defaultTab = "members" }: { defaultTab?: s
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-foreground">
-                          {call.callType === "video" ? "Video" : "Audio"} call — {call.participantIds.length} participant{call.participantIds.length !== 1 ? "s" : ""}
+                          {call.callType === "video" ? "Video" : "Audio"} call - {call.participantIds.length} participant{call.participantIds.length !== 1 ? "s" : ""}
                         </p>
                         <p className="text-xs text-muted-foreground mt-0.5">
                           {formatScheduledAt(call.scheduledAt)} · {call.creatorName}

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**The Operator** is a voice-first communication platform — think early Skype without the bloat. The key mechanic: a call only connects when **both** users answer, removing call pressure and missed-timing friction. It supports one-to-one calls with known contacts, privacy-focused calls with unknown people globally, and group-based selective calling.
+**The Operator** is a voice-first communication platform - think early Skype without the bloat. The key mechanic: a call only connects when **both** users answer, removing call pressure and missed-timing friction. It supports one-to-one calls with known contacts, privacy-focused calls with unknown people globally, and group-based selective calling.
 
 The full product specification lives in `operator-website-prompt.md`.
 
@@ -19,14 +19,18 @@ npm run type-check   # TypeScript check (tsc --noEmit)
 
 ## Environment
 
-Copy `.env.local.example` to `.env.local` and fill in Firebase credentials before running. All variables are `NEXT_PUBLIC_FIREBASE_*`.
+Copy `.env.local.example` to `.env.local` and fill in the Firebase service-account credentials before running.
+
+The Firebase **project** is always `operator-calling`, hard-coded in `lib/firebase-env.ts`. There is no variable that selects it, no default and no fallback. Three environment variables run the site: `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY` and `ADMIN_LOGIN_ENABLED`. See `docs/firebase-environments.md`.
+
+**Never** add a second path to the Firebase project id, and never add a fallback to the credential lookup. `lib/firebase.ts` and `lib/firebase-admin.ts` both resolve through `lib/firebase-env.ts`; a client and server pointing at different projects is what produced sign-ins that verified against one project and found nothing in the other, and every code path that once selected between projects was a way to configure half of one.
 
 ## Tech Stack
 
 - **Framework:** Next.js 16 (App Router), React 19
 - **Language:** TypeScript (strict mode)
-- **Styling:** Tailwind CSS v4 (CSS-first — no `tailwind.config.js`; tokens in `app/globals.css` under `@theme`)
-- **Component library:** shadcn/ui v4 (uses `@base-ui/react` — no `asChild` prop; use `buttonVariants` + `<Link>` instead)
+- **Styling:** Tailwind CSS v4 (CSS-first - no `tailwind.config.js`; tokens in `app/globals.css` under `@theme`)
+- **Component library:** shadcn/ui v4 (uses `@base-ui/react` - no `asChild` prop; use `buttonVariants` + `<Link>` instead)
 - **Animation:** Framer Motion
 - **Backend/Auth:** Firebase Authentication, Firestore, Storage
 - **Proxy/middleware:** `proxy.ts` (Next.js 16 renamed `middleware.ts` → `proxy.ts`, export named `proxy`)
@@ -38,8 +42,8 @@ Copy `.env.local.example` to `.env.local` and fill in Firebase credentials befor
 
 ```
 /app
-  /(public)/         # Marketing pages — Navbar + Footer layout
-  /(auth)/           # login, signup — centered auth layout, force-dynamic
+  /(public)/         # Marketing pages - Navbar + Footer layout
+  /(auth)/           # login, signup - centered auth layout, force-dynamic
   /dashboard/        # User dashboard (7 sub-pages)
   /admin/            # Group admin + /admin/super (super admin)
 /components/
@@ -60,9 +64,9 @@ Copy `.env.local.example` to `.env.local` and fill in Firebase credentials befor
 
 ### Role System (3 tiers)
 
-1. **Standard User** — `/dashboard/*`
-2. **Group Admin** — `/admin` (GroupAdminDashboard)
-3. **Super Admin** — `/admin/super` (SuperAdminDashboard)
+1. **Standard User** - `/dashboard/*`
+2. **Group Admin** - `/admin` (GroupAdminDashboard)
+3. **Super Admin** - `/admin/super` (SuperAdminDashboard)
 
 ### Tailwind v4 Notes
 
@@ -73,7 +77,7 @@ No `tailwind.config.js`. All tokens in `app/globals.css`:
 
 ### shadcn/ui v4 Note
 
-This version uses `@base-ui/react/button` — **no `asChild` prop**. Pattern for link-buttons:
+This version uses `@base-ui/react/button` - **no `asChild` prop**. Pattern for link-buttons:
 ```tsx
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -94,9 +98,9 @@ Client SDK only (runs in Client Components). Server Components must not import `
 ## Design System
 
 **Colours (oklch):**
-- Primary: `oklch(0.72 0.16 75)` — warm golden yellow
-- Background: `oklch(0.977 0.007 88)` — cream/off-white
-- Foreground: `oklch(0.22 0.01 50)` — charcoal
-- Secondary/Accent: `oklch(0.40 0.07 220)` — deep blue-grey/teal
+- Primary: `oklch(0.72 0.16 75)` - warm golden yellow
+- Background: `oklch(0.977 0.007 88)` - cream/off-white
+- Foreground: `oklch(0.22 0.01 50)` - charcoal
+- Secondary/Accent: `oklch(0.40 0.07 220)` - deep blue-grey/teal
 
 **Brand rule:** Must NOT feel like a generic SaaS template, chat app, or video meeting platform. Voice-first, community-focused, warm and slightly quirky tone.

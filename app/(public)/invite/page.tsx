@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Phone } from "lucide-react";
 import { sanitizeGroupId, sanitizeInviteRef } from "@/lib/deep-link-params";
 
-export const metadata: Metadata = { title: "You've been invited — The Operator" };
+export const metadata: Metadata = { title: "You've been invited - The Operator" };
 
 interface Props {
   searchParams: Promise<{ ref?: string; gid?: string }>;
@@ -33,7 +33,7 @@ export default async function InvitePage({ searchParams }: Props) {
             You&apos;ve been invited to The Operator
           </h1>
           <p className="text-muted-foreground text-base leading-relaxed">
-            The Operator is a voice-first communication app — real calls, no
+            The Operator is a voice-first communication app - real calls, no
             endless messaging. Create a free account to connect with the person
             who invited you.
           </p>

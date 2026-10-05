@@ -1,13 +1,7 @@
-export const dynamic = "force-dynamic";
+import { redirect } from "next/navigation";
 
-import type { Metadata } from "next";
-import { AdminLoginForm } from "@/components/auth/AdminLoginForm";
-
-export const metadata: Metadata = {
-  title: "Admin access",
-  robots: { index: false, follow: false },
-};
-
+// The passwordless admin login is retired (see app/api/admin/token). Admins sign in
+// with a real credential at /login; their role comes from the `admins` collection.
 export default function AdminLoginPage() {
-  return <AdminLoginForm />;
+  redirect("/login?next=/admin");
 }

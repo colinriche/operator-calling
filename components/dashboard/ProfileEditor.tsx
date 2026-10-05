@@ -3,19 +3,24 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
-import { getIdToken, signOut } from "firebase/auth";
+import { getIdToken } from "firebase/auth";
 import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
-import { auth, db } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { User, Phone, Shield, Bell, Users, X, QrCode, Copy, Share2, RefreshCcw, Download } from "lucide-react";
 import { toDataURL } from "qrcode";
+import type { DeletionRequestView } from "@/lib/account-deletion";
+
+const DELETION_NOTICE =
+  "After 30 days the account will be permanently deleted, with certain data retained only if legally required.";
 
 const INTEREST_SUGGESTIONS = [
   "Running", "Remote work", "Music", "Language learning", "Startups",
@@ -36,6 +41,7 @@ export function ProfileEditor() {
   const { user, profile, profileDocId, loading } = useAuth();
   const [saving, setSaving] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
+  const [deletionRequest, setDeletionRequest] = useState<DeletionRequestView | null>(null);
   const [seeded, setSeeded] = useState(false);
 
   const [displayName, setDisplayName] = useState("");
@@ -48,6 +54,8 @@ export function ProfileEditor() {
   const [availStart, setAvailStart] = useState("09:00");
   const [availEnd, setAvailEnd] = useState("22:00");
   const [allowUnknown, setAllowUnknown] = useState(false);
+  const [restrictionPeriod, setRestrictionPeriod] = useState<string>("");
+  const [restrictionMax, setRestrictionMax] = useState<string>("");
 
   const [showOnline, setShowOnline] = useState(true);
   const [allowDiscovery, setAllowDiscovery] = useState(true);
@@ -94,6 +102,8 @@ export function ProfileEditor() {
     setAvailStart(profile.callPreferences?.availableHours?.start ?? "09:00");
     setAvailEnd(profile.callPreferences?.availableHours?.end ?? "22:00");
     setAllowUnknown(profile.callPreferences?.allowUnknownCalls ?? false);
+    setRestrictionPeriod(profile.autoCallRestrictionPeriod ?? "");
+    setRestrictionMax(profile.autoCallRestrictionMax ? String(profile.autoCallRestrictionMax) : "");
     setShowOnline(profile.privacy?.showOnlineStatus ?? true);
     setAllowDiscovery(profile.privacy?.allowGroupDiscovery ?? true);
     setEmailNotifs(profile.notifications?.email ?? true);
@@ -132,6 +142,8 @@ export function ProfileEditor() {
         "callPreferences.availableHours.start": availStart,
         "callPreferences.availableHours.end": availEnd,
         "callPreferences.allowUnknownCalls": allowUnknown,
+        autoCallRestrictionPeriod: restrictionPeriod || null,
+        autoCallRestrictionMax: restrictionMax ? parseInt(restrictionMax) : null,
         "privacy.showOnlineStatus": showOnline,
         "privacy.allowGroupDiscovery": allowDiscovery,
         "notifications.email": emailNotifs,
@@ -147,43 +159,69 @@ export function ProfileEditor() {
     }
   }
 
-  async function handleDeleteAccount() {
+  // Deleting never happens on the spot. These file a request for the super admin
+  // to process by hand, and the person can restore it for 30 days.
+  async function loadDeletionRequest() {
+    if (!user) return;
+    try {
+      const token = await getIdToken(user);
+      const query = profileDocId ? `?profileDocId=${encodeURIComponent(profileDocId)}` : "";
+      const res = await fetch(`/api/account/deletion${query}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.ok) setDeletionRequest(data.request ?? null);
+    } catch {
+      /* the buttons still work; the status just is not shown */
+    }
+  }
+
+  useEffect(() => {
+    void loadDeletionRequest();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, profileDocId]);
+
+  async function submitDeletion(action: "delete" | "permanent" | "restore") {
     if (!user) return;
 
-    const reason = window.prompt(
-      "Please tell us why you are deleting your account. This reason is stored in the archive record.",
-      "User requested account deletion"
-    );
-    if (reason === null) return;
+    let reason = "";
+    if (action !== "restore") {
+      const answer = window.prompt(
+        "Please tell us why you are leaving. This is stored with your request.",
+        "User requested account deletion"
+      );
+      if (answer === null) return;
+      reason = answer;
 
-    const confirmed = window.confirm(
-      "Delete your account? Your account data will be archived first to protect other users' records. If this website account is linked to your app account, the linked app account will be deleted too."
-    );
-    if (!confirmed) return;
+      const confirmed = window.confirm(
+        action === "permanent"
+          ? `Request permanent deletion of your account? ${DELETION_NOTICE} You can restore it from this page within 30 days.`
+          : `Delete your account? ${DELETION_NOTICE} You can restore it from this page within 30 days.`
+      );
+      if (!confirmed) return;
+    }
 
     try {
       setDeletingAccount(true);
       const token = await getIdToken(user);
-      const res = await fetch("/api/account/delete", {
+      const res = await fetch("/api/account/deletion", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          profileDocId,
-          reason: reason.trim() || "User requested account deletion",
-        }),
+        body: JSON.stringify({ action, profileDocId, reason }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Failed to delete account");
-      await signOut(auth);
-      toast.success("Your account has been archived and deleted.");
-      router.replace("/");
-    } catch (error) {
-      toast.error(
-        `Failed to delete account: ${error instanceof Error ? error.message : "Unknown error"}`
+      if (!res.ok) throw new Error(data.error ?? "Request failed");
+      setDeletionRequest(data.request ?? null);
+      toast.success(
+        action === "restore"
+          ? "Your account has been restored."
+          : "Deletion requested. You can restore your account within 30 days."
       );
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Something went wrong");
     } finally {
       setDeletingAccount(false);
     }
@@ -335,7 +373,7 @@ export function ProfileEditor() {
         <Progress value={completeness} className="h-2" />
         {completeness < 100 && (
           <p className="text-xs text-muted-foreground mt-2">
-            {completeness < 40 ? "Add a bio and interests to get better matched calls." : "Almost there — a few more details improve your call quality."}
+            {completeness < 40 ? "Add a bio and interests to get better matched calls." : "Almost there - a few more details improve your call quality."}
           </p>
         )}
       </div>
@@ -423,7 +461,7 @@ export function ProfileEditor() {
               <textarea
                 value={bio}
                 onChange={(e) => setBio(e.target.value)}
-                placeholder="A line or two about yourself — helps with matched calls."
+                placeholder="A line or two about yourself - helps with matched calls."
                 className="w-full min-h-[80px] resize-none rounded-xl border border-input bg-background px-3 py-2.5 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-shadow"
                 maxLength={200}
               />
@@ -510,6 +548,46 @@ export function ProfileEditor() {
               </div>
               <Switch checked={allowUnknown} onCheckedChange={setAllowUnknown} />
             </div>
+
+            <div className="pt-2 border-t border-border space-y-3">
+              <div>
+                <p className="text-sm font-medium text-foreground">Auto-call restriction</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Limit how many auto-calls you receive per period. When the limit is reached, further auto-calls are blocked until the period resets.</p>
+              </div>
+              <div className="flex gap-2">
+                <Select
+                  value={restrictionPeriod}
+                  onValueChange={(val) => {
+                    const period = val ?? "";
+                    setRestrictionPeriod(period);
+                    setRestrictionMax(period === "monthly" ? "4" : period ? "1" : "");
+                  }}
+                >
+                  <SelectTrigger className="w-36">
+                    <SelectValue placeholder="Not set" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Not set</SelectItem>
+                    <SelectItem value="daily">Daily</SelectItem>
+                    <SelectItem value="weekly">Weekly</SelectItem>
+                    <SelectItem value="monthly">Monthly</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                {restrictionPeriod && (
+                  <Select value={restrictionMax} onValueChange={(val) => setRestrictionMax(val ?? "")}>
+                    <SelectTrigger className="w-28">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(restrictionPeriod === "monthly" ? [4, 8] : [1, 3]).map((n) => (
+                        <SelectItem key={n} value={String(n)}>{n} calls</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+            </div>
           </div>
         </TabsContent>
 
@@ -589,18 +667,68 @@ export function ProfileEditor() {
 
       <div className="mt-8 rounded-2xl border border-destructive/30 bg-destructive/5 p-5">
         <h2 className="text-sm font-semibold text-destructive">Delete account</h2>
-        <p className="mt-1 text-xs text-muted-foreground">
-          This archives your account record first. Permanent archive removal requires a written request and super admin approval.
-        </p>
-        <Button
-          type="button"
-          variant="outline"
-          disabled={deletingAccount}
-          className="mt-4 border-destructive/40 text-destructive hover:bg-destructive/10"
-          onClick={handleDeleteAccount}
-        >
-          {deletingAccount ? "Deleting..." : "Delete my account"}
-        </Button>
+        <p className="mt-1 text-xs text-muted-foreground">{DELETION_NOTICE}</p>
+
+        {deletionRequest?.status === "pending" ? (
+          <div className="mt-4">
+            <p className="text-sm text-foreground">
+              {deletionRequest.requestType === "permanent_deletion"
+                ? "Permanent deletion requested"
+                : "Account deletion requested"}
+              {deletionRequest.requestedAt &&
+                ` on ${new Date(deletionRequest.requestedAt).toLocaleDateString()}`}
+              .
+            </p>
+            {deletionRequest.restoreUntil && (
+              <p className="mt-1 text-xs text-muted-foreground">
+                You can restore your account until{" "}
+                {new Date(deletionRequest.restoreUntil).toLocaleDateString()}.
+              </p>
+            )}
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Button
+                type="button"
+                disabled={deletingAccount}
+                className="gradient-gold border-0 text-primary-foreground font-semibold"
+                onClick={() => void submitDeletion("restore")}
+              >
+                {deletingAccount ? "Working..." : "Restore my account"}
+              </Button>
+              {deletionRequest.requestType !== "permanent_deletion" && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={deletingAccount}
+                  className="border-destructive/40 text-destructive hover:bg-destructive/10"
+                  onClick={() => void submitDeletion("permanent")}
+                >
+                  Request Permanent Deletion
+                </Button>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="mt-4 flex flex-col items-start gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={deletingAccount}
+              className="border-destructive/40 text-destructive hover:bg-destructive/10"
+              onClick={() => void submitDeletion("delete")}
+            >
+              {deletingAccount ? "Working..." : "Delete my account"}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={deletingAccount}
+              className="border-destructive/40 text-destructive hover:bg-destructive/10"
+              onClick={() => void submitDeletion("permanent")}
+            >
+              Request Permanent Deletion
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );

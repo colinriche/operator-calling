@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { onAuthStateChanged, signOut, User } from "firebase/auth";
 import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
+import { markSignedIn, markSignedOut } from "@/lib/session-cookie";
 import type { UserProfile } from "@/types";
 
 interface AuthState {
@@ -18,6 +19,31 @@ interface AuthState {
   refreshProfile: () => Promise<void>;
 }
 
+/**
+ * Link this account into any community group it registered interest in before
+ * having an account.
+ *
+ * Fire-and-forget, once per tab: a community group activates on demonstrated
+ * demand, mostly from people without accounts, so signing up later is the
+ * moment they can actually be admitted. Failures are silent by design - this
+ * must never interfere with signing in.
+ */
+async function claimWaitlistGroups(u: User): Promise<void> {
+  try {
+    const key = `operator_waitlist_claimed_${u.uid}`;
+    if (window.sessionStorage.getItem(key)) return;
+    window.sessionStorage.setItem(key, "1");
+
+    const token = await u.getIdToken();
+    await fetch("/api/waitlist/claim", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  } catch {
+    /* best effort */
+  }
+}
+
 export function useAuth(): AuthState {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -27,61 +53,73 @@ export function useAuth(): AuthState {
 
   const loadProfile = useCallback(async (u: User) => {
     try {
-      // 1. Try direct UID lookup
-      const snap = await getDoc(doc(db, "user", u.uid));
-      if (snap.exists()) {
-        const p = snap.data() as UserProfile;
+      const hasLinkedMarker = (p: UserProfile, uid: string) => {
+        const aliases = (p as UserProfile & { linkedWebUids?: unknown }).linkedWebUids;
+        return Boolean(
+          p.systemName ||
+          p.linkedSystemName ||
+          p.linkedWebUid === uid ||
+          (Array.isArray(aliases) && aliases.includes(uid))
+        );
+      };
+
+      const applyProfile = async (docId: string, p: UserProfile, linked: boolean) => {
         if (p.archived === true) {
           await signOut(auth);
-          return;
+          return true;
         }
         setProfile(p);
-        setProfileDocId(snap.id);
-        setIsLinked(!!(p.systemName || p.linkedSystemName));
-        return;
+        setProfileDocId(docId);
+        setIsLinked(linked);
+        return true;
+      };
+
+      // 1. Prefer explicit alias links. Phone auth can create a new Firebase UID,
+      // so linked accounts may not live at user/{auth.uid}.
+      const linkedArrayQ = await getDocs(
+        query(collection(db, "user"), where("linkedWebUids", "array-contains", u.uid))
+      );
+      if (!linkedArrayQ.empty) {
+        const docSnap = linkedArrayQ.docs[0];
+        const p = docSnap.data() as UserProfile;
+        if (await applyProfile(docSnap.id, p, true)) return;
       }
 
-      // 2. UID doc not found — check if a mobile account shares this email.
-      // Finding a doc by email alone does NOT mean accounts are linked — the mobile
-      // user doc has systemName set for all app users. Only treat as linked if the
-      // explicit merge has been done (linkedWebUid matches or linkedSystemName set).
-      if (u.email) {
-        const emailQ = await getDocs(
-          query(collection(db, "user"), where("email", "==", u.email))
-        );
-        if (!emailQ.empty) {
-          const docSnap = emailQ.docs[0];
-          const p = docSnap.data() as UserProfile;
-          if (p.archived === true) {
-            await signOut(auth);
-            return;
-          }
-          setProfile(p);
-          setProfileDocId(docSnap.id);
-          setIsLinked(!!(p.linkedSystemName || p.linkedWebUid === u.uid));
-          return;
-        }
-      }
-
-      // 3. Post-link fallback — the web doc was deleted; find the app doc that
-      //    recorded this web UID during the merge. The query itself proves the link.
       const linkedQ = await getDocs(
         query(collection(db, "user"), where("linkedWebUid", "==", u.uid))
       );
       if (!linkedQ.empty) {
         const docSnap = linkedQ.docs[0];
         const p = docSnap.data() as UserProfile;
-        if (p.archived === true) {
-          await signOut(auth);
-          return;
-        }
-        setProfile(p);
-        setProfileDocId(docSnap.id);
-        setIsLinked(true); // found specifically by linkedWebUid — link is confirmed
-        return;
+        if (await applyProfile(docSnap.id, p, true)) return;
       }
 
-      // 4. Brand new web-only account — no Firestore doc yet
+      // 1. Try direct UID lookup
+      const snap = await getDoc(doc(db, "user", u.uid));
+      if (snap.exists()) {
+        const p = snap.data() as UserProfile;
+        const aliases = (p as UserProfile & { linkedWebUids?: unknown }).linkedWebUids;
+        const directLooksLikeStub = !(
+          p.systemName ||
+          p.linkedSystemName ||
+          p.linkedWebUid ||
+          aliases ||
+          p.role ||
+          p.displayName ||
+          p.name ||
+          p.phoneNumber
+        );
+        if (!directLooksLikeStub) {
+          if (await applyProfile(snap.id, p, hasLinkedMarker(p, u.uid))) return;
+        }
+      }
+
+      // 2. No profile by alias or uid. An email address is deliberately NOT used
+      // to look for one: sharing an email is not proof that two accounts are the
+      // same person (docs/phone-first-auth.md). A phone sign-in is matched to its
+      // app profile by /api/account/resolve, from the verified number.
+
+      // 3. Brand new web-only account - no Firestore doc yet
       setProfile(null);
       setProfileDocId(null);
       setIsLinked(false);
@@ -95,8 +133,14 @@ export function useAuth(): AuthState {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
       setUser(u);
+      // Set before anything below can redirect: a page that sends a signed-out
+      // visitor to /login must not find a stale marker there, or the proxy
+      // would bounce them straight back.
+      if (u) markSignedIn();
+      else markSignedOut();
       if (u) {
         await loadProfile(u);
+        void claimWaitlistGroups(u);
       } else {
         setProfile(null);
         setProfileDocId(null);
