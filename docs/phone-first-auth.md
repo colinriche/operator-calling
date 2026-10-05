@@ -127,3 +127,86 @@ practice this is verified in the environment the developer chooses, after deploy
 - `npm run lint` fails on a circular-JSON ESLint config error that predates this branch.
 - `tests/card-encode.test.ts` can time out (5s) on slow machines; unrelated.
 - No emulator test covers `/api/account/resolve`; the rules for Firebase client SDK linking cannot be unit tested here.
+
+## Security findings and how this PR addresses them
+
+Principle: **only an authenticated, verified Firebase credential establishes account ownership.** A systemName, an
+email address, or a stored/typed phone number never does. Regression tests: `tests/account-ownership.test.ts`
+(they were run against the pre-fix `resolve` and `invite/process` routes and fail there) and
+`tests/auth-linking.test.ts`.
+
+### 1. systemName + email could link or merge different accounts - RESOLVED IN PR #3
+
+- **Was:** `POST /api/account/link` merged a web account into the app account for anyone who knew the Support Code
+  and the matching email (or typed the app email), and deleted the web account's document.
+- **Now:** the route returns 410 and has no database access (`app/api/account/link/route.ts`). The only code that
+  writes `linkedWebUid(s)` is `/api/account/resolve`, from a verified token. Google/Apple are attached by Firebase
+  `linkWithPopup` to the signed-in phone user (`SignInMethods.tsx`); a clash fails with
+  `auth/credential-already-in-use` and changes nothing.
+- **Tests:** "finding 1" block in `account-ownership.test.ts` (route returns 410 for a systemName + email body; no
+  `runTransaction`/`delete`/`set`; no `where("systemName")` anywhere; only `resolve` writes aliases).
+- **Existing data:** see "Existing-data concerns".
+
+### 2. Profiles resolved by email alone - RESOLVED IN PR #3 (for the website sign-in path)
+
+- **Was:** `useAuth` fell back to `where("email", "==", authEmail)`, and `SignInChoices` treated any profile with
+  the same email as "an existing account". A Google email equal to someone's profile email attached the session
+  to that profile.
+- **Now:** both lookups are removed; profiles are found by uid, by link alias, or by a verified phone
+  (see 3). Google/Apple additionally cannot create or enter an account without a phone link or an existing profile.
+- **Tests:** "finding 2" block (no `where("email"` in `useAuth`, `SignInChoices`, `resolve`; resolve never reads
+  an email) and the `decideFederatedSignIn` cases in `auth-linking.test.ts`.
+- **Deliberately left (not self-service identity):** admin-typed lookups by email in
+  `app/api/admin/groups/[id]/admin/route.ts` and `app/api/admin/organisers/route.ts` (an admin choosing a person,
+  behind `requireAdmin`), and the `admins/{email}` authority records in `lib/admin-auth.ts`. They do not let a
+  user claim an account. `app/api/qrinvite/pending/claim/route.ts` matches pending invites by the token's
+  verified phone, or its email when there is no phone; it grants an invite, not account ownership, but a developer
+  should confirm the token email there is a verified one.
+
+### 3. Unverified phone numbers trusted for ownership - RESOLVED IN PR #3 for new writes; existing data needs developer review
+
+- **Was:** the "add phone" step saved a typed number to `user.phoneNumber`, and `/api/account/resolve` later matched
+  a verified sign-in to any profile whose stored `phoneNumber` equalled it, so a number squatted on a profile
+  was handed to its real owner. `/api/invite/process` also keyed an `invites` record by a client-supplied number.
+- **Now:**
+  - The add-phone step is gone; the only phone written is `user.phoneNumber`, which Firebase just verified.
+    A phone is added to an existing account only by `linkWithPhoneNumber` (code verified by Firebase).
+  - `resolve` takes the number only from the verified token (`decoded.phone_number`) and, for the *stored-number*
+    match, only selects an **app-created** profile (has `systemName`) and only when exactly one matches
+    (`lib/account-resolve.ts`). A web-created profile carrying a typed number can no longer be matched, and an
+    ambiguous number matches nothing.
+  - `/api/invite/process` ignores the body's `inviteePhone` unless it equals the verified token number.
+- **Tests:** "finding 3" blocks (`pickPhoneMatch` cases; resolver uses the token number and the picker; sign-in
+  writes no typed number; invite route behaviour with a fake database: body phone ignored when it differs from
+  or the token lacks a verified number, written only for the verified one).
+- **Why not fully resolved for existing data:** a squatted number on a profile that *does* have a `systemName`
+  (for example written by the app or another path) is still indistinguishable from a real one from this repo. The
+  app's rules/writers own that (see below).
+
+## Existing-data concerns (nothing was read or changed in production)
+
+Please have a developer audit these read-only before or after rollout. Decide any clean-up; this PR does not.
+
+1. **Accounts linked by the old flow.** Profiles in `user` with `linkedWebUid` / `linkedWebUids` / `linkedWebEmail`
+   set. Each was linked on the strength of systemName + email, not a verified phone. They still resolve (we did
+   not break them, and we did not re-verify them). Query: `user` where `linkedWebUid` != null; compare each
+   linked uid's Firebase Auth record: does it have the phone provider and the same number as the profile?
+2. **Profiles associated by email matching.** There is no marker for "found by email"; the old code only displayed
+   such a profile and never wrote an alias, so no stored link is expected. Spot check: accounts whose Auth user has
+   no `linkedWebUids` entry and no `user/{uid}` document but whose email equals a profile email. After this PR those
+   people see no profile until they sign in by phone.
+3. **Stored phone numbers never Firebase-verified.** Written by the old web "add phone" step, and possibly other
+   writers. Query: `user` where `phoneNumber` != null and no `systemName`, and compare with the Auth user's
+   verified `phoneNumber`. Also `user` documents whose `phoneNumber` is shared by more than one profile (these now
+   match nothing in `resolve`).
+4. **`invites` records** with `method == "web_signup"` and `via == "sms_link"` keyed by a phone that is not the
+   inviting session's verified number were possible before this fix.
+5. **Rules.** Whether a signed-in user can write `systemName`/`phoneNumber`/`linkedWebUid` onto their own `user`
+   document depends on the app's `firestore.rules`, which this repo does not own. If they can, the `systemName`
+   filter in `pickPhoneMatch` is only a partial guard; the rule should forbid client writes to those fields.
+
+## Deliberately deferred
+
+- Any migration, re-verification, merging or clean-up of existing accounts or fields.
+- Re-keying stored phone numbers to a verified-only field (needs the app to write it; developer decision).
+- The admin and QR-invite email lookups noted under finding 2.

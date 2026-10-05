@@ -43,6 +43,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Identity mismatch" }, { status: 403 });
     }
 
+    // Only a number proved by Firebase Phone Auth may key an invite. The body's
+    // inviteePhone is client-supplied and is ignored unless it equals the verified one.
+    const verifiedPhone = typeof decoded.phone_number === "string" ? decoded.phone_number : "";
+    const phoneForInvite = verifiedPhone && inviteePhone === verifiedPhone ? verifiedPhone : "";
+
     // Look up inviter by username (unique, human-readable identifier)
     const inviterQuery = await db
       .collection("user")
@@ -118,11 +123,11 @@ export async function POST(req: NextRequest) {
 
     // Phone-keyed record in the mobile app's `invites` collection so that
     // matchPendingInvites() picks it up when the user signs in on the phone app.
-    if (inviteePhone) {
+    if (phoneForInvite) {
       batch.set(db.collection("invites").doc(), {
         senderId: inviterUid,
         senderName: inviterName,
-        phoneNumber: inviteePhone,
+        phoneNumber: phoneForInvite,
         method: "web_signup",
         groupId: groupId ?? null,
         groupName: groupId ? ((await db.collection("groups").doc(groupId).get()).data()?.name ?? null) : null,

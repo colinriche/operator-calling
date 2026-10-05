@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { FieldValue, type DocumentData, type QueryDocumentSnapshot } from "firebase-admin/firestore";
 import { getAdminServices } from "@/lib/firebase-admin";
+import { pickPhoneMatch } from "@/lib/account-resolve";
 
 function normalizePhoneNumber(value: string | null | undefined) {
   if (!value) return "";
@@ -100,7 +101,16 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  const linkedByPhone = phoneNumber ? await queryFirst(db, "phoneNumber", "==", phoneNumber) : null;
+  // The number comes from the verified token. The number stored on a profile is
+  // not itself verified, so it only selects an app-created profile, and never
+  // when more than one matches (lib/account-resolve.ts).
+  const phoneSnap = phoneNumber
+    ? await db.collection("user").where("phoneNumber", "==", phoneNumber).limit(3).get()
+    : null;
+  const phoneMatch = phoneSnap
+    ? pickPhoneMatch(phoneSnap.docs.map((d) => ({ id: d.id, data: d.data() })))
+    : null;
+  const linkedByPhone = phoneMatch ? phoneSnap!.docs.find((d) => d.id === phoneMatch.id)! : null;
   if (linkedByPhone) {
     await rememberWebUid(linkedByPhone, webUid, phoneNumber);
     return NextResponse.json({
