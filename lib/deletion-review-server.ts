@@ -82,7 +82,25 @@ export async function reviewDeletionRequest(
     // pending and nothing claims it happened; the admin sees the error and can
     // retry.
     const reason = validated.value.reason || "Account deletion request approved by an admin";
-    const { archiveId } = await deleteAccount(view.userId, reason);
+    // Claim it first, in a transaction, exactly as the app's automatic sweep does
+    // (pending -> processing). Without this an admin click and the sweep, or two
+    // admins, could both delete the same account.
+    const claimed = await db.runTransaction(async (tx) => {
+      const fresh = await tx.get(ref);
+      if (normaliseDeletionStatus(fresh.data()?.status) !== "pending") return false;
+      tx.set(ref, { status: "processing", claimedBy: caller.email, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+      return true;
+    });
+    if (!claimed) throw new ReviewRefusal("This request was just changed by someone else. Refresh and look again.", 409);
+
+    let archiveId: string | null | undefined;
+    try {
+      ({ archiveId } = await deleteAccount(view.userId, reason));
+    } catch (err) {
+      // Nothing was deleted: hand the request back so it can be retried.
+      await ref.set({ status: "pending", updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+      throw err;
+    }
     await ref.set(
       {
         status: "completed",

@@ -78,6 +78,9 @@ const NOT_PENDING: Record<Exclude<DeletionStatus, "pending">, string> = {
   restored: "The person withdrew this request.",
   declined: "This request was already declined.",
   completed: "This account has already been deleted.",
+  processing: "This account is being deleted right now.",
+  failed: "The automatic deletion failed. It needs a developer to look at it before it can be retried.",
+  held: "This request is on a legal hold and cannot be reviewed here.",
 };
 
 export function planReview(value: Extract<Validated, { ok: true }>["value"], ctx: ReviewContext): ReviewPlan {

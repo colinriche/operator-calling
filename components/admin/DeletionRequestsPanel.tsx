@@ -18,6 +18,9 @@ const STATUS_LABEL: Record<AdminDeletionRequestView["status"], string> = {
   restored: "Withdrawn",
   declined: "Declined",
   completed: "Deleted",
+  processing: "Deleting now",
+  failed: "Failed",
+  held: "Legal hold",
 };
 
 const STATUS_TONE: Record<AdminDeletionRequestView["status"], string> = {
@@ -25,6 +28,9 @@ const STATUS_TONE: Record<AdminDeletionRequestView["status"], string> = {
   restored: "border-border text-muted-foreground bg-muted/50",
   declined: "border-border text-muted-foreground bg-muted/50",
   completed: "border-destructive/40 text-destructive bg-destructive/5",
+  processing: "border-amber-400 text-amber-700 bg-amber-50",
+  failed: "border-destructive/40 text-destructive bg-destructive/5",
+  held: "border-blue-400 text-blue-700 bg-blue-50",
 };
 
 type Mode = "delete" | "decline" | null;
@@ -124,6 +130,9 @@ function RequestCard({
           {r.status === "completed" && `Deleted ${dateTime(r.completedAt)} by ${r.reviewedBy ?? "an admin"}.`}
           {r.status === "declined" && `Declined ${dateTime(r.reviewedAt)} by ${r.reviewedBy ?? "an admin"}.`}
           {r.status === "restored" && `Withdrawn by the person ${dateTime(r.restoredAt)}.`}
+          {r.status === "processing" && "The deletion is running. Refresh in a minute."}
+          {r.status === "failed" && "The automatic deletion failed and will not retry on its own. Ask a developer to check the function logs."}
+          {r.status === "held" && "Legal hold: this account will not be deleted until the hold is lifted."}
           {r.adminNote && ` Note: ${r.adminNote}`}
           {r.userMessage && ` Shown to the person: ${r.userMessage}`}
         </p>
@@ -229,7 +238,15 @@ export function DeletionRequestsPanel() {
     try {
       const data = await adminFetch<{ requests: AdminDeletionRequestView[] }>("/api/admin/deletion-requests");
       // Pending first, then newest.
-      const order = { pending: 0, declined: 1, completed: 1, restored: 2 } as const;
+      const order = {
+        failed: 0,
+        pending: 1,
+        processing: 1,
+        held: 2,
+        declined: 3,
+        completed: 3,
+        restored: 4,
+      } as const;
       setRequests(
         [...data.requests].sort(
           (a, b) =>

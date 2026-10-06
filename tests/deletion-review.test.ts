@@ -73,7 +73,7 @@ describe("planReview", () => {
   });
 
   it("only a pending request can be reviewed", () => {
-    for (const status of ["restored", "declined", "completed"] as const) {
+    for (const status of ["restored", "declined", "completed", "processing", "failed", "held"] as const) {
       const p = planReview(valid({ action: "decline", reason: "r" }), ctx({ status }));
       expect(p.ok, status).toBe(false);
       const d = planReview(valid({ action: "delete", confirm: true }), ctx({ status }));
@@ -89,6 +89,9 @@ describe("planReview", () => {
     expect(msg("restored")).toMatch(/withdrew/);
     expect(msg("declined")).toMatch(/already declined/);
     expect(msg("completed")).toMatch(/already been deleted/);
+    expect(msg("processing")).toMatch(/being deleted/);
+    expect(msg("failed")).toMatch(/failed/);
+    expect(msg("held")).toMatch(/legal hold/);
   });
 
   it("declining works inside the window too: it deletes nothing", () => {
@@ -126,8 +129,13 @@ describe("views", () => {
   });
 
   it("knows all four statuses, and falls back to pending for anything else", () => {
-    for (const s of ["pending", "restored", "declined", "completed"]) expect(normaliseDeletionStatus(s)).toBe(s);
-    expect(normaliseDeletionStatus("???")).toBe("pending");
+    for (const s of ["pending", "processing", "restored", "declined", "completed", "failed", "held"]) {
+      expect(normaliseDeletionStatus(s)).toBe(s);
+    }
+    expect(normaliseDeletionStatus(undefined)).toBe("pending");
+    expect(normaliseDeletionStatus("")).toBe("pending");
+    // An unknown status must never be actionable.
+    expect(normaliseDeletionStatus("???")).toBe("held");
     expect(normaliseDeletionStatus(undefined)).toBe("pending");
   });
 

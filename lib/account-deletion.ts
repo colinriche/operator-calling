@@ -18,12 +18,25 @@ export const DELETION_REQUEST_TYPES = ["account_deletion", "permanent_deletion"]
 export type DeletionRequestType = (typeof DELETION_REQUEST_TYPES)[number];
 
 /**
- * pending   - waiting for an admin (or for the person to withdraw it)
- * restored  - the person withdrew it
- * declined  - an admin declined it
- * completed - an admin deleted the account
+ * pending    - waiting for the person's window to end (the app then deletes it
+ *               automatically) or for an admin to act
+ * processing - the deletion is running right now (app sweep or an admin)
+ * restored   - the person withdrew it
+ * declined   - an admin declined it (legacy; the app no longer declines)
+ * completed  - the account was deleted
+ * failed     - the automatic deletion errored; it is not retried until an admin looks
+ * held       - a legal hold: never deleted until it is set back to pending
+ * Written by functions/account_deletion.js in the app repo; keep in step.
  */
-export const DELETION_STATUSES = ["pending", "restored", "declined", "completed"] as const;
+export const DELETION_STATUSES = [
+  "pending",
+  "processing",
+  "restored",
+  "declined",
+  "completed",
+  "failed",
+  "held",
+] as const;
 export type DeletionStatus = (typeof DELETION_STATUSES)[number];
 
 /** What the browser sees. Dates are ISO strings. */
@@ -47,10 +60,16 @@ function toIso(value: unknown): string | null {
   return date ? date.toISOString() : null;
 }
 
+/**
+ * A missing status is a request filed before statuses existed, so pending. A
+ * status this code does not know is NOT treated as pending: it is shown as a
+ * hold, so an admin can never delete on the strength of a state they can't see.
+ */
 export function normaliseDeletionStatus(value: unknown): DeletionStatus {
+  if (value === undefined || value === null || value === "") return "pending";
   return (DELETION_STATUSES as readonly string[]).includes(value as string)
     ? (value as DeletionStatus)
-    : "pending";
+    : "held";
 }
 
 /**
