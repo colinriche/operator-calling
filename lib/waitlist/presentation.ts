@@ -468,7 +468,7 @@ export function buildWaitlistPresentation(
     mode: context.mode,
     connectionType: context.connectionType,
     bullets: bulletsFor(context.connectionType),
-    formHeading: "Register your interest",
+    formHeading: "Let's get you talking",
     tagline: TAGLINE as string | null,
     signoff: null as string | null,
     bodyContinued: null as string | null,
@@ -600,7 +600,7 @@ export function buildWaitlistPresentation(
     body: w.body,
     disclaimer: NEUTRAL_DISCLAIMER,
     independenceNote: null,
-    formIntro: "Register your interest in talking with new people by voice.",
+    formIntro: "A few quick details and you're set to make friends by phone.",
     formFootnote:
       "Joining records your interest. We may email you about The Operator. Your details are not shared with anyone else.",
     successNote:

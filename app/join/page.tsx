@@ -281,7 +281,10 @@ export default async function WaitlistPage({
           untouched. */}
       <WhyCallingSection compact />
 
-      <JoinWaitlistBand note="The Operator is not live yet. Registering your interest is what decides where it opens first." />
+      <JoinWaitlistBand
+        note="Want to start making friends now? Join with Early Access. Rather wait for the full release? Pop your name on the waitlist."
+        buttonLabel="Join or wait"
+      />
 
       <HowConnectingWorksSection compact />
 
@@ -292,8 +295,9 @@ export default async function WaitlistPage({
       <GroupsSection showUseCases={false} compact />
 
       <JoinWaitlistFinalCta
-        heading="Sound like something you'd use?"
-        body="Register your interest. It takes a moment, and there is nothing to install."
+        heading="Ready to make a new friend?"
+        body="Join now with Early Access, or join the waitlist and wait for the full release. Either way it only takes a moment."
+        buttonLabel="Join or wait"
       />
     </>
   );

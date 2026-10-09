@@ -63,12 +63,18 @@ export function JoinWaitlistButton({ label = "Join the waitlist", tone = "gold",
 }
 
 /** A quiet band between two sections. */
-export function JoinWaitlistBand({ note }: { note: string }) {
+export function JoinWaitlistBand({
+  note,
+  buttonLabel,
+}: {
+  note: string;
+  buttonLabel?: string;
+}) {
   return (
     <section className="py-12">
       <div className="max-w-3xl mx-auto px-4 sm:px-6 text-center">
         <p className="text-lg text-muted-foreground mb-6 text-balance">{note}</p>
-        <JoinWaitlistButton />
+        <JoinWaitlistButton label={buttonLabel} />
       </div>
     </section>
   );
@@ -79,7 +85,15 @@ export function JoinWaitlistBand({ note }: { note: string }) {
  * buttons - this page has one action, and "Get started free" and "Download the
  * app" both lead away from it.
  */
-export function JoinWaitlistFinalCta({ heading, body }: { heading: string; body: string }) {
+export function JoinWaitlistFinalCta({
+  heading,
+  body,
+  buttonLabel,
+}: {
+  heading: string;
+  body: string;
+  buttonLabel?: string;
+}) {
   return (
     <section className="py-14">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 text-center">
@@ -90,7 +104,7 @@ export function JoinWaitlistFinalCta({ heading, body }: { heading: string; body:
           <p className="text-primary-foreground/80 text-lg mb-8 max-w-xl mx-auto text-balance">
             {body}
           </p>
-          <JoinWaitlistButton tone="dark" />
+          <JoinWaitlistButton tone="dark" label={buttonLabel} />
         </div>
       </div>
     </section>
