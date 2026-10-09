@@ -568,30 +568,40 @@ export function WaitlistForm({
           </p>
         )}
 
+        {/* Gold on the left opens the early access routes; the outlined button
+            on the right is the plain waitlist and is what Enter submits. */}
         <div className="grid grid-cols-2 gap-3">
-          <button
-            type="submit"
-            disabled={status === "submitting"}
-            className="h-14 rounded-xl gradient-gold border-0 text-primary-foreground font-heading font-semibold text-base hover:opacity-90 transition-opacity disabled:opacity-60 flex items-center justify-center gap-2"
-          >
-            {status === "submitting" && submittingOption === "waitlist" ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
-                Joining…
-              </>
-            ) : (
-              "Join the waitlist"
-            )}
-          </button>
-          <button
-            type="button"
-            onClick={toggleTryApp}
-            aria-expanded={tryAppOpen}
-            aria-controls="waitlist-try-app"
-            className="h-14 rounded-xl border border-border bg-background text-foreground font-heading font-semibold text-base hover:bg-muted/40 transition-colors"
-          >
-            Try the app now
-          </button>
+          <div className="flex flex-col gap-1.5">
+            <p className="text-xs text-center text-muted-foreground">Early Access</p>
+            <button
+              type="button"
+              onClick={toggleTryApp}
+              aria-expanded={tryAppOpen}
+              aria-controls="waitlist-try-app"
+              className="h-14 rounded-xl gradient-gold border-0 text-primary-foreground font-heading font-semibold text-base hover:opacity-90 transition-opacity"
+            >
+              Join Now
+            </button>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <p className="text-xs text-center text-muted-foreground">
+              Prefer to wait for full release
+            </p>
+            <button
+              type="submit"
+              disabled={status === "submitting"}
+              className="h-14 rounded-xl border border-border bg-background text-foreground font-heading font-semibold text-base hover:bg-muted/40 transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+            >
+              {status === "submitting" && submittingOption === "waitlist" ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                  Joining…
+                </>
+              ) : (
+                "Waitlist"
+              )}
+            </button>
+          </div>
         </div>
 
         {/* Early-access routes. Each submits the same form as the waitlist

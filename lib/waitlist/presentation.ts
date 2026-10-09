@@ -285,8 +285,8 @@ function bulletsFor(
 
 export const BUILTIN_WORDING: Record<WordingVariant, WaitlistWording> = {
   global: {
-    heading: "Like talking on the phone with new people?",
-    lead: "One-to-one voice calls with people you haven't met. You make yourself available and The Operator makes the call.",
+    heading: "Make friends on the phone from around the world with The Operator app",
+    lead: "Friendly one-to-one voice calls with people you haven't met yet. Say when you're free and The Operator makes the call.",
     body: "You do not need to search for people, send connection requests or arrange the call yourself. Make yourself available and, when a suitable call is scheduled, The Operator makes the connection and the call comes to you.",
     bodyContinued: "",
     signoff: "",
