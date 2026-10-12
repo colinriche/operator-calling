@@ -44,36 +44,29 @@ export interface AdminCaller {
 }
 
 /**
- * The caller's email address.
+ * The caller's VERIFIED email address, for the email-keyed `admins` lookup.
  *
- * A custom-token session - which is what /api/admin/token mints - carries no
- * `email` claim of its own, so this checks the standard claim, then a custom
- * claim, then falls back to the legacy `user` document. Without this an
- * email-keyed lookup could never match an admin-login session.
+ * Only an email Firebase itself has verified counts (Google / Apple sign-in).
+ * It must never come from anything the person can edit: the `email` field on
+ * their own `user` document is writable by them, so reading it here would let any
+ * signed-in user claim an admin's address and be treated as that admin. A
+ * custom-token (operator dashboard) session has no email claim; those admins are
+ * matched by uid (`lookupAdminById`), not by email.
+ *
+ * `profileDocId` is still returned for sessions whose uid is a `user` document id.
  */
 async function resolveEmail(
   identity: NonNullable<Awaited<ReturnType<typeof verifyIdToken>>>
 ): Promise<{ email: string | null; profileDocId: string | null; profile: DocumentData | null }> {
-  if (identity.email) {
+  if (identity.email && identity.decoded.email_verified === true) {
     return { email: identity.email, profileDocId: null, profile: null };
   }
 
-  const claimed = identity.decoded.email ?? (identity.decoded as { email?: unknown }).email;
-  if (typeof claimed === "string" && claimed.includes("@")) {
-    return { email: claimed.toLowerCase(), profileDocId: null, profile: null };
-  }
-
-  // Custom-token sessions use the Firestore document id as the uid, so the
-  // document is a direct lookup.
   try {
     const snap = await getAdminDb().collection("user").doc(identity.uid).get();
-    if (snap.exists) {
-      const data = snap.data() ?? {};
-      const email = typeof data.email === "string" ? data.email.toLowerCase() : null;
-      return { email, profileDocId: snap.id, profile: data };
-    }
+    if (snap.exists) return { email: null, profileDocId: snap.id, profile: snap.data() ?? {} };
   } catch (err) {
-    console.warn("[admin-auth] email fallback lookup failed:", (err as Error).message);
+    console.warn("[admin-auth] profile lookup failed:", (err as Error).message);
   }
 
   return { email: null, profileDocId: null, profile: null };
