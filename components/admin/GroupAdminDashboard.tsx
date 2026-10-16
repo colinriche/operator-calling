@@ -61,8 +61,6 @@ interface PendingInviteRow {
 interface AppUser {
   uid: string;
   name: string;
-  fcmToken: string;
-  voipToken: string;
 }
 
 interface ScheduledCallRecord {
@@ -432,13 +430,13 @@ export function GroupAdminDashboard({ defaultTab = "members" }: { defaultTab?: s
       const users: AppUser[] = [];
       for (const docSnap of snap.docs) {
         const d = docSnap.data();
-        const fcmToken = d.fcmToken as string | undefined;
-        if (!fcmToken) continue;
+        // Push tokens are private. The app registers a public yes/no hint
+        // (`hasPushToken`); documents from before that hint fall back to the token.
+        const reachable = (d.hasPushToken as boolean | undefined) ?? Boolean(d.fcmToken);
+        if (!reachable) continue;
         users.push({
           uid: docSnap.id,
           name: ((d.name ?? d.username ?? d.displayName ?? d.email ?? "Unknown") as string),
-          fcmToken,
-          voipToken: (d.voipToken as string) ?? "",
         });
       }
       setAppUsers(users);
@@ -569,17 +567,11 @@ export function GroupAdminDashboard({ defaultTab = "members" }: { defaultTab?: s
         ...Array.from(selectedUids).filter((uid) => uid !== user.uid),
       ];
 
-      const participantFcmTokens: Record<string, string> = {};
       const participantNames: Record<string, string> = {};
-      const participantVoipTokens: Record<string, string> = {};
 
       for (const uid of participantIds) {
         const appUser = appUsers.find((u) => u.uid === uid);
-        if (appUser) {
-          participantFcmTokens[uid] = appUser.fcmToken;
-          participantNames[uid] = appUser.name;
-          if (appUser.voipToken) participantVoipTokens[uid] = appUser.voipToken;
-        }
+        if (appUser) participantNames[uid] = appUser.name;
       }
 
       await setDoc(doc(db, "scheduledGroupCalls", callId), {
@@ -588,8 +580,7 @@ export function GroupAdminDashboard({ defaultTab = "members" }: { defaultTab?: s
         creatorName: user.displayName ?? user.email ?? "Operator",
         participantIds,
         participantNames,
-        participantFcmTokens,
-        participantVoipTokens,
+        // No push tokens here: they are private, the server finds them by user id.
         scheduledAt: Timestamp.fromDate(scheduledDate),
         callType,
         showUser,
