@@ -9,7 +9,7 @@ export const metadata: Metadata = {
     "How The Operator handles your information: what we collect, why, who helps us run the service, how long we keep it, and how to delete your account.",
 };
 
-const LAST_UPDATED = "2 October 2026";
+const LAST_UPDATED = "6 October 2026";
 const PRIVACY_EMAIL = "privacy@operatorcalling.com";
 
 const principles = [
@@ -31,7 +31,7 @@ const principles = [
   {
     icon: UserX,
     title: "Flag and report",
-    desc: "You can flag a call and report another person. Reports are reviewed by our team, who can suspend or remove accounts that break the rules.",
+    desc: "You can flag a call, and report or block another person. Reports are reviewed by our team, who can warn, suspend or remove accounts that break the rules.",
   },
 ];
 
@@ -94,8 +94,14 @@ const sections: {
             including the time zone you use.
           </li>
           <li>
-            <strong>Reports you make</strong> about other people or calls, and
-            any text you write in them.
+            <strong>Reports and blocks</strong>: reports you make about other
+            people or calls, any details you write in them, and the people you
+            block.
+          </li>
+          <li>
+            <strong>Moderation records</strong>: if you are reported, the report
+            and any action we take, such as a warning, suspension or ban, with
+            the reason and which team member took it.
           </li>
           <li>
             <strong>Crash logs and diagnostics</strong>, such as device model,
@@ -113,7 +119,9 @@ const sections: {
           </li>
           <li>
             <strong>Website accounts</strong>, if you sign in with email,
-            Google or a phone number, and the profile and settings you save.
+            Apple, Google or a phone number, and the profile and settings you
+            save. If you use Apple&apos;s &ldquo;Hide My Email&rdquo;, we receive
+            Apple&apos;s private relay address instead of your real one.
           </li>
           <li>
             <strong>Messages you send us</strong> through the contact form: your
@@ -169,7 +177,8 @@ const sections: {
         </li>
         <li>
           For safety: blocking, flagging, reports, and acting on accounts that
-          break the rules.
+          break the rules. A person you have blocked or reported cannot call
+          you, and you cannot call them.
         </li>
         <li>To run, troubleshoot and improve the service, including crash diagnostics.</li>
         <li>
@@ -190,6 +199,12 @@ const sections: {
           they may see your phone number instead, so it is worth setting one.
           Other group members can see what the group makes visible, such as
           member names.
+        </p>
+        <p>
+          If a person you spoke to later deletes their account, the call stays
+          in your call history, but their name is replaced with &ldquo;Deleted
+          user&rdquo;. The same applies to you in their history if you delete
+          yours.
         </p>
       </>
     ),
@@ -215,6 +230,11 @@ const sections: {
             storage (such as profile photos) and push notifications. Google
             reCAPTCHA helps protect phone sign-in from abuse, and Google
             provides public servers that help phones find each other for calls.
+          </li>
+          <li>
+            <strong>Apple</strong>: if you sign in to the website with Apple,
+            Apple confirms who you are and may give us a private relay email
+            address.
           </li>
           <li>
             <strong>Sentry</strong>: receives crash reports and diagnostics from
@@ -260,10 +280,10 @@ const sections: {
           </li>
           <li>
             If you ask us to delete your account, it enters a 30-day recovery
-            period during which you can restore it. After that it is eligible
-            for permanent deletion, which our team carries out by hand. When it
-            is deleted, your account and associated personal data are deleted
-            or anonymised.
+            period during which you can cancel the request. When the 30 days
+            end, the account is deleted: automatically for requests made in
+            the app, and by our team for requests made on this website or by
+            email. What is deleted, and what is kept, is described below.
           </li>
           <li>
             We may keep limited information where necessary for security, fraud
@@ -303,6 +323,26 @@ const sections: {
           you can edit or remove the profile details you added yourself in the
           app and on this website.
         </p>
+        <p>
+          <strong>While the request is pending</strong> your account is switched
+          off: you cannot make or receive calls, and other people see you as
+          unavailable. You can cancel at any time before the 30 days end.
+        </p>
+        <p>
+          <strong>When it is deleted</strong>, we remove your profile, photo,
+          contacts and invitations, notifications, call-back requests and the
+          sign-ins linked to the account. Calls you took part in stay in the
+          other person&apos;s history with your name replaced by &ldquo;Deleted
+          user&rdquo;.
+        </p>
+        <p>
+          <strong>What we keep</strong>: records of reports, blocks and actions
+          taken by our team, because we need them to keep people safe and to
+          meet legal obligations. They can include the name and user ID you
+          used, are visible only to our team, and are kept for as long as that
+          need lasts. If the law or a legal claim requires it, we may also place
+          a hold on a deletion until that is resolved.
+        </p>
       </>
     ),
   },
@@ -312,8 +352,9 @@ const sections: {
     body: (
       <p>
         We take reasonable steps to protect your information. Data sent to
-        Firebase and to this website is encrypted in transit with TLS, and call
-        audio uses WebRTC encryption. Access to our admin tools is limited to
+        Firebase, to this website and, in current versions of the app, to the
+        servers that set up and connect calls is encrypted in transit with TLS,
+        and call audio uses WebRTC encryption. Access to our admin tools is limited to
         authorised staff. No service can promise perfect security, so please
         tell us straight away if you think your account has been misused.
       </p>
