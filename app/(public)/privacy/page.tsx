@@ -68,9 +68,14 @@ const sections: {
             app.
           </li>
           <li>
-            <strong>Your name or username, a photo and other profile details</strong>,
-            including your first name, email address, city, country and
-            interests, where you choose to supply them. These are optional.
+            <strong>Your name, username and email address</strong>, which you
+            must give to create an account in the app. The name is a display
+            name; it does not have to be your first name or your real name.
+          </li>
+          <li>
+            <strong>Optional profile details</strong>: a photo, a short bio,
+            your city and country, and your interests. These are only collected
+            if you choose to add them.
           </li>
           <li>
             <strong>Account and device identifiers</strong>: an internal user
