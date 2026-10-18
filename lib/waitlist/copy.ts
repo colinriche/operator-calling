@@ -94,7 +94,7 @@ export const TESTER_CONSENT_LABEL =
 export const TESTER_PREVIEW_HEADLINE = "Want to test The Operator app?";
 
 export const TESTER_PREVIEW_BODY =
-  "After joining the waitlist, you'll also have the option to get Early Access and help test The Operator app. You don't need to wait for this calling group to become active.";
+  "Choose Join Now for Early Access: help test The Operator app and start taking calls sooner, rough edges and all. Or choose Waitlist if you'd rather wait, and we'll let you know when the full release is ready.";
 
 /** Why signing in is required for the tester programme but not for interest. */
 export const TESTER_LOGIN_REASON =
